@@ -1,0 +1,127 @@
+{
+    "version": 1,
+    "author": "sebastian lopez o",
+    "editor": "wokwi",
+    "parts": [
+        {
+            "type": "board-esp32-devkit-c-v4",
+            "id": "esp",
+            "top": 0,
+            "left": -4.76,
+            "attrs": {
+                "env": "micropython-20231227-v1.22.0"
+            }
+        },
+        {
+            "type": "wokwi-potentiometer",
+            "id": "pot1",
+            "top": -106.9,
+            "left": 278.2,
+            "attrs": {}
+        },
+        {
+            "type": "wokwi-potentiometer",
+            "id": "pot2",
+            "top": -183.7,
+            "left": 191.8,
+            "attrs": {}
+        },
+        {
+            "type": "wokwi-potentiometer",
+            "id": "pot3",
+            "top": -270.1,
+            "left": 105.4,
+            "attrs": {}
+        },
+        {
+            "type": "wokwi-potentiometer",
+            "id": "pot4",
+            "top": -346.9,
+            "left": 19,
+            "attrs": {}
+        },
+        {
+            "type": "wokwi-potentiometer",
+            "id": "pot5",
+            "top": 56.3,
+            "left": 460.6,
+            "attrs": {}
+        },
+        {
+            "type": "wokwi-potentiometer",
+            "id": "pot6",
+            "top": -20.5,
+            "left": 374.2,
+            "attrs": {}
+        }
+    ],
+    "connections": [
+        [
+            "esp:TX",
+            "$serialMonitor:RX",
+            "",
+            []
+        ],
+        [
+            "esp:RX",
+            "$serialMonitor:TX",
+            "",
+            []
+        ],
+        [
+            "pot1:SIG",
+            "esp:34",
+            "green",
+            [
+                "h-336.4",
+                "v336"
+            ]
+        ],
+        [
+            "pot2:SIG",
+            "esp:35",
+            "green",
+            [
+                "h-259.6",
+                "v441.6"
+            ]
+        ],
+        [
+            "pot3:SIG",
+            "esp:32",
+            "green",
+            [
+                "h-202",
+                "v537.6"
+            ]
+        ],
+        [
+            "pot4:SIG",
+            "esp:33",
+            "green",
+            [
+                "h-125.2",
+                "v643.2"
+            ]
+        ],
+        [
+            "esp:4",
+            "pot6:SIG",
+            "green",
+            [
+                "h0"
+            ]
+        ],
+        [
+            "esp:27",
+            "pot5:SIG",
+            "green",
+            [
+                "h-67.05",
+                "v105.6",
+                "h566.8"
+            ]
+        ]
+    ],
+    "dependencies": {}
+}
