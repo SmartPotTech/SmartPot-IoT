@@ -1,8 +1,9 @@
-from machine import ADC, Pin
+from machine import ADC, Pin, I2C
 from time import sleep, localtime
 import network
 import utelegram
 from config import utelegram_config, wifi_config
+from i2c_lcd import I2cLcd
 
 # Importar clases de sensores desde sensors.py
 from sensors import (
@@ -11,6 +12,12 @@ from sensors import (
     TDSSensor,
     HumiditySoilSensor,
     AtmosphereSensor,
+)
+
+from actuators import (
+    WaterPump,
+    UVLight,
+
 )
 
 # Importar funciones desde utilitys.py
@@ -30,6 +37,15 @@ if __name__ == "__main__":
     ph_sensor = PHSensor(35)
     tds_sensor = TDSSensor(32)
     humidity_soil_sensor = HumiditySoilSensor(33)
+    # Instancia de actuadores
+    water_pump = WaterPump(18)
+    uv_light = UVLight(19)
+
+    # Instancia de LCD
+    AddressOfLcd = 0x27
+    i2c = I2C(scl=Pin(16), sda=Pin(17), freq=400000) # connect scl to GPIO 22, sda to GPIO 21
+    lcd = I2cLcd(i2c, AddressOfLcd, 2, 16)
+
 
     # Configuración inicial de WiFi y pines
     sta_if = network.WLAN(network.STA_IF)
@@ -56,6 +72,11 @@ if __name__ == "__main__":
         print('No conectado - abortando')
 
     # Enviar datos de los sensores cada 60 segundos
+    water_pump.turn_on()
+    uv_light.turn_on()
+    # Mostrar en Display LCD
+    lcd.clear()
+    lcd.putstr("SmartPot ESP32")
     while True:
         # Leer valores de los sensores
         dht_data = dht_sensor.read_value()
@@ -68,6 +89,7 @@ if __name__ == "__main__":
 
         # Imprimir los valores en formato tabla
         print_table(temp, humidity_air, light, ph, tds, humidity_soil)
+
 
         # Enviar mensaje si el bot está conectado y la variable `should_send_msg` es True
         if should_send_msg and bot:
