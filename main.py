@@ -6,12 +6,11 @@ from config import utelegram_config, wifi_config
 
 # Importar clases de sensores desde sensors.py
 from sensors import (
-    TempSensor,
-    HumidityAirSensor,
     LightSensor,
     PHSensor,
     TDSSensor,
-    HumiditySoilSensor
+    HumiditySoilSensor,
+    AtmosphereSensor,
 )
 
 # Importar funciones desde utilitys.py
@@ -24,13 +23,13 @@ from utilitys import (
 should_send_msg = False
 
 if __name__ == "__main__":
-    # Instancia de cada sensor
-    temp_sensor = TempSensor(34)
-    humidity_air_sensor = HumidityAirSensor(35)
-    light_sensor = LightSensor(32)
-    ph_sensor = PHSensor(33)
-    tds_sensor = TDSSensor(27)
-    humidity_soil_sensor = HumiditySoilSensor(4)
+    # Instancia de cada sensor digital
+    dht_sensor = AtmosphereSensor(15)
+    # Instancia de cada sensor ADC
+    light_sensor = LightSensor(34)
+    ph_sensor = PHSensor(35)
+    tds_sensor = TDSSensor(32)
+    humidity_soil_sensor = HumiditySoilSensor(33)
 
     # Configuración inicial de WiFi y pines
     sta_if = network.WLAN(network.STA_IF)
@@ -59,8 +58,9 @@ if __name__ == "__main__":
     # Enviar datos de los sensores cada 60 segundos
     while True:
         # Leer valores de los sensores
-        temp = temp_sensor.read_temp()
-        humidity_air = humidity_air_sensor.read_humidity()
+        dht_data = dht_sensor.read_value()
+        temp = dht_data["temperature"]
+        humidity_air = dht_data["humidity"]
         light = light_sensor.read_light()
         ph = ph_sensor.read_ph()
         tds = tds_sensor.read_tds()
