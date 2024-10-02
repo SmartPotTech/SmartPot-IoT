@@ -54,8 +54,16 @@ class ubot:
             print("OSError: request timed out")
             return None
 
-    def listen(self):
+    def listen(self, limit):
+        start_time = time.time()  # Guardar el tiempo de inicio
         while True:
+            current_time = time.time()  # Obtener el tiempo actual
+            elapsed_time = current_time - start_time  # Calcular el tiempo transcurrido
+            
+            if elapsed_time > limit:  # Si se ha superado el límite de tiempo
+                break  # Salir del bucle
+
+
             self.read_once()
             time.sleep(self.sleep_btw_updates)
             gc.collect()
