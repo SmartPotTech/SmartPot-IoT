@@ -92,11 +92,28 @@ if __name__ == "__main__":
     # Acciones de comandos
 
     # Definir comandos del Bot
+    def turn_on_water_pump(message):
+        water_pump.turn_on()
+        bot.send(message['message']['chat']['id'], "El motor de agua ha sido activado.")
+
+    def turn_off_water_pump(message):
+        water_pump.turn_off()
+        bot.send(message['message']['chat']['id'], "El motor de agua ha sido desactivado.")
+
+    def turn_on_uv_light(message):
+        uv_light.turn_on()
+        bot.send(message['message']['chat']['id'], "La luz ultravioleta ha sido activada.")
+
+    def turn_off_uv_light(message):
+        uv_light.turn_off()
+        bot.send(message['message']['chat']['id'], "La luz ultravioleta ha sido desactivada.")
+
+
     if bot:
-        bot.register('/water_pump_on', lambda message: water_pump.turn_on())
-        bot.register('/water_pump_off', lambda message: water_pump.turn_off())
-        bot.register('/uv_light_on', lambda message: uv_light.turn_on())
-        bot.register('/uv_light_off', lambda message: uv_light.turn_off())
+        bot.register('/water_pump_on', turn_on_water_pump)
+        bot.register('/water_pump_off', turn_off_water_pump)
+        bot.register('/uv_light_on', turn_on_uv_light)
+        bot.register('/uv_light_off', turn_off_uv_light)
         bot.set_default_handler(lambda message: bot.send(message['message']['chat']['id'], "Command not recognized."))
 
     # Mostrar en Display LCD
