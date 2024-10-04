@@ -6,7 +6,7 @@ import utelegram
 
 from config import utelegram_config, wifi_config
 
-# Importar clases de sensores desde sensors.py
+# Importar clases de sensores
 from sensors import (
     LightSensor,
     PHSensor,
@@ -21,7 +21,7 @@ from actuators import (
 
 )
 
-# Importar funciones desde utilitys.py
+# Importar funciones
 from utilitys import (
     print_table,
     send_msg
@@ -30,7 +30,7 @@ from utilitys import (
 # Importar LCD Display
 from display import LCDDisplay
 
-# Variable global para controlar si se debe enviar el mensaje
+# Controlar si se debe enviar el mensaje
 should_send_msg = False
 
 if __name__ == "__main__":
