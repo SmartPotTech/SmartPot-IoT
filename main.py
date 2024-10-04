@@ -1,7 +1,9 @@
-from machine import Pin
-from time import sleep, localtime
+from time import sleep
 import network
 import utelegram
+
+# Importar Credenciales Wifi y Token Telegram
+
 from config import utelegram_config, wifi_config
 
 # Importar clases de sensores desde sensors.py
@@ -56,7 +58,7 @@ if __name__ == "__main__":
     sta_if.active(True)
     sta_if.connect(wifi_config['ssid'], wifi_config['password'])
 
-    # Definir bot aquí
+    # Definir Bot
     bot = None
 
     # Espera activa hasta 20 segundos para conectar
@@ -76,8 +78,6 @@ if __name__ == "__main__":
         sleep(0.25)
     else:
         print('No conectado - abortando')
-
-    # Acciones de comandos
 
     # Definir comandos del Bot
     def turn_on_water_pump(message):
@@ -122,7 +122,7 @@ if __name__ == "__main__":
         # Imprimir los valores en formato tabla
         print_table(temp, humidity_air, light, ph, tds, humidity_soil)
 
-         # Mostrar los datos en el display LCD
+        # Mostrar los datos en el display LCD
         lcd_display.display_sensor_data(temp, humidity_air, light, ph, tds, humidity_soil)
 
         # Enviar mensaje si el bot está conectado y la variable `should_send_msg` es True
