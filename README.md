@@ -14,7 +14,6 @@ Alcance del Proyecto:
 
 ## Simulación
 
-<iframe width="560" height="315" src="https://wokwi.com/projects/408863167711709185" title="Simulación en Wokwi" frameborder="0" allowfullscreen></iframe>
-
+[Simulación en Wokwi](https://wokwi.com/projects/408863167711709185)
 
 ## Prueba
