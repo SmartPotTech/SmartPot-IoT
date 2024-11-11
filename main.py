@@ -30,6 +30,9 @@ from utilitys import (
 # Importar LCD Display
 from display import LCDDisplay
 
+# Importar manejador
+from api import SmartPotAPI
+
 # Controlar si se debe enviar el mensaje
 should_send_msg = False
 
@@ -79,6 +82,11 @@ if __name__ == "__main__":
     else:
         print('No conectado - abortando')
 
+    api = SmartPotAPI()
+    token = api.login("juan.perez@example.com", "Contraseña1")
+    if token:
+        api.get_all_users()
+    
     # Definir comandos del Bot
     def turn_on_water_pump(message):
         water_pump.turn_on()
@@ -131,4 +139,3 @@ if __name__ == "__main__":
             bot.listen(60) # Listar por 60 segundos
         else:
             sleep(60) # Esperar 60 segundos si el bot no fue iniciado
-        
