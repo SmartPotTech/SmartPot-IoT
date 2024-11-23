@@ -9,16 +9,13 @@ class SmartPotAPI:
     
     def login(self, email, password):
         """Realiza login y obtiene el token de autenticación"""
-
+        
         data = {'email': email, 'password': password}
+        
         headers = {
             'User-Agent': 'SmartPotClient/1.0.0 (https://wokwi.com/)',
             'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache',
             'Accept': '*/*',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Host': 'api-smartpot.onrender.com',
         }
         endpoint = f'https://{self.base_url}/auth/login'
         
@@ -29,7 +26,7 @@ class SmartPotAPI:
             # Verifica el código de estado de la respuesta
             if response.status_code == 200:
                 response_data = response.text.strip()
-                if response_data != "":
+                if response_data:
                     self.token = response_data
                     print(f"Login exitoso, token: {self.token}")
                     return self.token
@@ -42,12 +39,12 @@ class SmartPotAPI:
                     print(f"Content: {response.json()}")
                 except ValueError as e:
                     print(f"Content: {response.text}") 
+                    print(f"Headers: {response.headers}") 
                 return None
         except Exception as e:
             print(f"Error durante la solicitud: {e}")
             return None
 
-    
     def get_all_users(self):
         """Obtiene todos los usuarios utilizando el token Bearer"""
         if not self.token:

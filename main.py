@@ -82,9 +82,11 @@ if __name__ == "__main__":
     else:
         print('No conectado - abortando')
 
+
     api = usmartpot.SmartPotAPI()
-    api.token = "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6eyJ0aW1lc3RhbXAiOjE3MzA2NzkyNDksImRhdGUiOjE3MzA2NzkyNDkwMDB9LCJlbWFpbCI6Imp1YW4ucGVyZXpAZXhhbXBsZS5jb20iLCJzdWIiOiJqdWFuLnBlcmV6QGV4YW1wbGUuY29tIiwiaWF0IjoxNzMxMzQ5NTQ4LCJleHAiOjE3MzEzNDk4NDh9.RwXchWdxLPNZJecWYQmQGzxdnyJgfSvb5KUkvQWCxZ8"
-    api.get_all_users()
+    api.login("juan.perez@example.com","Contraseña1")
+    if api:
+        api.get_all_users()
     
     '''
     # Definir comandos del Bot
