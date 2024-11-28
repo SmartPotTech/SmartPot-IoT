@@ -1,45 +1,76 @@
+import socket
 import ujson
-import urequests
 
 class SmartPotAPI:
     def __init__(self, base_url="api-smartpot.onrender.com"):
         self.base_url = base_url
         self.token = None
         self.sleep_btw_updates = 3  # Tiempo en segundos entre cada actualización
-    
+        self.port = 80
+
+    def _send_request(self, method, endpoint, headers, data=None):
+        """Método genérico para enviar solicitudes HTTP con el socket"""
+        # Crear el socket y conectar con el servidor
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((self.base_url, self.port))
+        
+        # Construir la solicitud HTTP
+        request = f"{method} {endpoint} HTTP/1.1\r\n"
+        request += f"Host: {self.base_url}\r\n"
+        
+        # Añadir los encabezados a la solicitud
+        for header, value in headers.items():
+            request += f"{header}: {value}\r\n"
+        
+        # Si hay datos, añadirlos al cuerpo de la solicitud
+        if data:
+            request += f"Content-Length: {len(data)}\r\n"
+            request += "\r\n"
+            request += data
+        
+        # Enviar la solicitud
+        sock.send(request.encode())
+
+        # Leer la respuesta
+        response = sock.recv(4096)
+        sock.close()
+        
+        # Decodificar la respuesta y retornar el contenido
+        return response.decode()
+
     def login(self, email, password):
         """Realiza login y obtiene el token de autenticación"""
         
-        data = {'email': email, 'password': password}
+        data = {
+            'email': email,
+            'password': password
+        }
         
         headers = {
             'User-Agent': 'SmartPotClient/1.0.0 (https://wokwi.com/)',
             'Content-Type': 'application/json',
-            'Accept': '*/*',
+            'Accept': 'application/json',
         }
-        endpoint = f'https://{self.base_url}/auth/login'
+
+        # Convertir los datos en formato JSON
+        json_data = ujson.dumps(data)
+
+        # Endpoint para el login
+        endpoint = '/auth/login'
         
         try:
-            # Realiza la solicitud POST para el login
-            response = urequests.post(endpoint, json=data, headers=headers)
-
-            # Verifica el código de estado de la respuesta
-            if response.status_code == 200:
-                response_data = response.text.strip()
-                if response_data:
-                    self.token = response_data
-                    print(f"Login exitoso, token: {self.token}")
-                    return self.token
-                else:
-                    print("Error de login, no se obtuvo el token.")
-                    return None
+            # Enviar la solicitud POST para login
+            response = self._send_request("POST", endpoint, headers, json_data)
+            
+            # Verificar el código de estado de la respuesta
+            if "200 OK" in response:
+                # Extraer el token de la respuesta (asumimos que la respuesta es solo el token)
+                token_start = response.find("\r\n\r\n") + 4
+                self.token = response[token_start:].strip()
+                print(f"Login exitoso, token: {self.token}")
+                return self.token
             else:
-                print(f"Error en la solicitud de login. Status code: {response.status_code}")
-                try:
-                    print(f"Content: {response.json()}")
-                except ValueError as e:
-                    print(f"Content: {response.text}") 
-                    print(f"Headers: {response.headers}") 
+                print(f"Error en la solicitud de login. Respuesta: {response}")
                 return None
         except Exception as e:
             print(f"Error durante la solicitud: {e}")
@@ -54,28 +85,31 @@ class SmartPotAPI:
         headers = {
             'User-Agent': 'SmartPotClient/1.0.0 (https://wokwi.com/)',
             'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache',
-            'Accept': '*/*',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Host': 'api-smartpot.onrender.com',
-            'Authorization': f'Bearer {self.token}'  # Autenticación Bearer
+            'Authorization': f'Bearer {self.token}',
+            'Accept': 'application/json',
         }
         
-        # Realiza la solicitud GET para obtener los usuarios
+        # Endpoint para obtener todos los usuarios
+        endpoint = '/Users/All'
+        
         try:
-            response = urequests.get(f'https://{self.base_url}/Users/All', headers=headers)
+            # Enviar la solicitud GET para obtener los usuarios
+            response = self._send_request("GET", endpoint, headers)
             
-            if response.status_code == 200:
-                response_data = response.json()
-                print(response_data)
-                if isinstance(response_data, list):
-                    print(f"Usuarios encontrados: {len(response_data)}")
-                    for user in response_data:
-                        print(user)  # Aquí puedes formatear los datos según lo que quieras mostrar
-                else:
-                    print("No se pudo obtener la lista de usuarios.")
+            # Verificar que la respuesta contiene datos JSON
+            if "200 OK" in response:
+                try:
+                    response_data = ujson.loads(response.split("\r\n\r\n")[1])
+                    print(response_data)
+                    if isinstance(response_data, list):
+                        print(f"Usuarios encontrados: {len(response_data)}")
+                        for user in response_data:
+                            print(user)  # Aquí puedes formatear los datos según lo que quieras mostrar
+                    else:
+                        print("No se pudo obtener la lista de usuarios.")
+                except ValueError:
+                    print("Error al parsear la respuesta como JSON.")
             else:
-                print(f"Error en la solicitud. Status code: {response.status_code}")
+                print(f"Error en la solicitud. Respuesta: {response}")
         except Exception as e:
             print(f"Error durante la solicitud GET: {e}")
