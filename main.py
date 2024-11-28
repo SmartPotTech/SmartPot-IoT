@@ -2,9 +2,10 @@ from time import sleep
 import network
 import utelegram
 
+
 # Importar Credenciales Wifi y Token Telegram
 
-from config import utelegram_config, wifi_config
+from config import utelegram_config, wifi_config, usmartpot_config
 
 # Importar clases de sensores
 from sensors import (
@@ -70,8 +71,8 @@ if __name__ == "__main__":
             print('WiFi Conectado')
             lcd_display.show_online_status()
             try:
-                bot = utelegram.ubot(utelegram_config['token'])
-                should_send_msg = True  # Cambia el estado de envío de mensajes
+                bot = usmartpot.Ubot(usmartpot_config['email'],usmartpot_config['password'])
+                should_send_msg = True
                 print('Bot inicializado correctamente')
             except Exception as e:
                 print(f"Error al inicializar el bot: {e}")
@@ -83,11 +84,8 @@ if __name__ == "__main__":
         print('No conectado - abortando')
 
 
-    api = usmartpot.SmartPotAPI()
-    api.login("juan.perez@example.com","Contraseña1")
-    if api:
-        api.get_all_users()
-    
+    bot.get_all_users()
+
     '''
     # Definir comandos del Bot
     def turn_on_water_pump(message):
