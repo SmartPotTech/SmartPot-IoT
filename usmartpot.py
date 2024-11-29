@@ -4,6 +4,11 @@ import urequests
 
 class Ubot:
     def __init__(self, email, password):
+        self.base_url_mw = "smartpot-middleware.onrender.com"
+        self.token = None
+        self.login(email, password)
+
+    def login(self, email, password):
         if not isinstance(email, str) or not isinstance(password, str):
             raise TypeError("El email y la contraseña deben ser cadenas de texto.")
 
@@ -12,9 +17,6 @@ class Ubot:
 
         if not email or not password:
             raise ValueError("El email y la contraseña no pueden estar vacíos.")
-
-        self.base_url = "api-smartpot.onrender.com"
-        self.token = None
 
         data = f'<credentials><email>{email}</email><password>{password}</password></credentials>'
 
@@ -25,7 +27,7 @@ class Ubot:
         }
 
         try:
-            response = urequests.post(f"https://smartpot-middleware.onrender.com/login", data=data, headers=headers)
+            response = urequests.post(f"https://{self.base_url_mw}/login", data=data, headers=headers)
             response_data = response.json()
 
             if "token" not in response_data:
@@ -35,33 +37,45 @@ class Ubot:
         except Exception as e:
             raise RuntimeError(f"{e}")
 
-    def get_all_users(self):
-        """Obtiene todos los usuarios utilizando el token Bearer"""
+    def create_record(self, crop_id, measures):
+        """Crea un registro con las medidas proporcionadas para un cultivo específico en formato XML (sin xml.etree.ElementTree)"""
         if not self.token:
             print("No se puede hacer la solicitud sin un token válido.")
             return
 
+        if not crop_id or not isinstance(measures, dict):
+            raise ValueError("El ID del cultivo y las medidas deben ser válidos.")
+
+        xml_str = "<root>"
+        xml_str += "<record>"
+
+        for measure, value in measures.items():
+            xml_str += f"<{measure}>{value}</{measure}>"
+
+        xml_str += "</record>"
+
+        xml_str += f"<crop>{crop_id}</crop>"
+        xml_str += f"<token>{self.token}</token>"
+
+        xml_str += "</root>"
+
         headers = {
             'User-Agent': 'SmartPotClient/1.0.0 (https://wokwi.com/)',
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/xml',
+            'Accept': 'application/json',
             'Cache-Control': 'no-cache',
-            'Accept': '*/*',
-            'Authorization': f'Bearer {self.token}'
         }
 
         try:
-            response = urequests.get(f'https://{self.base_url}/Users/All', headers=headers)
+            # Hacer la solicitud POST al nuevo endpoint
+            response = urequests.post(f'https://{self.base_url_mw}/create_record', data=xml_str, headers=headers)
 
-            if response.status_code == 200:
+            if response.status_code == 201:
                 response_data = response.json()
-                print(response_data)
-                if isinstance(response_data, list):
-                    print(f"Usuarios encontrados: {len(response_data)}")
-                    for user in response_data:
-                        print(user)
-                else:
-                    print("No se pudo obtener la lista de usuarios.")
+                print(f"Registro creado exitosamente")
             else:
                 print(f"Error en la solicitud. Status code: {response.status_code}")
+                print(response.headers)
+                print(response.text)
         except Exception as e:
-            print(f"Error durante la solicitud GET: {e}")
+            print(f"Error durante la solicitud POST: {e}")

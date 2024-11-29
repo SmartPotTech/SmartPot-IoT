@@ -25,7 +25,8 @@ from actuators import (
 # Importar funciones
 from utilitys import (
     print_table,
-    send_msg
+    send_msg,
+    send_record
 )
 
 # Importar LCD Display
@@ -84,34 +85,6 @@ if __name__ == "__main__":
         print('No conectado - abortando')
 
 
-    bot.get_all_users()
-
-    '''
-    # Definir comandos del Bot
-    def turn_on_water_pump(message):
-        water_pump.turn_on()
-        bot.send(message['message']['chat']['id'], "El motor de agua ha sido activado.")
-
-    def turn_off_water_pump(message):
-        water_pump.turn_off()
-        bot.send(message['message']['chat']['id'], "El motor de agua ha sido desactivado.")
-
-    def turn_on_uv_light(message):
-        uv_light.turn_on()
-        bot.send(message['message']['chat']['id'], "La luz ultravioleta ha sido activada.")
-
-    def turn_off_uv_light(message):
-        uv_light.turn_off()
-        bot.send(message['message']['chat']['id'], "La luz ultravioleta ha sido desactivada.")
-
-
-    if bot:
-        bot.register('/water_pump_on', turn_on_water_pump)
-        bot.register('/water_pump_off', turn_off_water_pump)
-        bot.register('/uv_light_on', turn_on_uv_light)
-        bot.register('/uv_light_off', turn_off_uv_light)
-        bot.set_default_handler(lambda message: bot.send(message['message']['chat']['id'], "Command not recognized."))
-
     # Mostrar en Display LCD
     lcd_display.show_welcome_message()
     sleep(5)
@@ -134,9 +107,8 @@ if __name__ == "__main__":
         lcd_display.display_sensor_data(temp, humidity_air, light, ph, tds, humidity_soil)
 
         # Enviar mensaje si el bot está conectado y la variable `should_send_msg` es True
-        if should_send_msg and bot:
-            send_msg(bot, utelegram_config['chat'], temp, humidity_air, light, ph, tds, humidity_soil)
-            bot.listen(60) # Listar por 60 segundos
+        if should_send_msg:
+            send_record(bot, usmartpot_config['crop'], temp, humidity_air, light, ph, tds, humidity_soil)
+            sleep(60)
         else:
             sleep(60) # Esperar 60 segundos si el bot no fue iniciado
-    '''
