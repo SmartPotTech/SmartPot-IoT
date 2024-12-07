@@ -5,7 +5,8 @@ wifi_config = {
 
 utelegram_config = {
     'token': '',
-    'chat': ''
+    'chat': '',
+    'crop':''
 }
 
 
