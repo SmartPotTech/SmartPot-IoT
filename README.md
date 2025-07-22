@@ -1,5 +1,8 @@
 # Proyecto de sistema de control de riego e índices en plantas
 
+[![Pylint](https://github.com/SmartPotTech/SmartPot-IoT/actions/workflows/pylint.yml/badge.svg)](https://github.com/SmartPotTech/SmartPot-IoT/actions/workflows/pylint.yml)
+[![CodeQL Advanced](https://github.com/SmartPotTech/SmartPot-IoT/actions/workflows/codeql.yml/badge.svg)](https://github.com/SmartPotTech/SmartPot-IoT/actions/workflows/codeql.yml)
+
 **Descripción General**
 
 SmartPot es un  sistema de software diseñado para la gestión y automatización de jardines hidropónicos, con enfoque en cultivos de tomates y lechugas. Este proyecto integra tecnologías de Internet de las Cosas (IoT) para ofrecer una solución completa y eficiente en el manejo de cultivos.
