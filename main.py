@@ -1,38 +1,11 @@
 from time import sleep
 import network
 import utelegram
-
-
-# Importar Credenciales Wifi y Token Telegram
-
-from config import utelegram_config, wifi_config, usmartpot_config
-
-# Importar clases de sensores
-from sensors import (
-    LightSensor,
-    PHSensor,
-    TDSSensor,
-    HumiditySoilSensor,
-    AtmosphereSensor,
-)
-
-from actuators import (
-    WaterPump,
-    UVLight,
-
-)
-
-# Importar funciones
-from utilitys import (
-    print_table,
-    send_msg,
-    send_record
-)
-
-# Importar LCD Display
-from display import LCDDisplay
-
-# Importar manejador
+from config import wifi_config,usmartpot_config,utelegram_config
+import sensors
+import actuators
+import utilitys
+import display
 import usmartpot
 
 # Controlar si se debe enviar el mensaje
@@ -40,20 +13,20 @@ should_send_msg = False
 
 if __name__ == "__main__":
     # Instancia de cada sensor digital
-    dht_sensor = AtmosphereSensor(15)
+    dht_sensor = sensors.AtmosphereSensor(15)
 
     # Instancia de cada sensor ADC
-    light_sensor = LightSensor(34)
-    ph_sensor = PHSensor(35)
-    tds_sensor = TDSSensor(32)
-    humidity_soil_sensor = HumiditySoilSensor(33)
+    light_sensor = sensors.LightSensor(34)
+    ph_sensor = sensors.PHSensor(35)
+    tds_sensor = sensors.TDSSensor(32)
+    humidity_soil_sensor = sensors.HumiditySoilSensor(33)
 
     # Instancia de actuadores
-    water_pump = WaterPump(19)
-    uv_light = UVLight(18)
+    water_pump = actuators.WaterPump(19)
+    uv_light = actuators.UVLight(18)
 
     # Instancia de LCDDisplay con pines scl y sda
-    lcd_display = LCDDisplay(scl_pin=16, sda_pin=17)  # Pines I2C para scl y sda
+    lcd_display = display.LCDDisplay(scl_pin=16, sda_pin=17)  # Pines I2C para scl y sda
 
     # Mostrar mensaje de conexión WiFi
     lcd_display.show_wifi_connecting()
@@ -72,6 +45,7 @@ if __name__ == "__main__":
             print('WiFi Conectado')
             lcd_display.show_online_status()
             try:
+                utilitys.sync_time()
                 bot = usmartpot.Ubot(usmartpot_config['email'],usmartpot_config['password'])
                 should_send_msg = True
                 print('Bot inicializado correctamente')
@@ -101,14 +75,15 @@ if __name__ == "__main__":
         humidity_soil = humidity_soil_sensor.read_soil_humidity()
 
         # Imprimir los valores en formato tabla
-        print_table(temp, humidity_air, light, ph, tds, humidity_soil)
+        utilitys.print_table(temp, humidity_air, light, ph, tds, humidity_soil)
 
         # Mostrar los datos en el display LCD
         lcd_display.display_sensor_data(temp, humidity_air, light, ph, tds, humidity_soil)
 
         # Enviar mensaje si el bot está conectado y la variable `should_send_msg` es True
         if should_send_msg:
-            send_record(bot, usmartpot_config['crop'], temp, humidity_air, light, ph, tds, humidity_soil)
+            #utilitys.send_msg(bot,utelegram_config['chat'], temp, humidity_air, light, ph, tds, humidity_soil)
+            utilitys.send_record(bot, usmartpot_config['crop'], temp, humidity_air, light, ph, tds, humidity_soil)
             sleep(60)
         else:
             sleep(60) # Esperar 60 segundos si el bot no fue iniciado
