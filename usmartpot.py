@@ -1,81 +1,109 @@
+
 import ujson
-import urequests
+import requests
+import ussl
+import socket
+import time
+import utilitys
 
 
 class Ubot:
     def __init__(self, email, password):
-        self.base_url_mw = "smartpot-middleware.onrender.com"
+        self.base_url_mw = "https://api.smartpot.app"
         self.token = None
         self.login(email, password)
+    
+
+    def _headers(self, auth=True):
+        """Genera los headers para cada request."""
+        h = {
+            "Content-Type": "application/json"
+
+        }
+        if auth and self.token:
+            h['Authorization'] = f"SmartPot-OAuth {self.token}"
+        return h
+
+    def _request(self, method, url, data=None, auth=True):
+        """
+        Maneja de forma centralizada el envío HTTP.
+        Muestra:
+        - URL
+        - STATUS
+        - BODY (solo si hay error)
+        """
+        try:
+            headers = self._headers(auth)
+            
+            # Debug: Mostrar lo que se está enviando
+            print(f"[DEBUG] Headers: {headers}")
+            if data:
+                print(f"[DEBUG] Data: {data}")
+            
+            response = requests.request(method, url, data=data.encode("utf-8"), headers=headers)
+
+            status = response.status_code
+
+            # Log pequeño (centralizado)
+            print(f"[HTTP] {method} {url}")
+            print(f"[STATUS] {status}")
+
+            text = response.text
+
+            # Si es success intentamos parsear JSON
+            if 200 <= status < 300:
+                try:
+                    return response.json()
+                except:
+                    print("[WARN] Respuesta no es JSON")
+                    return text
+
+            # Si es error, mostramos response unificada
+            print("[ERROR] Respuesta del servidor:")
+            print(text)
+            return None
+
+        except Exception as e:
+            print(f"[EXCEPTION] Error en request {method}: {e}")
+            return None
 
     def login(self, email, password):
         if not isinstance(email, str) or not isinstance(password, str):
             raise TypeError("El email y la contraseña deben ser cadenas de texto.")
 
-        if "@" not in email or "." not in email.split('@')[-1]:
-            raise ValueError("El email proporcionado no es válido.")
+        if "@" not in email:
+            raise ValueError("Email inválido.")
 
-        if not email or not password:
-            raise ValueError("El email y la contraseña no pueden estar vacíos.")
+        # Asegurarse de que el JSON esté bien formateado
+        payload = ujson.dumps({
+            "email": email,
+            "password": password
+        })
+        
 
-        data = f'<credentials><email>{email}</email><password>{password}</password></credentials>'
+        url = f"{self.base_url_mw}/auth/login"
 
-        headers = {
-            'User-Agent': 'SmartPotClient/1.0.0 (https://wokwi.com/)',
-            'Content-Type': 'application/xml',
-            'Accept': 'application/json',
-        }
+        response = self._request("POST", url, data=payload, auth=False)
 
-        try:
-            response = urequests.post(f"https://{self.base_url_mw}/login", data=data, headers=headers)
-            response_data = response.json()
+        if not response or "token" not in response:
+            raise RuntimeError("No se recibió un token en el login.")
 
-            if "token" not in response_data:
-                raise KeyError(response_data["message"])
-
-            self.token = response_data["token"]
-        except Exception as e:
-            raise RuntimeError(f"{e}")
+        self.token = response["token"]
+        print(f"[SUCCESS] Login exitoso. Token recibido.")
 
     def create_record(self, crop_id, measures):
-        """Crea un registro con las medidas proporcionadas para un cultivo específico en formato XML (sin xml.etree.ElementTree)"""
         if not self.token:
-            print("No se puede hacer la solicitud sin un token válido.")
-            return
+            print("No hay token, no se puede crear record.")
+            return None
 
         if not crop_id or not isinstance(measures, dict):
             raise ValueError("El ID del cultivo y las medidas deben ser válidos.")
 
-        xml_str = "<root>"
-        xml_str += "<record>"
+        payload = ujson.dumps({
+            "measures": measures,
+            "crop": crop_id
+        })
 
-        for measure, value in measures.items():
-            xml_str += f"<{measure}>{value}</{measure}>"
+        url = f"{self.base_url_mw}/Records/Create"
 
-        xml_str += "</record>"
-
-        xml_str += f"<crop>{crop_id}</crop>"
-        xml_str += f"<token>{self.token}</token>"
-
-        xml_str += "</root>"
-
-        headers = {
-            'User-Agent': 'SmartPotClient/1.0.0 (https://wokwi.com/)',
-            'Content-Type': 'application/xml',
-            'Accept': 'application/json',
-            'Cache-Control': 'no-cache',
-        }
-
-        try:
-            # Hacer la solicitud POST al nuevo endpoint
-            response = urequests.post(f'https://{self.base_url_mw}/create_record', data=xml_str, headers=headers)
-
-            if response.status_code == 201:
-                response_data = response.json()
-                print(f"Registro creado exitosamente")
-            else:
-                print(f"Error en la solicitud. Status code: {response.status_code}")
-                print(response.headers)
-                print(response.text)
-        except Exception as e:
-            print(f"Error durante la solicitud POST: {e}")
+        return self._request("POST", url, data=payload)
