@@ -99,4 +99,3 @@ class ubot:
             else:
                 if self.default_handler:
                     self.default_handler(message)
-
