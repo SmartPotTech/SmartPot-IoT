@@ -1,5 +1,6 @@
 from machine import Pin
 
+
 class Actuator:
     def __init__(self, pin_num):
         self.pin = Pin(pin_num, Pin.OUT)
@@ -18,10 +19,12 @@ class Actuator:
     def get_state(self):
         return "ON" if self.state else "OFF"
 
+
 # Class for Water Pump
 class WaterPump(Actuator):
     def __init__(self, pin_num):
         super().__init__(pin_num)
+
 
 # Class for UV Light
 class UVLight(Actuator):

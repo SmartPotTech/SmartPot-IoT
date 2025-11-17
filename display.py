@@ -1,5 +1,7 @@
 from i2c_lcd import I2cLcd
-from machine import I2C,Pin
+from machine import I2C, Pin
+
+
 class LCDDisplay:
     def __init__(self, scl_pin, sda_pin, address=0x27, rows=4, cols=20, freq=400000):
         # Configuración del bus I2C y el LCD

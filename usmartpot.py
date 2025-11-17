@@ -1,4 +1,3 @@
-
 import ujson
 import requests
 import ussl
@@ -12,7 +11,6 @@ class Ubot:
         self.base_url_mw = "https://api.smartpot.app"
         self.token = None
         self.login(email, password)
-    
 
     def _headers(self, auth=True):
         """Genera los headers para cada request."""
@@ -34,12 +32,12 @@ class Ubot:
         """
         try:
             headers = self._headers(auth)
-            
+
             # Debug: Mostrar lo que se está enviando
             print(f"[DEBUG] Headers: {headers}")
             if data:
                 print(f"[DEBUG] Data: {data}")
-            
+
             response = requests.request(method, url, data=data.encode("utf-8"), headers=headers)
 
             status = response.status_code
@@ -79,7 +77,6 @@ class Ubot:
             "email": email,
             "password": password
         })
-        
 
         url = f"{self.base_url_mw}/auth/login"
 

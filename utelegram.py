@@ -5,7 +5,7 @@ import urequests
 
 
 class ubot:
-    
+
     def __init__(self, token, offset=0):
         self.url = 'https://api.telegram.org/bot' + token
         self.commands = {}
@@ -15,14 +15,13 @@ class ubot:
 
         messages = self.read_messages()
         if messages:
-            if self.message_offset==0:
+            if self.message_offset == 0:
                 self.message_offset = messages[-1]['update_id']
             else:
                 for message in messages:
                     if message['update_id'] >= self.message_offset:
                         self.message_offset = message['update_id']
                         break
-
 
     def send(self, chat_id, text, parse_mode='Markdown'):
         data = {'chat_id': chat_id, 'text': text, 'parse_mode': parse_mode}
@@ -44,7 +43,7 @@ class ubot:
             'allowed_updates': ['message']}
 
         try:
-            update_messages = urequests.post(self.url + '/getUpdates', json=self.query_updates).json() 
+            update_messages = urequests.post(self.url + '/getUpdates', json=self.query_updates).json()
             if 'result' in update_messages:
                 for item in update_messages['result']:
                     result.append(item)
@@ -60,10 +59,9 @@ class ubot:
         while True:
             current_time = time.time()  # Obtener el tiempo actual
             elapsed_time = current_time - start_time  # Calcular el tiempo transcurrido
-            
+
             if elapsed_time > limit:  # Si se ha superado el límite de tiempo
                 break  # Salir del bucle
-
 
             self.read_once()
             time.sleep(self.sleep_btw_updates)
@@ -72,7 +70,7 @@ class ubot:
     def read_once(self):
         messages = self.read_messages()
         if messages:
-            if self.message_offset==0:
+            if self.message_offset == 0:
                 self.message_offset = messages[-1]['update_id']
                 self.message_handler(messages[-1])
             else:
@@ -81,7 +79,7 @@ class ubot:
                         self.message_offset = message['update_id']
                         self.message_handler(message)
                         break
-    
+
     def register(self, command, handler):
         self.commands[command] = handler
 

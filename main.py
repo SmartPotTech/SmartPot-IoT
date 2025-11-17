@@ -1,7 +1,7 @@
 from time import sleep
 import network
 import utelegram
-from config import wifi_config,usmartpot_config,utelegram_config
+from config import wifi_config, usmartpot_config, utelegram_config
 import sensors
 import actuators
 import utilitys
@@ -46,7 +46,7 @@ if __name__ == "__main__":
             lcd_display.show_online_status()
             try:
                 utilitys.sync_time()
-                bot = usmartpot.Ubot(usmartpot_config['email'],usmartpot_config['password'])
+                bot = usmartpot.Ubot(usmartpot_config['email'], usmartpot_config['password'])
                 should_send_msg = True
                 print('Bot inicializado correctamente')
             except Exception as e:
@@ -57,7 +57,6 @@ if __name__ == "__main__":
         sleep(0.25)
     else:
         print('No conectado - abortando')
-
 
     # Mostrar en Display LCD
     lcd_display.show_welcome_message()
@@ -82,8 +81,8 @@ if __name__ == "__main__":
 
         # Enviar mensaje si el bot está conectado y la variable `should_send_msg` es True
         if should_send_msg:
-            #utilitys.send_msg(bot,utelegram_config['chat'], temp, humidity_air, light, ph, tds, humidity_soil)
+            # utilitys.send_msg(bot,utelegram_config['chat'], temp, humidity_air, light, ph, tds, humidity_soil)
             utilitys.send_record(bot, usmartpot_config['crop'], temp, humidity_air, light, ph, tds, humidity_soil)
             sleep(60)
         else:
-            sleep(60) # Esperar 60 segundos si el bot no fue iniciado
+            sleep(60)  # Esperar 60 segundos si el bot no fue iniciado

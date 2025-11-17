@@ -1,6 +1,6 @@
 wifi_config = {
-    'ssid':"Wokwi-GUEST",
-    'password':''
+    'ssid': "Wokwi-GUEST",
+    'password': ''
 }
 
 utelegram_config = {
@@ -11,5 +11,5 @@ utelegram_config = {
 usmartpot_config = {
     'email': '',
     'password': '',
-    'crop':''
+    'crop': ''
 }

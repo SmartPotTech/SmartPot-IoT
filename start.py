@@ -1,7 +1,7 @@
 import subprocess
 
 comando = ["python", "-m", "mpremote", "connect", "port:rfc2217://localhost:4000", "run", "main.py"]
-#comando = ["python", "-m", "mpremote", "connect","list"]
+# comando = ["python", "-m", "mpremote", "connect","list"]
 
 try:
     subprocess.run(comando, check=True)

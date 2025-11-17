@@ -1,6 +1,7 @@
 from machine import ADC, Pin
 import dht
 
+
 class ADCSensor:
     def __init__(self, pin_num, adc_bits=12, attenuation=ADC.ATTN_11DB):
         self.pin = Pin(pin_num)
@@ -20,6 +21,7 @@ class ADCSensor:
     def map_value(self, value, from_low, from_high, to_low, to_high):
         return (value - from_low) * (to_high - to_low) / (from_high - from_low) + to_low
 
+
 # Clases para cada sensor ADC
 class LightSensor(ADCSensor):
     def read_light(self):
@@ -30,6 +32,7 @@ class LightSensor(ADCSensor):
             print("Failed to read Light value")
             return None
 
+
 class PHSensor(ADCSensor):
     def read_ph(self):
         raw_value = self.read_value()
@@ -38,6 +41,7 @@ class PHSensor(ADCSensor):
         else:
             print("Failed to read pH value")
             return None
+
 
 class TDSSensor(ADCSensor):
     def read_tds(self):
@@ -48,6 +52,7 @@ class TDSSensor(ADCSensor):
             print("Failed to read TDS value")
             return None
 
+
 class HumiditySoilSensor(ADCSensor):
     def read_soil_humidity(self):
         raw_value = self.read_value()
@@ -57,12 +62,14 @@ class HumiditySoilSensor(ADCSensor):
             print("Failed to read Soil Humidity value")
             return None
 
+
 class DigitalSensor:
     def __init__(self, pin_num):
         self.pin = Pin(pin_num)
 
     def read_value(self):
         raise NotImplementedError("This method should be overridden in subclasses")
+
 
 class AtmosphereSensor(DigitalSensor):
     def __init__(self, pin_num):
