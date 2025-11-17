@@ -1,7 +1,6 @@
 from time import sleep
 import network
-import utelegram
-from config import wifi_config, usmartpot_config, utelegram_config
+from config import wifi_config, usmartpot_config
 import sensors
 import actuators
 import utilitys

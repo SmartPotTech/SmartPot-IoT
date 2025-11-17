@@ -1,4 +1,4 @@
-config.py
+fs/config.py
 /__pycache__
 .idea
 .venv
