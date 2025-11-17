@@ -5,9 +5,11 @@ wifi_config = {
 
 utelegram_config = {
     'token': '',
-    'chat': '',
-    'crop':''
+    'chat': ''
 }
 
-
-
+usmartpot_config = {
+    'email': '',
+    'password': '',
+    'crop':''
+}
