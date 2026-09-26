@@ -1,0 +1,34 @@
+[project]
+name = "smartpot-iot"
+version = "2.0.0"
+description = "Firmware MicroPython de la maceta SmartPot (ESP32 en Wokwi o placa física)"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.13"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "mpremote>=1.26",
+    "pytest>=8.4",
+    "ruff>=0.13",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+extend-exclude = ["fs/i2c_lcd.py", "fs/lcd_api.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+known-third-party = ["machine", "dht", "network", "ntptime", "umqtt"]
+known-first-party = ["actuators", "config", "display", "sensors", "smartpot_client", "utils", "conftest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
