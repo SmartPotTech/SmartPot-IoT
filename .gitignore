@@ -1,4 +1,9 @@
 fs/config.py
-/__pycache__
+__pycache__/
+.venv/
+.pytest_cache/
+.ruff_cache/
 .idea
-.venv
+.vscode
+.DS_Store
+Thumbs.db
