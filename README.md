@@ -1,133 +1,108 @@
-# Proyecto de sistema de control de riego e índices en plantas
+# SmartPot-IoT
 
-[![Pylint](https://github.com/SmartPotTech/SmartPot-IoT/actions/workflows/pylint.yml/badge.svg)](https://github.com/SmartPotTech/SmartPot-IoT/actions/workflows/pylint.yml)
+## Estado del Proyecto
+
+[![Firmware CI](https://github.com/SmartPotTech/SmartPot-IoT/actions/workflows/ci.yml/badge.svg)](https://github.com/SmartPotTech/SmartPot-IoT/actions/workflows/ci.yml)
 [![CodeQL Advanced](https://github.com/SmartPotTech/SmartPot-IoT/actions/workflows/codeql.yml/badge.svg)](https://github.com/SmartPotTech/SmartPot-IoT/actions/workflows/codeql.yml)
 
-**Descripción General**
+## Descripción
 
-SmartPot es un sistema de software diseñado para la gestión y automatización de jardines hidropónicos, con enfoque en
-cultivos de tomates y lechugas. Este proyecto integra tecnologías de Internet de las Cosas (IoT) para ofrecer una
-solución completa y eficiente en el manejo de cultivos.
+SmartPot-IoT es el **firmware de la maceta**: MicroPython 1.23 sobre un ESP32, simulado en [Wokwi](https://wokwi.com/projects/408863167711709185) o grabado en una placa física. Lee los sensores, muestra los valores en una pantalla LCD, publica la telemetría por **MQTT sobre TLS** y ejecuta los comandos que llegan desde SmartPot, confirmando cada uno.
 
-Alcance del Proyecto:
-
-- Simulación Avanzada: Utilización de la plataforma Wokwi para emular sensores y actuadores, permitiendo un desarrollo y
-  pruebas precisas sin necesidad de hardware físico inicial.
-- Solución Integral de Software: Desarrollo de una plataforma que incluye base de datos, backend eficiente, frontend
-  intuitivo, capacidades de análisis de datos y sistemas de automatización de procesos.
-- Monitoreo en Tiempo Real: Implementación de sensores virtuales para medir parámetros críticos como humedad, luz,
-  temperatura, pH y niveles de nutrientes.
-- Control Automatizado: Desarrollo de algoritmos para ajustar automáticamente las condiciones del cultivo basados en los
-  datos recopilados y en los estándares de cada cultivo.
-- Cabe destacar que en nuestro prototipo tendremos 2 tipos de plantas(lechuga y tomates) para específicamente jardines
-  hidropónicos, podremos añadir sensores o eliminar sensores al igual que los actuadores.
-
-## Simulación
-
-[Simulación en Wokwi](https://wokwi.com/projects/408863167711709185)
-
-## Prueba
-
-### **Configuración de Wokwi en PyCharm para ESP32**
-
-Este documento describe cómo configurar **Wokwi** en **PyCharm** para simular un ESP32, cargar el firmware y ejecutar el
-código de Python en paralelo con la simulación.
-
-### 1. **Crear el Proyecto en PyCharm**
-
-1. Abre **PyCharm** y crea un nuevo proyecto de Python.
-
-2. Asegúrate de que tu proyecto esté configurado con el entorno virtual adecuado para tu versión de Python (se
-   recomienda Python 3.7 o superior).
-
-3. Instala las dependencias necesarias. Abre la terminal de PyCharm y ejecuta el siguiente comando para instalar
-   `mpremote`:
-   ```bash
-   pip install mpremote
-   ```
-
----
-
-### 2. **Configurar Wokwi para ESP32**
-
-Para usar **Wokwi** con **ESP32**, necesitas asegurarte de tener los archivos de configuración correctos en tu proyecto:
-
-#### Archivos Necesarios:
-
-1. **wokwi.toml**: Este archivo define la configuración de la simulación de Wokwi. Asegúrate de que el archivo
-   `wokwi.toml` esté ubicado en el directorio `esp32/` de tu proyecto. Este archivo es esencial para configurar el
-   entorno de simulación de **Wokwi**.
-
-2. **diagram.json**: Este archivo define el diagrama de conexiones para tu simulación. Debe estar ubicado en
-   `esp32/diagram.json`.
-
-3. **Firmware ESP32**: Necesitas el archivo binario de firmware compatible con **ESP32**. Un ejemplo es
-   `ESP32_GENERIC-20240602-v1.23.0.bin`. Este archivo debe ser cargado en la simulación para ejecutar el código en el
-   microcontrolador.
-
-#### Estructura del Proyecto:
-
-Tu proyecto debería tener una estructura similar a esta:
-
-```
-SmarPot/
-│
-├── esp32/
-│   ├── wokwi.toml
-│   ├── diagram.json
-│   └── ESP32_GENERIC-20240602-v1.23.0.bin
-│
-├── main.py
+```mermaid
+flowchart LR
+  sensores["DHT22 · luz · pH<br/>TDS · sustrato"] --> esp["ESP32<br/>MicroPython"]
+  esp --> lcd["LCD 20x4"]
+  esp -->|"telemetry · status · ack"| broker["mqtt.smartpot.app:8883<br/>TLS"]
+  broker -->|"commands"| esp
+  esp --> act["Bomba · Luz UV · Ventilador"]
 ```
 
-### 3. **Cargar el Firmware en Wokwi**
+## Circuito
 
-1. Asegúrate de que el firmware **ESP32_GENERIC-20240602-v1.23.0.bin** esté correctamente configurado en tu simulador
-   Wokwi.
+| Componente | Pin ESP32 | Escala enviada |
+| --- | --- | --- |
+| DHT22 (temperatura y humedad del aire) | GPIO 15 | °C y % |
+| Sensor de luz (potenciómetro en Wokwi) | GPIO 34 | 0–2000 lux |
+| Sensor de pH | GPIO 35 | 0–14 |
+| Sensor de TDS | GPIO 32 | 0–3000 ppm |
+| Humedad del sustrato | GPIO 33 | 0–100 % |
+| Bomba de agua (LED azul) | GPIO 19 | `WATER_PUMP` |
+| Luz UV (LED morado) | GPIO 18 | `UV_LIGHT` |
+| Ventilador (LED naranja) | GPIO 5 | `FAN` |
+| LCD 20x4 I2C | SCL 16 · SDA 17 | — |
 
-2. En **Wokwi**, carga este firmware para emular el comportamiento del **ESP32**.
+## Estructura del Proyecto
 
----
+```text
+SmartPot-IoT/
+├── fs/                      # Sistema de archivos del ESP32
+│   ├── main.py              # WiFi, NTP, MQTT, lecturas y comandos
+│   ├── smartpot_client.py   # Contrato MQTT v1: tópicos, telemetría, comandos y ACK
+│   ├── sensors.py           # Sensores analógicos y DHT22
+│   ├── actuators.py         # Actuadores con apagado automático por duración
+│   ├── display.py           # Pantalla LCD
+│   ├── utils.py             # Hora por NTP y tabla por consola
+│   ├── config.example.py    # Plantilla de config.py (no se versiona)
+│   ├── ca.crt               # CA pública que firma el certificado del broker
+│   └── i2c_lcd.py, lcd_api.py
+├── tests/                   # Pruebas con CPython y módulos de MicroPython simulados
+├── diagram.json             # Circuito de Wokwi
+├── wokwi.toml               # Firmware para la simulación local
+├── start.py                 # Ejecuta el firmware en la simulación local con mpremote
+└── pyproject.toml / uv.lock # Herramientas de desarrollo (mpremote, pytest, ruff)
+```
 
-### 4. **Ejecutar el Código en Paralelo con la Simulación**
+## Contrato MQTT
 
-Para ejecutar tu código de **Python** en paralelo con la simulación, debes utilizar el comando de **mpremote**.
+La maceta se conecta a `mqtt.smartpot.app:8883` con TLS 1.2, verifica el certificado del broker con `ca.crt` y se autentica con **usuario = id del cultivo** y la **clave del dispositivo**. El client id es `smartpot-<cropId>` (el broker rechaza ids vacíos).
 
-#### Comando para Ejecutar en Paralelo:
+| Tópico | Sentido | Ejemplo |
+| --- | --- | --- |
+| `smartpot/v1/{cropId}/telemetry` | Publica cada 30 s | `{"temperature":23.5,"humidity":61,"brightness":820,"ph":6.12,"tds":790,"soilMoisture":64.2}` |
+| `smartpot/v1/{cropId}/commands` | Recibe (QoS 1) | `{"id":"…","actuator":"WATER_PUMP","action":"ACTIVATE","durationSeconds":15}` |
+| `smartpot/v1/{cropId}/commands/ack` | Publica (QoS 1) | `{"id":"…","status":"EXECUTED","message":"Bomba encendido 15 s"}` |
+| `smartpot/v1/{cropId}/status` | Retenido y última voluntad | `online` / `offline` |
 
-En la terminal de PyCharm, usa el siguiente comando para conectarte al puerto **RFC2217** y ejecutar tu script
-`main.py`:
+Con `durationSeconds` el actuador se apaga solo al cumplirse el tiempo; sin él queda encendido hasta recibir `DEACTIVATE`.
+
+## Guía de Instalación
+
+### 1. Crear el cultivo en SmartPot
+
+En [smartpot.app](https://smartpot.app) crea un cultivo. La aplicación muestra **una sola vez** el id del cultivo y la clave del dispositivo; si la pierdes, genera una nueva desde la ficha del cultivo.
+
+### 2. Configurar el firmware
 
 ```bash
-python -m mpremote connect port:rfc2217://localhost:4000 run main.py
+cp fs/config.example.py fs/config.py
 ```
 
-Este comando se conecta al puerto de simulación (`localhost:4000`), carga el firmware y ejecuta el script **`main.py`**
-que contiene el código Python para el ESP32.
+Completa `crop_id` y `device_key`. `config.py` está en `.gitignore`: nunca subas la clave al repositorio ni la dejes visible en un proyecto público de Wokwi.
 
-- **port:rfc2217://localhost:4000**: Especifica la conexión RFC2217 en el puerto `4000`.
-- **run main.py**: Ejecuta el archivo `main.py` en el ESP32.
+### 3a. Simulación en el navegador
 
----
+Abre el proyecto de Wokwi, copia los archivos de `fs/` (incluido `ca.crt` y tu `config.py`) y el `diagram.json`, y ejecuta. La red `Wokwi-GUEST` tiene salida a Internet.
 
-### 5. **Configuración del Entorno en PyCharm**
+### 3b. Simulación local (VS Code o wokwi-cli)
 
-Para que PyCharm ejecute correctamente el comando en paralelo, sigue estos pasos:
+```bash
+uv sync
+# inicia la simulación de Wokwi en VS Code (usa wokwi.toml) y luego:
+uv run python start.py
+```
 
-1. **Configurar un Script de Ejecución en PyCharm**:
-    - En PyCharm, ve a `Run > Edit Configurations`.
-    - Haz clic en el ícono de **"+"** y selecciona **"Python"**.
-    - En el campo **"Script path"**, selecciona el archivo `main.py`.
-    - En el campo **"Parameters"**, escribe el comando de conexión y ejecución:
-      ```bash
-      -m mpremote connect port:rfc2217://localhost:4000 run main.py
-      ```
-    - Asegúrate de que el entorno de ejecución esté configurado correctamente (por ejemplo, seleccionando el entorno
-      virtual adecuado).
+`start.py` monta la carpeta `fs` en el ESP32 simulado con `mpremote` y ejecuta `main.py`.
 
-2. **Ejecutar en Paralelo**:
-    - Ahora puedes ejecutar tu código directamente desde PyCharm usando el botón de **"Run"** o **"Debug"**.
-    - El código se ejecutará en paralelo con la simulación, permitiéndote interactuar con el ESP32 simulado mientras el
-      código se ejecuta.
+### Pruebas
 
----
+```bash
+uv run ruff check .
+uv run pytest
+```
+
+Prueban el contrato MQTT, el manejo de comandos y ACK, el apagado por tiempo de los actuadores, la escala de los sensores y el respaldo de TLS en MicroPython anteriores a 1.23.
+
+## Licencia
+
+Este proyecto está bajo la licencia MIT.
