@@ -1,29 +1,54 @@
 from machine import Pin
 
-class Actuator:
-    def __init__(self, pin_num):
-        self.pin = Pin(pin_num, Pin.OUT)
-        self.state = False  # False means OFF, True means ON
 
-    def turn_on(self):
-        self.pin.on()  # Activate the actuator
-        self.state = True
-        print(f"{self.__class__.__name__} turned ON")
+class Actuator:
+    """Salida digital (relé o LED en la simulación) con apagado automático opcional."""
+
+    def __init__(self, name, pin_num):
+        self.name = name
+        self.pin = Pin(pin_num, Pin.OUT)
+        self.active = False
+        self.until = None
+        self.pin.off()
+
+    def turn_on(self, duration=None, now=0):
+        self.pin.on()
+        self.active = True
+        self.until = now + duration if duration else None
 
     def turn_off(self):
-        self.pin.off()  # Deactivate the actuator
-        self.state = False
-        print(f"{self.__class__.__name__} turned OFF")
+        self.pin.off()
+        self.active = False
+        self.until = None
 
-    def get_state(self):
-        return "ON" if self.state else "OFF"
+    def tick(self, now):
+        if self.active and self.until is not None and now >= self.until:
+            self.turn_off()
+            print(self.name, "apagado por tiempo")
 
-# Class for Water Pump
-class WaterPump(Actuator):
-    def __init__(self, pin_num):
-        super().__init__(pin_num)
 
-# Class for UV Light
-class UVLight(Actuator):
-    def __init__(self, pin_num):
-        super().__init__(pin_num)
+class ActuatorBank:
+    """Ejecuta los comandos de la API sobre los actuadores conectados."""
+
+    def __init__(self, actuators):
+        self.actuators = actuators
+
+    def execute(self, command, now):
+        actuator = self.actuators.get(command["actuator"])
+        if actuator is None:
+            return False, "La maceta no tiene " + command["actuator"]
+        if command["action"] == "ACTIVATE":
+            duration = command.get("durationSeconds")
+            actuator.turn_on(duration, now)
+            return True, actuator.name + (" encendido {} s".format(duration) if duration else " encendido")
+        if command["action"] == "DEACTIVATE":
+            actuator.turn_off()
+            return True, actuator.name + " apagado"
+        return False, "Acción desconocida: " + command["action"]
+
+    def tick(self, now):
+        for actuator in self.actuators.values():
+            actuator.tick(now)
+
+    def states(self):
+        return {name: actuator.active for name, actuator in self.actuators.items()}
