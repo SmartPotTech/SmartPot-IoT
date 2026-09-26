@@ -1,12 +1,15 @@
+"""Ejecuta el firmware en la simulación de Wokwi (VS Code o wokwi-cli) montando la carpeta fs."""
+
 import subprocess
+import sys
 
-comando = ["python", "-m", "mpremote", "connect", "port:rfc2217://localhost:4000", "run", "main.py"]
-# comando = ["python", "-m", "mpremote", "connect","list"]
+COMMAND = [sys.executable, "-m", "mpremote", "connect", "port:rfc2217://localhost:4000",
+           "mount", "fs", "exec", "import main"]
 
-try:
-    subprocess.run(comando, check=True)
-    print("Comando ejecutado exitosamente.")
-except subprocess.CalledProcessError as e:
-    print(f"Hubo un error al ejecutar el comando: {e}")
-except FileNotFoundError:
-    print("No se encontró el archivo o el comando. Asegúrate de tener mpremote instalado y en el PATH.")
+if __name__ == "__main__":
+    try:
+        subprocess.run(COMMAND, check=True)
+    except subprocess.CalledProcessError as error:
+        sys.exit(f"El firmware terminó con error: {error}")
+    except FileNotFoundError:
+        sys.exit("No se encontró mpremote: ejecuta «uv sync» antes de iniciar la simulación.")
