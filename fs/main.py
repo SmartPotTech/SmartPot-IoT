@@ -47,8 +47,8 @@ def main():
         "soilMoisture": SoilMoistureSensor(33),
     }
     bank = ActuatorBank({
-        "WATER_PUMP": Actuator("Bomba", 19),
-        "UV_LIGHT": Actuator("Luz UV", 18),
+        "WATER_PUMP": Actuator("Bomba de agua", 19, feminine=True),
+        "UV_LIGHT": Actuator("Luz de cultivo", 18, feminine=True),
         "FAN": Actuator("Ventilador", 5),
     })
 
