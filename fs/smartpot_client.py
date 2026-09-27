@@ -1,4 +1,4 @@
-"""Cliente MQTT de la maceta según el contrato v1 de SmartPot.
+"""Cliente MQTT del dispositivo según el contrato v1 de SmartPot.
 
 Las funciones de formato no dependen del hardware y se prueban con CPython.
 """

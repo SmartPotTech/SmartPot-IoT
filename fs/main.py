@@ -1,4 +1,4 @@
-"""Firmware de la maceta SmartPot para ESP32 con MicroPython (Wokwi o placa física)."""
+"""Firmware de SmartPot para un cultivo real: ESP32 con MicroPython (Wokwi o placa física)."""
 
 import time
 
