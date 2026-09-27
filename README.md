@@ -9,13 +9,15 @@
 
 SmartPot-IoT es el **firmware de la maceta**: MicroPython 1.23 sobre un ESP32, simulado en [Wokwi](https://wokwi.com/projects/408863167711709185) o grabado en una placa física. Lee los sensores, muestra los valores en una pantalla LCD, publica la telemetría por **MQTT sobre TLS** y ejecuta los comandos que llegan desde SmartPot, confirmando cada uno.
 
+¿Sin hardware ni Wokwi abierto? Desde la PWA puedes encender una **maceta virtual** siempre activa con [SmartPot-DataGenerator](https://github.com/SmartPotTech/SmartPot-DataGenerator): usa la misma clave y el mismo contrato que este firmware.
+
 ```mermaid
 flowchart LR
   sensores["DHT22 · luz · pH<br/>TDS · sustrato"] --> esp["ESP32<br/>MicroPython"]
   esp --> lcd["LCD 20x4"]
   esp -->|"telemetry · status · ack"| broker["mqtt.smartpot.app:8883<br/>TLS"]
   broker -->|"commands"| esp
-  esp --> act["Bomba · Luz UV · Ventilador"]
+  esp --> act["Bomba · Luz de cultivo · Ventilador"]
 ```
 
 ## Circuito
@@ -28,7 +30,7 @@ flowchart LR
 | Sensor de TDS | GPIO 32 | 0–3000 ppm |
 | Humedad del sustrato | GPIO 33 | 0–100 % |
 | Bomba de agua (LED azul) | GPIO 19 | `WATER_PUMP` |
-| Luz UV (LED morado) | GPIO 18 | `UV_LIGHT` |
+| Luz de cultivo (LED morado) | GPIO 18 | `UV_LIGHT` |
 | Ventilador (LED naranja) | GPIO 5 | `FAN` |
 | LCD 20x4 I2C | SCL 16 · SDA 17 | — |
 
@@ -102,6 +104,14 @@ uv run pytest
 ```
 
 Prueban el contrato MQTT, el manejo de comandos y ACK, el apagado por tiempo de los actuadores, la escala de los sensores y el respaldo de TLS en MicroPython anteriores a 1.23.
+
+## Documentación
+
+El firmware solo habla MQTT con el broker; todo lo demás lo decide la plataforma. La [documentación técnica](https://github.com/SmartPotTech/.github/blob/main/docs/SmartPot_Technical_Documentation.md) detalla el contrato MQTT, la conexión con TLS y el circuito. Los superdiagramas muestran la plataforma completa en una sola imagen ampliable:
+
+- [Operación completa](https://github.com/SmartPotTech/.github/blob/main/docs/images/superdiagrams/SmartPot_Super_02_Operation_Sequence.svg): la conexión de la maceta, cada lectura, los comandos con su ACK y la desconexión
+- [Máquinas de estado](https://github.com/SmartPotTech/.github/blob/main/docs/images/superdiagrams/SmartPot_Super_05_State_Machines.svg): los estados de la maceta y su cuenta MQTT, y los de un comando
+- [Arquitectura completa](https://github.com/SmartPotTech/.github/blob/main/docs/images/superdiagrams/SmartPot_Super_01_Architecture.svg): dónde encaja la maceta dentro de la plataforma
 
 ## Licencia
 
