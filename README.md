@@ -107,11 +107,11 @@ Prueban el contrato MQTT, el manejo de comandos y ACK, el apagado por tiempo de 
 
 ## Documentación
 
-El firmware solo habla MQTT con el broker; todo lo demás lo decide la plataforma. La [documentación técnica](https://github.com/SmartPotTech/.github/blob/main/docs/SmartPot_Technical_Documentation.md) detalla el contrato MQTT, la conexión con TLS y el circuito. Los superdiagramas muestran la plataforma completa en una sola imagen ampliable:
+El firmware solo habla MQTT con el broker; todo lo demás lo decide la plataforma. La [documentación técnica](https://github.com/SmartPotTech/.github/blob/main/docs/SmartPot_Technical_Documentation.md) detalla el contrato MQTT, la conexión con TLS y el circuito. Los diagramas generales muestran la plataforma completa en una sola imagen ampliable:
 
-- [Operación completa](https://github.com/SmartPotTech/.github/blob/main/docs/images/superdiagrams/SmartPot_Super_02_Operation_Sequence.svg): la conexión de la maceta, cada lectura, los comandos con su ACK y la desconexión
-- [Máquinas de estado](https://github.com/SmartPotTech/.github/blob/main/docs/images/superdiagrams/SmartPot_Super_05_State_Machines.svg): los estados de la maceta y su cuenta MQTT, y los de un comando
-- [Arquitectura completa](https://github.com/SmartPotTech/.github/blob/main/docs/images/superdiagrams/SmartPot_Super_01_Architecture.svg): dónde encaja la maceta dentro de la plataforma
+- [Operación completa](https://github.com/SmartPotTech/.github/blob/main/docs/diagrams/SmartPot_Global_02_Operation_Sequence.svg): la conexión de la maceta, cada lectura, los comandos con su ACK y la desconexión
+- [Máquinas de estado](https://github.com/SmartPotTech/.github/blob/main/docs/diagrams/SmartPot_Global_05_State_Machines.svg): los estados de la maceta y su cuenta MQTT, y los de un comando
+- [Arquitectura completa](https://github.com/SmartPotTech/.github/blob/main/docs/diagrams/SmartPot_Global_01_Architecture.svg): dónde encaja la maceta dentro de la plataforma
 
 ## Licencia
 
