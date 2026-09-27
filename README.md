@@ -55,7 +55,7 @@ SmartPot-IoT/
 
 ## Contrato MQTT
 
-La maceta se conecta a `mqtt.smartpot.app:8883` con TLS 1.2, verifica el certificado del broker con `ca.crt` y se autentica con **usuario = id del cultivo** y la **clave del dispositivo**. El client id es `smartpot-<cropId>` (el broker rechaza ids vacíos).
+La maceta se conecta a `mqtt.smartpot.app:8883` con TLS (1.2 o superior), verifica el certificado del broker con `ca.crt` y se autentica con **usuario = id del cultivo** y la **clave del dispositivo**. El client id es `smartpot-<cropId>` (el broker rechaza ids vacíos).
 
 | Tópico | Sentido | Ejemplo |
 | --- | --- | --- |
