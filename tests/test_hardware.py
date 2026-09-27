@@ -31,8 +31,8 @@ def test_activation_without_duration_stays_on_until_deactivated():
 
 def test_unknown_actuators_and_actions_fail():
     actuators = bank()
-    assert actuators.execute({"actuator": "HUMIDIFIER", "action": "ACTIVATE"}, 0) == (False,
-                                                                                     "La maceta no tiene HUMIDIFIER")
+    missing = actuators.execute({"actuator": "HUMIDIFIER", "action": "ACTIVATE"}, 0)
+    assert missing == (False, "Este dispositivo no tiene HUMIDIFIER")
     assert actuators.execute({"actuator": "FAN", "action": "BLINK"}, 0)[0] is False
 
 

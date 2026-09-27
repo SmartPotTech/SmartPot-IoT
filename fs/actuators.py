@@ -38,7 +38,7 @@ class ActuatorBank:
     def execute(self, command, now):
         actuator = self.actuators.get(command["actuator"])
         if actuator is None:
-            return False, "La maceta no tiene " + command["actuator"]
+            return False, "Este dispositivo no tiene " + command["actuator"]
         if command["action"] == "ACTIVATE":
             duration = command.get("durationSeconds")
             actuator.turn_on(duration, now)
