@@ -4,8 +4,10 @@ from machine import Pin
 class Actuator:
     """Salida digital (relé o LED en la simulación) con apagado automático opcional."""
 
-    def __init__(self, name, pin_num):
+    def __init__(self, name, pin_num, feminine=False):
         self.name = name
+        # Para concordar el mensaje: «Bomba de agua encendida», «Ventilador encendido».
+        self.ending = "a" if feminine else "o"
         self.pin = Pin(pin_num, Pin.OUT)
         self.active = False
         self.until = None
@@ -24,7 +26,7 @@ class Actuator:
     def tick(self, now):
         if self.active and self.until is not None and now >= self.until:
             self.turn_off()
-            print(self.name, "apagado por tiempo")
+            print(self.name, "apagad" + self.ending, "por tiempo")
 
 
 class ActuatorBank:
@@ -40,10 +42,11 @@ class ActuatorBank:
         if command["action"] == "ACTIVATE":
             duration = command.get("durationSeconds")
             actuator.turn_on(duration, now)
-            return True, actuator.name + (" encendido {} s".format(duration) if duration else " encendido")
+            state = " encendid" + actuator.ending
+            return True, actuator.name + (state + " por {} s".format(duration) if duration else state)
         if command["action"] == "DEACTIVATE":
             actuator.turn_off()
-            return True, actuator.name + " apagado"
+            return True, actuator.name + " apagad" + actuator.ending
         return False, "Acción desconocida: " + command["action"]
 
     def tick(self, now):

@@ -5,14 +5,14 @@ from utils import format_row
 
 
 def bank():
-    return ActuatorBank({"WATER_PUMP": Actuator("Bomba", 19), "FAN": Actuator("Ventilador", 5)})
+    return ActuatorBank({"WATER_PUMP": Actuator("Bomba de agua", 19, feminine=True), "FAN": Actuator("Ventilador", 5)})
 
 
 def test_timed_activation_turns_off_by_itself():
     actuators = bank()
     executed, message = actuators.execute({"actuator": "WATER_PUMP", "action": "ACTIVATE", "durationSeconds": 15}, 100)
     pump = actuators.actuators["WATER_PUMP"]
-    assert executed and message == "Bomba encendido 15 s"
+    assert executed and message == "Bomba de agua encendida por 15 s"
     assert pump.pin.level == 1
     actuators.tick(110)
     assert pump.active
