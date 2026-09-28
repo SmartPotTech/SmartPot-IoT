@@ -7,9 +7,9 @@
 
 ## Descripción
 
-SmartPot-IoT es el **firmware de la maceta**: MicroPython 1.23 sobre un ESP32, simulado en [Wokwi](https://wokwi.com/projects/408863167711709185) o grabado en una placa física. Lee los sensores, muestra los valores en una pantalla LCD, publica la telemetría por **MQTT sobre TLS** y ejecuta los comandos que llegan desde SmartPot, confirmando cada uno.
+SmartPot-IoT es el **firmware del dispositivo de un cultivo real**: MicroPython 1.23 sobre un ESP32, simulado en [Wokwi](https://wokwi.com/projects/408863167711709185) o grabado en una placa física. Lee los sensores, muestra los valores en una pantalla LCD, publica la telemetría por **MQTT sobre TLS** y ejecuta los comandos que llegan desde SmartPot, confirmando cada uno.
 
-¿Sin hardware ni Wokwi abierto? Desde la PWA puedes encender una **maceta virtual** siempre activa con [SmartPot-DataGenerator](https://github.com/SmartPotTech/SmartPot-DataGenerator): usa la misma clave y el mismo contrato que este firmware.
+Con placa o en Wokwi, el cultivo es **real** para SmartPot: sus lecturas vienen de este firmware y entrenan el aprendizaje continuo. ¿Sin hardware ni Wokwi abierto? Crea en la PWA un **cultivo virtual**: lo simula [SmartPot-DataGenerator](https://github.com/SmartPotTech/SmartPot-DataGenerator) con el mismo contrato, y no se puede convertir en real después.
 
 ```mermaid
 flowchart LR
@@ -57,7 +57,7 @@ SmartPot-IoT/
 
 ## Contrato MQTT
 
-La maceta se conecta a `mqtt.smartpot.app:8883` con TLS (1.2 o superior), verifica el certificado del broker con `ca.crt` y se autentica con **usuario = id del cultivo** y la **clave del dispositivo**. El client id es `smartpot-<cropId>` (el broker rechaza ids vacíos).
+El dispositivo se conecta a `mqtt.smartpot.app:8883` con TLS (1.2 o superior), verifica el certificado del broker con `ca.crt` y se autentica con **usuario = id del cultivo** y la **clave del dispositivo**. El client id es `smartpot-<cropId>` (el broker rechaza ids vacíos).
 
 | Tópico | Sentido | Ejemplo |
 | --- | --- | --- |
@@ -72,7 +72,7 @@ Con `durationSeconds` el actuador se apaga solo al cumplirse el tiempo; sin él 
 
 ### 1. Crear el cultivo en SmartPot
 
-En [smartpot.app](https://smartpot.app) crea un cultivo. La aplicación muestra **una sola vez** el id del cultivo y la clave del dispositivo; si la pierdes, genera una nueva desde la ficha del cultivo.
+En [smartpot.app](https://smartpot.app) crea un cultivo **real** y elige su forma (maceta, tubos NFT, torre o balsa). La aplicación muestra **una sola vez** la clave del dispositivo junto con la guía de conexión (ESP32 físico o Wokwi) y el `config.py` listo, con la red WiFi y el id del cultivo; si pierdes la clave, genera una nueva desde la pestaña Dispositivo.
 
 ### 2. Configurar el firmware
 
@@ -80,7 +80,7 @@ En [smartpot.app](https://smartpot.app) crea un cultivo. La aplicación muestra 
 cp fs/config.example.py fs/config.py
 ```
 
-Completa `crop_id` y `device_key`. `config.py` está en `.gitignore`: nunca subas la clave al repositorio ni la dejes visible en un proyecto público de Wokwi.
+Pega el `config.py` de la guía o completa a mano `WIFI`, `crop_id` y `device_key`. `config.py` está en `.gitignore`: nunca subas la clave al repositorio ni la dejes visible en un proyecto público de Wokwi.
 
 ### 3a. Simulación en el navegador
 
@@ -107,11 +107,11 @@ Prueban el contrato MQTT, el manejo de comandos y ACK, el apagado por tiempo de 
 
 ## Documentación
 
-El firmware solo habla MQTT con el broker; todo lo demás lo decide la plataforma. La [documentación técnica](https://github.com/SmartPotTech/.github/blob/main/docs/SmartPot_Technical_Documentation.md) detalla el contrato MQTT, la conexión con TLS y el circuito. Los diagramas generales muestran la plataforma completa en una sola imagen ampliable:
+El firmware solo habla MQTT con el broker; todo lo demás lo decide la plataforma. Su documentación propia está en [`docs/`](docs/SmartPot_IoT_Documentation.md) (también en [DOCX](docs/SmartPot_IoT_Documentation.docx) y [PDF](docs/SmartPot_IoT_Documentation.pdf)), con sus diagramas en [`docs/diagrams`](docs/diagrams): el general del firmware y su circuito, el ciclo principal y la atención de una orden. La [documentación técnica](https://github.com/SmartPotTech/.github/blob/main/docs/SmartPot_Technical_Documentation.md) detalla el contrato MQTT, la conexión con TLS y el circuito. Los diagramas generales muestran la plataforma completa en una sola imagen ampliable:
 
-- [Operación completa](https://github.com/SmartPotTech/.github/blob/main/docs/diagrams/SmartPot_Global_02_Operation_Sequence.svg): la conexión de la maceta, cada lectura, los comandos con su ACK y la desconexión
-- [Máquinas de estado](https://github.com/SmartPotTech/.github/blob/main/docs/diagrams/SmartPot_Global_05_State_Machines.svg): los estados de la maceta y su cuenta MQTT, y los de un comando
-- [Arquitectura completa](https://github.com/SmartPotTech/.github/blob/main/docs/diagrams/SmartPot_Global_01_Architecture.svg): dónde encaja la maceta dentro de la plataforma
+- [Operación completa](https://github.com/SmartPotTech/.github/blob/main/docs/diagrams/SmartPot_Global_02_Operation_Sequence.svg): la conexión del dispositivo, cada lectura, los comandos con su ACK y la desconexión
+- [Máquinas de estado](https://github.com/SmartPotTech/.github/blob/main/docs/diagrams/SmartPot_Global_05_State_Machines.svg): los estados del dispositivo y su cuenta MQTT, y los de un comando
+- [Arquitectura completa](https://github.com/SmartPotTech/.github/blob/main/docs/diagrams/SmartPot_Global_01_Architecture.svg): dónde encaja el dispositivo dentro de la plataforma
 
 ## Licencia
 
