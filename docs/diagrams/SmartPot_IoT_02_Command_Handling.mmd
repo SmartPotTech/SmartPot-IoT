@@ -1,0 +1,20 @@
+%%{init: {"theme": "base", "fontFamily": "Segoe UI, Arial, sans-serif", "themeVariables": {"fontFamily": "Segoe UI, Arial, sans-serif", "fontSize": "15px", "primaryColor": "#DDF5EA", "primaryTextColor": "#17261F", "primaryBorderColor": "#067A52", "secondaryColor": "#E3F2FB", "secondaryTextColor": "#17261F", "secondaryBorderColor": "#1F6FA0", "tertiaryColor": "#F2F7F4", "tertiaryTextColor": "#17261F", "tertiaryBorderColor": "#D5E3DC", "lineColor": "#5B6B63", "textColor": "#17261F", "mainBkg": "#DDF5EA", "nodeBorder": "#067A52", "clusterBkg": "#F7FAF8", "clusterBorder": "#D5E3DC", "edgeLabelBackground": "#FFFFFF", "actorBkg": "#067A52", "actorBorder": "#0B3D2B", "actorTextColor": "#FFFFFF", "actorLineColor": "#5B6B63", "signalColor": "#17261F", "signalTextColor": "#17261F", "labelBoxBkgColor": "#0B3D2B", "labelBoxBorderColor": "#0B3D2B", "labelTextColor": "#FFFFFF", "loopTextColor": "#0B3D2B", "noteBkgColor": "#FDF4DD", "noteBorderColor": "#C98D12", "noteTextColor": "#17261F", "activationBkgColor": "#DDF5EA", "activationBorderColor": "#067A52", "attributeBackgroundColorOdd": "#FFFFFF", "attributeBackgroundColorEven": "#F2F7F4"}}}%%
+sequenceDiagram
+  autonumber
+  participant A as SmartPot-API
+  participant B as Broker
+  participant C as SmartPotClient
+  participant K as ActuatorBank
+  A->>B: commands {id, actuator, action, durationSeconds} (QoS 1)
+  B->>C: mensaje en smartpot/v1/{cropId}/commands
+  C->>C: parse_command valida la carga
+  C->>K: execute(command, ahora)
+  alt Actuador instalado
+    K->>K: enciende o apaga el pin
+    K-->>C: EXECUTED · «Bomba de agua encendida por 15 s»
+  else No existe en el dispositivo
+    K-->>C: FAILED · «Este dispositivo no tiene HUMIDIFIER»
+  end
+  C->>B: commands/ack {id, status, message} (QoS 1)
+  B->>A: confirma el comando
+  Note over K: Con durationSeconds, tick lo apaga solo<br/>al cumplirse el tiempo
