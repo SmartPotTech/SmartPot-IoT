@@ -48,12 +48,12 @@ def ack_payload(command_id, executed, message):
     return json.dumps({"id": command_id, "status": "EXECUTED" if executed else "FAILED", "message": message})
 
 
-def _ssl_context(ca_file):
+def _ssl_context(ca_data):
     import ssl
 
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     context.verify_mode = ssl.CERT_REQUIRED
-    context.load_verify_locations(cafile=ca_file)
+    context.load_verify_locations(cadata=ca_data)
     return context
 
 
