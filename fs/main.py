@@ -65,7 +65,7 @@ def main():
         client.acknowledge(command["id"], executed, message)
 
     client = SmartPotClient(settings["crop_id"], settings["device_key"], settings["host"], settings["port"],
-                            settings["tls"], settings["ca_file"], on_command)
+                            settings["tls"], config.BROKER["CA_CRT"], on_command)
     lcd.show_message("Bienvenido a", "SmartPot ESP32")
 
     connected = False
