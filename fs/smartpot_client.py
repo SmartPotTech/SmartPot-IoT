@@ -58,7 +58,7 @@ def _ssl_context(ca_data):
 
 
 class SmartPotClient:
-    def __init__(self, crop_id, device_key, host, port, use_tls, ca_file, on_command, client_factory=None):
+    def __init__(self, crop_id, device_key, host, port, use_tls, ca_data, on_command, client_factory=None):
         self.crop_id = crop_id
         self.topics = topics(crop_id)
         self.on_command = on_command
@@ -69,9 +69,8 @@ class SmartPotClient:
         options = {"port": port, "user": crop_id, "password": device_key, "keepalive": 60}
         if use_tls:
             try:
-                options["ssl"] = _ssl_context(ca_file)
+                options["ssl"] = _ssl_context(ca_data)
             except (AttributeError, OSError) as error:
-                # MicroPython anterior a 1.23 no trae SSLContext: se cifra sin verificar la CA.
                 print("Aviso: TLS sin verificación de la CA ({})".format(error))
                 options["ssl"] = True
                 options["ssl_params"] = {"server_hostname": host}
