@@ -20,6 +20,14 @@ def test_timed_activation_turns_off_by_itself():
     assert not pump.active and pump.pin.level == 0
 
 
+def test_acknowledgements_read_durations_like_a_person():
+    actuators = bank()
+    fan = actuators.execute({"actuator": "FAN", "action": "ACTIVATE", "durationSeconds": 600}, 0)
+    pump = actuators.execute({"actuator": "WATER_PUMP", "action": "ACTIVATE", "durationSeconds": 7200}, 0)
+    assert fan == (True, "Ventilador encendido por 10 min")
+    assert pump == (True, "Bomba de agua encendida por 2 h")
+
+
 def test_activation_without_duration_stays_on_until_deactivated():
     actuators = bank()
     actuators.execute({"actuator": "FAN", "action": "ACTIVATE", "durationSeconds": None}, 0)

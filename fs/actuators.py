@@ -1,6 +1,15 @@
 from machine import Pin
 
 
+def readable(seconds):
+    """La duración como la lee una persona: 15 s, 10 min, 2 h."""
+    if seconds % 3600 == 0:
+        return "{} h".format(seconds // 3600)
+    if seconds % 60 == 0:
+        return "{} min".format(seconds // 60)
+    return "{} s".format(seconds)
+
+
 class Actuator:
     """Salida digital (relé o LED en la simulación) con apagado automático opcional."""
 
@@ -43,7 +52,7 @@ class ActuatorBank:
             duration = command.get("durationSeconds")
             actuator.turn_on(duration, now)
             state = " encendid" + actuator.ending
-            return True, actuator.name + (state + " por {} s".format(duration) if duration else state)
+            return True, actuator.name + (state + " por " + readable(duration) if duration else state)
         if command["action"] == "DEACTIVATE":
             actuator.turn_off()
             return True, actuator.name + " apagad" + actuator.ending
