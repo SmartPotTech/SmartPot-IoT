@@ -13,7 +13,6 @@ SMARTPOT = {
     "host": "mqtt.smartpot.app",
     "port": 8883,
     "tls": True,
-    "ca_file": "ca.crt",
     "interval_seconds": 30,
 }
 
