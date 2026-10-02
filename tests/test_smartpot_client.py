@@ -1,14 +1,23 @@
 import json
+import pathlib
+import ssl
 
 from conftest import FakeMQTTClient
 from smartpot_client import SmartPotClient, ack_payload, parse_command, telemetry_payload, topics
 
 CROP = "66f5a1000000000000000101"
+EXAMPLE_CONFIG = pathlib.Path(__file__).resolve().parent.parent / "fs" / "config.example.py"
+
+
+def example_config():
+    settings = {}
+    exec(EXAMPLE_CONFIG.read_text(encoding="utf-8"), settings)
+    return settings
 
 
 def client(received=None, **overrides):
     options = {"crop_id": CROP, "device_key": "clave", "host": "mqtt.smartpot.app", "port": 8883, "use_tls": False,
-               "ca_file": "ca.crt", "on_command": (received.append if received is not None else lambda c: None),
+               "ca_data": "", "on_command": (received.append if received is not None else lambda c: None),
                "client_factory": FakeMQTTClient}
     options.update(overrides)
     return SmartPotClient(**options)
@@ -60,8 +69,15 @@ def test_incoming_commands_reach_the_handler_and_can_be_acknowledged():
     assert qos == 1
 
 
-def test_tls_without_a_readable_ca_falls_back_to_unverified_encryption(capsys):
-    smartpot = client(use_tls=True, ca_file="no-existe.crt")
+def test_tls_verifies_the_broker_with_the_ca_of_the_configuration():
+    smartpot = client(use_tls=True, ca_data=example_config()["BROKER"]["CA_CRT"])
+    context = smartpot.client.options["ssl"]
+    assert context.verify_mode == ssl.CERT_REQUIRED
+    assert (("commonName", "SmartPot MQTT CA"),) in context.get_ca_certs()[0]["subject"]
+
+
+def test_tls_without_a_valid_ca_falls_back_to_unverified_encryption(capsys):
+    smartpot = client(use_tls=True, ca_data="no es un certificado")
     assert smartpot.client.options["ssl"] is True
     assert smartpot.client.options["ssl_params"] == {"server_hostname": "mqtt.smartpot.app"}
     assert "sin verificación" in capsys.readouterr().out
