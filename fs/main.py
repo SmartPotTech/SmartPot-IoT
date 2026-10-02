@@ -48,7 +48,7 @@ def main():
     }
     bank = ActuatorBank({
         "WATER_PUMP": Actuator("Bomba de agua", 19, feminine=True),
-        "UV_LIGHT": Actuator("Luz de cultivo", 18, feminine=True),
+        "UV_LIGHT": Actuator("Luz ultravioleta", 18, feminine=True),
         "FAN": Actuator("Ventilador", 5),
     })
 
