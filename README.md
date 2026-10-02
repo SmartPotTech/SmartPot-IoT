@@ -17,7 +17,7 @@ flowchart LR
   esp --> lcd["LCD 20x4"]
   esp -->|"telemetry · status · ack"| broker["mqtt.smartpot.app:8883<br/>TLS"]
   broker -->|"commands"| esp
-  esp --> act["Bomba · Luz de cultivo · Ventilador"]
+  esp --> act["Bomba · Luz ultravioleta · Ventilador"]
 ```
 
 ## Circuito
@@ -30,7 +30,7 @@ flowchart LR
 | Sensor de TDS | GPIO 32 | 0–3000 ppm |
 | Humedad del sustrato | GPIO 33 | 0–100 % |
 | Bomba de agua (LED azul) | GPIO 19 | `WATER_PUMP` |
-| Luz de cultivo (LED morado) | GPIO 18 | `UV_LIGHT` |
+| Luz ultravioleta (LED morado) | GPIO 18 | `UV_LIGHT` |
 | Ventilador (LED naranja) | GPIO 5 | `FAN` |
 | LCD 20x4 I2C | SCL 16 · SDA 17 | — |
 
@@ -45,8 +45,7 @@ SmartPot-IoT/
 │   ├── actuators.py         # Actuadores con apagado automático por duración
 │   ├── display.py           # Pantalla LCD
 │   ├── utils.py             # Hora por NTP y tabla por consola
-│   ├── config.example.py    # Plantilla de config.py (no se versiona)
-│   ├── ca.crt               # CA pública que firma el certificado del broker
+│   ├── config.example.py    # Plantilla de config.py (no se versiona) con la CA del broker
 │   └── i2c_lcd.py, lcd_api.py
 ├── tests/                   # Pruebas con CPython y módulos de MicroPython simulados
 ├── diagram.json             # Circuito de Wokwi
@@ -57,7 +56,7 @@ SmartPot-IoT/
 
 ## Contrato MQTT
 
-El dispositivo se conecta a `mqtt.smartpot.app:8883` con TLS (1.2 o superior), verifica el certificado del broker con `ca.crt` y se autentica con **usuario = id del cultivo** y la **clave del dispositivo**. El client id es `smartpot-<cropId>` (el broker rechaza ids vacíos).
+El dispositivo se conecta a `mqtt.smartpot.app:8883` con TLS (1.2 o superior), verifica el certificado del broker con la CA pública de SmartPot, que viaja en `config.py` (`BROKER["CA_CRT"]`), y se autentica con **usuario = id del cultivo** y la **clave del dispositivo**. El client id es `smartpot-<cropId>` (el broker rechaza ids vacíos).
 
 | Tópico | Sentido | Ejemplo |
 | --- | --- | --- |
@@ -80,11 +79,11 @@ En [smartpot.app](https://smartpot.app) crea un cultivo **real** y elige su form
 cp fs/config.example.py fs/config.py
 ```
 
-Pega el `config.py` de la guía o completa a mano `WIFI`, `crop_id` y `device_key`. `config.py` está en `.gitignore`: nunca subas la clave al repositorio ni la dejes visible en un proyecto público de Wokwi.
+Pega el `config.py` de la guía o completa a mano `WIFI`, `crop_id` y `device_key`; el bloque `BROKER` ya trae la CA del broker. `config.py` está en `.gitignore`: nunca subas la clave al repositorio ni la dejes visible en un proyecto público de Wokwi.
 
 ### 3a. Simulación en el navegador
 
-Abre el proyecto de Wokwi, copia los archivos de `fs/` (incluido `ca.crt` y tu `config.py`) y el `diagram.json`, y ejecuta. La red `Wokwi-GUEST` tiene salida a Internet.
+Abre el proyecto de Wokwi, copia los archivos de `fs/` (con tu `config.py`, que ya trae la CA) y el `diagram.json`, y ejecuta. La red `Wokwi-GUEST` tiene salida a Internet.
 
 ### 3b. Simulación local (VS Code o wokwi-cli)
 
@@ -103,7 +102,7 @@ uv run ruff check .
 uv run pytest
 ```
 
-Prueban el contrato MQTT, el manejo de comandos y ACK, el apagado por tiempo de los actuadores, la escala de los sensores y el respaldo de TLS en MicroPython anteriores a 1.23.
+Prueban el contrato MQTT, el manejo de comandos y ACK, el apagado por tiempo de los actuadores, la escala de los sensores, la verificación del broker con la CA de la plantilla y el respaldo de TLS en MicroPython anteriores a 1.23.
 
 ## Documentación
 
