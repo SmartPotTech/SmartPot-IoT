@@ -5,7 +5,7 @@ acento: IoT
 subtitulo: El firmware de un cultivo real
 bajada: MicroPython en un ESP32, físico o simulado en Wokwi: sensores, pantalla, actuadores y contrato MQTT v1 con TLS, con su circuito, su ciclo principal, su configuración y sus pruebas.
 documento: SmartPot-IoT
-version: 1.0 · septiembre 2026
+version: 1.1 · octubre 2026
 equipo: SmartPotTech
 proyecto: smartpot.app
 -->
@@ -18,7 +18,7 @@ proyecto: smartpot.app
 | --- | --- |
 | Proyecto | SmartPot · [smartpot.app](https://smartpot.app) |
 | Componente | [SmartPot-IoT](https://github.com/SmartPotTech/SmartPot-IoT) |
-| Versión | 1.0 · septiembre 2026 |
+| Versión | 1.1 · octubre 2026 |
 | Alcance | Circuito, módulos del firmware, ciclo principal, comandos, conexión segura, configuración y pruebas |
 | Documentación de la plataforma | [Documentación técnica](https://github.com/SmartPotTech/.github/blob/main/docs/SmartPot_Technical_Documentation.md), [recorrido del proyecto](https://github.com/SmartPotTech/.github/blob/main/docs/SmartPot_Project_Journey.md), [ciclo de vida](https://github.com/SmartPotTech/.github/blob/main/docs/SmartPot_Software_Lifecycle.md) y [diagramas generales](https://github.com/SmartPotTech/.github/blob/main/docs/README.md#diagramas-generales) |
 | Mantenimiento | Se genera desde `docs/` de este repositorio con las herramientas de `.github/docs/tools`; se actualiza con cada cambio del componente |
@@ -40,24 +40,22 @@ flowchart LR
   subgraph esp["ESP32 · MicroPython 1.23 · físico o en Wokwi"]
     direction TB
     main["main.py<br/>WiFi · NTP · ciclo principal"]
-    config["config.py<br/>WIFI · SMARTPOT (no se versiona)"]
+    config["config.py<br/>WIFI · SMARTPOT · BROKER con la CA<br/>(no se versiona)"]
     client["smartpot_client.py<br/>SmartPotClient · tópicos v1<br/>telemetría · comandos · ACK · estado"]
     sensors["sensors.py<br/>AtmosphereSensor DHT22<br/>Light · PH · TDS · SoilMoisture (ADC)"]
     actuators["actuators.py<br/>ActuatorBank · apagado por duración"]
     display["display.py<br/>LCDDisplay 20 × 4 por I2C"]
     utils["utils.py<br/>hora por NTP · tabla por consola"]
-    ca["ca.crt<br/>CA de SmartPot"]
   end
   subgraph hw["Circuito"]
     direction TB
     dht["DHT22 · GPIO 15"]
     adc["Luz 34 · pH 35 · TDS 32 · sustrato 33"]
-    outs["Bomba 19 · luz de cultivo 18 · ventilador 5"]
+    outs["Bomba 19 · luz ultravioleta 18 · ventilador 5"]
     lcd["LCD · SCL 16 · SDA 17"]
   end
   broker["mqtt.smartpot.app:8883<br/>TLS 1.2+"]
   main --> config & client & sensors & actuators & display & utils
-  client --> ca
   sensors --> dht & adc
   actuators --> outs
   display --> lcd
@@ -70,7 +68,7 @@ flowchart LR
   classDef deep fill:#0B3D2B,stroke:#06281C,color:#FFFFFF
   classDef muted fill:#F2F7F4,stroke:#5B6B63,color:#17261F
   class main core
-  class config,ca,utils muted
+  class config,utils muted
   class client,sensors,actuators,display leaf
   class dht,adc,outs,lcd clay
   class broker water
@@ -84,7 +82,7 @@ flowchart LR
 | Sensor de TDS | GPIO 32 | 0–3000 ppm |
 | Humedad del sustrato | GPIO 33 | 0–100 % |
 | Bomba de agua | GPIO 19 | `WATER_PUMP` |
-| Luz de cultivo | GPIO 18 | `UV_LIGHT` |
+| Luz ultravioleta | GPIO 18 | `UV_LIGHT` |
 | Ventilador | GPIO 5 | `FAN` |
 | LCD 20×4 I2C | SCL 16 · SDA 17 | — |
 
@@ -100,7 +98,7 @@ flowchart TB
   wifi -->|"No"| wait["Espera 10 s"] --> wifi
   wifi -->|"Sí"| ntp["Hora por NTP"]
   ntp --> mqtt{"¿Conectado al broker?"}
-  mqtt -->|"No"| connect["CONNECT con TLS y ca.crt<br/>última voluntad offline<br/>status online · suscripción a commands"]
+  mqtt -->|"No"| connect["CONNECT con TLS y la CA de config.py<br/>última voluntad offline<br/>status online · suscripción a commands"]
   connect --> mqtt
   mqtt -->|"Sí"| poll["poll: atiende los comandos que llegaron"]
   poll --> tick["bank.tick: apaga los actuadores<br/>cuya duración venció"]
@@ -153,7 +151,7 @@ sequenceDiagram
 | Parámetro | Valor |
 | --- | --- |
 | Broker | `mqtt.smartpot.app:8883`, MQTT sobre TLS 1.2 o superior |
-| Certificado | Firmado por la CA propia de SmartPot; el firmware lo verifica con `ca.crt` |
+| Certificado | Firmado por la CA propia de SmartPot; el firmware lo verifica con la CA pública que trae `config.py` en `BROKER["CA_CRT"]` |
 | Usuario y clave | El id del cultivo y la clave del dispositivo, que la PWA muestra una sola vez al crear el cultivo real o al rotarla |
 | Client id | `smartpot-<cropId>` |
 | Estado | `online` retenido al conectar y `offline` como última voluntad |
@@ -165,23 +163,24 @@ sequenceDiagram
 
 ## 6. Configuración
 
-La PWA genera `config.py` en su guía de conexión, con la red WiFi (la tuya o `Wokwi-GUEST`) y el bloque `SMARTPOT` del cultivo. `config.py` no se versiona; `config.example.py` es la plantilla.
+La PWA genera `config.py` en su guía de conexión, con la red WiFi (la tuya o `Wokwi-GUEST`), el bloque `SMARTPOT` del cultivo y el bloque `BROKER` con la CA del broker. `config.py` no se versiona; `config.example.py` es la plantilla.
 
 | Clave | Uso |
 | --- | --- |
 | `WIFI.ssid`, `WIFI.password` | Red a la que se conecta el ESP32 |
 | `SMARTPOT.crop_id`, `device_key` | Cuenta MQTT del cultivo real |
-| `SMARTPOT.host`, `port`, `tls`, `ca_file` | Broker y verificación del certificado |
+| `SMARTPOT.host`, `port`, `tls` | Broker y uso de TLS |
+| `BROKER.CA_CRT` | CA pública de SmartPot en PEM; con ella el firmware verifica el certificado del broker |
 | `SMARTPOT.interval_seconds` | Segundos entre lecturas (30 por defecto) |
 
 ## 7. Pruebas
 
-`uv run ruff check .` y `uv run pytest`: 13 pruebas con CPython y módulos de MicroPython simulados sobre el contrato MQTT, los comandos y su ACK, el apagado por tiempo de los actuadores, la escala de los sensores y el respaldo de TLS en versiones anteriores de MicroPython.
+`uv run ruff check .` y `uv run pytest`: 15 pruebas con CPython y módulos de MicroPython simulados sobre el contrato MQTT, los comandos y su ACK (con la duración en segundos, minutos u horas), el apagado por tiempo de los actuadores, la escala de los sensores, la verificación del broker con la CA de la plantilla y el respaldo de TLS en versiones anteriores de MicroPython.
 
 ## 8. Puesta en marcha
 
 | Dónde | Pasos |
 | --- | --- |
-| Placa física | Arma el circuito, graba MicroPython 1.23, copia `fs/` con `mpremote`, agrega `config.py` y `ca.crt` y enciende |
-| Wokwi en el navegador | Abre el proyecto, pega `config.py` y `ca.crt` y ejecuta; la red `Wokwi-GUEST` tiene salida a internet |
+| Placa física | Arma el circuito, graba MicroPython 1.23, copia `fs/` con `mpremote`, agrega tu `config.py` (ya trae la CA) y enciende |
+| Wokwi en el navegador | Abre el proyecto, pega tu `config.py` y ejecuta; la red `Wokwi-GUEST` tiene salida a internet |
 | Wokwi local | `uv sync`, inicia la simulación con `wokwi.toml` y ejecuta `uv run python start.py` |
