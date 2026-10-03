@@ -1,7 +1,7 @@
 [project]
 name = "smartpot-iot"
 version = "2.0.0"
-description = "Firmware MicroPython de la maceta SmartPot (ESP32 en Wokwi o placa física)"
+description = "Firmware MicroPython del dispositivo de un cultivo real de SmartPot (ESP32 en Wokwi o placa física)"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.13"
