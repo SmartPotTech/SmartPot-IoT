@@ -7,26 +7,49 @@ import network
 import config
 import utils
 from actuators import Actuator, ActuatorBank
+from device import Device
 from display import LCDDisplay
 from sensors import AtmosphereSensor, LightSensor, PHSensor, SoilMoistureSensor, TDSSensor
 from smartpot_client import SmartPotClient
 
 POLL_SECONDS = 0.5
-RETRY_SECONDS = 10
+WIFI_WAIT_SECONDS = 30
 
 
-def connect_wifi(lcd):
+class Link:
+    """WiFi y hora del ESP32, para que Device sepa cuándo puede conectarse al broker."""
+
+    def __init__(self):
+        self.station = network.WLAN(network.STA_IF)
+        self.station.active(True)
+
+    def wifi_up(self):
+        return self.station.isconnected()
+
+    def reconnect_wifi(self):
+        try:
+            self.station.connect(config.WIFI["ssid"], config.WIFI["password"])
+        except OSError as error:
+            print("WiFi:", error)
+
+    def clock_ready(self):
+        return utils.clock_ready()
+
+    def sync_time(self):
+        return utils.sync_time()
+
+
+def connect_wifi(link, lcd):
+    """Primer intento al encender, con el giro en la pantalla; si no llega, el ciclo sigue midiendo y reintenta."""
     lcd.show_message("Conectando WiFi", config.WIFI["ssid"])
-    station = network.WLAN(network.STA_IF)
-    station.active(True)
-    station.connect(config.WIFI["ssid"], config.WIFI["password"])
-    for _ in range(120):
-        if station.isconnected():
-            print("WiFi conectado:", station.ifconfig()[0])
+    link.reconnect_wifi()
+    for _ in range(WIFI_WAIT_SECONDS * 4):
+        if link.wifi_up():
+            print("WiFi conectado:", link.station.ifconfig()[0])
             return True
         lcd.show_spinner()
         time.sleep(0.25)
-    print("No se pudo conectar al WiFi")
+    print("Sin WiFi: el dispositivo sigue midiendo y reintenta cada 30 s")
     return False
 
 
@@ -37,8 +60,22 @@ def read_sensors(atmosphere, analog):
     return readings
 
 
+def build_client(settings, lcd, on_command):
+    """Sin una CA válida no se envía la clave: el dispositivo queda midiendo sin conexión."""
+    try:
+        return SmartPotClient(settings["crop_id"], settings["device_key"], settings["host"], settings["port"],
+                              settings["tls"], getattr(config, "BROKER", {}).get("CA_CRT"), on_command)
+    except (ValueError, OSError) as error:
+        print("No se puede conectar con seguridad:", error)
+        lcd.show_message("Revisa la CA en", "config.py")
+        time.sleep(5)
+        return None
+
+
 def main():
     lcd = LCDDisplay(scl_pin=16, sda_pin=17)
+    lcd.show_message("Bienvenido a", "SmartPot ESP32")
+    time.sleep(2)
     atmosphere = AtmosphereSensor(15)
     analog = {
         "brightness": LightSensor(34),
@@ -52,9 +89,9 @@ def main():
         "FAN": Actuator("Ventilador", 5),
     })
 
-    while not connect_wifi(lcd):
-        time.sleep(RETRY_SECONDS)
-    utils.sync_time()
+    link = Link()
+    if connect_wifi(link, lcd):
+        utils.sync_time()
 
     settings = config.SMARTPOT
     client = None
@@ -64,34 +101,16 @@ def main():
         print("Comando", command["actuator"], command["action"], "->", message)
         client.acknowledge(command["id"], executed, message)
 
-    client = SmartPotClient(settings["crop_id"], settings["device_key"], settings["host"], settings["port"],
-                            settings["tls"], config.BROKER["CA_CRT"], on_command)
-    lcd.show_message("Bienvenido a", "SmartPot ESP32")
-
-    connected = False
-    next_reading = 0
+    client = build_client(settings, lcd, on_command)
+    device = Device(lambda: read_sensors(atmosphere, analog), bank, lcd, client, link,
+                    settings.get("interval_seconds", 30), secure=settings["tls"], report=utils.print_table)
     while True:
         try:
-            if not connected:
-                lcd.show_message("Conectando", "broker MQTT")
-                client.connect()
-                connected = True
-                lcd.show_message("En linea")
-            client.poll()
-            now = time.time()
-            bank.tick(now)
-            if now >= next_reading:
-                readings = read_sensors(atmosphere, analog)
-                utils.print_table(readings)
-                lcd.show_readings(readings, bank.states())
-                client.publish_telemetry(readings)
-                next_reading = now + settings["interval_seconds"]
-            time.sleep(POLL_SECONDS)
-        except OSError as error:
-            print("Conexión perdida:", error)
-            connected = False
-            lcd.show_message("Sin conexion", "reintentando")
-            time.sleep(RETRY_SECONDS)
+            device.step(time.time())
+        except Exception as error:
+            # Un error inesperado no debe dejar un actuador encendido sin control: el ciclo sigue.
+            print("Error en el ciclo:", error)
+        time.sleep(POLL_SECONDS)
 
 
 main()
