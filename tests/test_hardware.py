@@ -1,7 +1,7 @@
 from actuators import Actuator, ActuatorBank
 from conftest import FakeADC, FakeDHT22
 from sensors import AtmosphereSensor, LightSensor, PHSensor, SoilMoistureSensor, TDSSensor
-from utils import format_row
+from utils import clock_ready, format_row, print_table, timestamp
 
 
 def bank():
@@ -64,3 +64,16 @@ def test_sensor_failures_return_none():
 def test_console_table_rows():
     assert format_row("pH", 6.1234, "") == "| pH             | 6.12           |"
     assert format_row("Luz", None, "lux") == "| Luz            | --             |"
+
+
+def test_console_table_tells_when_the_reading_was_taken(capsys):
+    print_table({"ph": 6.1}, (2026, 10, 2, 19, 40, 5, 4, 275))
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[1] == "| Lectura 2026-10-02 19:40:05 UTC |"
+    assert {len(line) for line in lines} == {35}
+
+
+def test_the_clock_is_ready_only_after_syncing():
+    assert not clock_ready((2000, 1, 1, 0, 0, 12, 5, 1))
+    assert timestamp((2000, 1, 1, 0, 0, 12, 5, 1)) == "hora sin sincronizar"
+    assert clock_ready((2026, 10, 2, 19, 40, 5, 4, 275))
