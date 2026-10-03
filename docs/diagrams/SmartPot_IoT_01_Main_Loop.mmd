@@ -4,7 +4,7 @@ flowchart TB
   wifi -->|"No"| wait["Espera 10 s"] --> wifi
   wifi -->|"Sí"| ntp["Hora por NTP"]
   ntp --> mqtt{"¿Conectado al broker?"}
-  mqtt -->|"No"| connect["CONNECT con TLS y ca.crt<br/>última voluntad offline<br/>status online · suscripción a commands"]
+  mqtt -->|"No"| connect["CONNECT con TLS y la CA de config.py<br/>última voluntad offline<br/>status online · suscripción a commands"]
   connect --> mqtt
   mqtt -->|"Sí"| poll["poll: atiende los comandos que llegaron"]
   poll --> tick["bank.tick: apaga los actuadores<br/>cuya duración venció"]
