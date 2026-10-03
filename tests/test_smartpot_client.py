@@ -83,7 +83,7 @@ def test_micropython_1_22_receives_the_ca_through_ssl_params():
     smartpot = client(use_tls=True, ca_data=ca, client_factory=LegacyMQTTClient)
     assert smartpot.client.options["ssl"] is True
     assert smartpot.client.options["ssl_params"] == {
-        "server_hostname": "mqtt.smartpot.app", "cert_reqs": ssl.CERT_REQUIRED, "cadata": ca}
+        "server_hostname": "mqtt.smartpot.app", "cert_reqs": ssl.CERT_REQUIRED, "cadata": ssl.PEM_cert_to_DER_cert(ca)}
 
 
 def test_without_the_ca_the_device_key_is_never_sent():
@@ -93,10 +93,39 @@ def test_without_the_ca_the_device_key_is_never_sent():
 
 
 def test_a_damaged_ca_stops_the_connection():
-    damaged = "-----BEGIN CERTIFICATE-----\nno es un certificado\n-----END CERTIFICATE-----"
+    broken = "-----BEGIN CERTIFICATE-----\nno es base64\n-----END CERTIFICATE-----"
+    with pytest.raises(ValueError, match="dañada"):
+        client(use_tls=True, ca_data=broken)
+    not_a_certificate = "-----BEGIN CERTIFICATE-----\nbm8gZXMgdW4gY2VydGlmaWNhZG8=\n-----END CERTIFICATE-----"
     with pytest.raises(OSError):
-        client(use_tls=True, ca_data=damaged)
+        client(use_tls=True, ca_data=not_a_certificate)
 
 
 def test_plain_mqtt_needs_no_ca():
     assert client(use_tls=False, ca_data="").client.options["ssl"] is None
+
+
+class MQTTException(Exception):
+    """La que lanza umqtt.simple cuando el broker rechaza el CONNECT."""
+
+
+class RefusedMQTTClient(FakeMQTTClient):
+    def connect(self):
+        raise MQTTException(5)
+
+
+class UnverifiedMQTTClient(FakeMQTTClient):
+    def connect(self):
+        raise ValueError("\nThe certificate is not correctly signed by the trusted CA\n")
+
+
+def test_a_refused_key_is_reported_as_a_connection_error():
+    smartpot = client(client_factory=RefusedMQTTClient)
+    with pytest.raises(OSError, match=r"rechazó la clave del dispositivo \(código 5\)"):
+        smartpot.connect()
+
+
+def test_a_broker_that_fails_verification_points_to_the_ca():
+    smartpot = client(client_factory=UnverifiedMQTTClient)
+    with pytest.raises(OSError, match=r"\(The certificate is not correctly signed by the trusted CA\): revisa la CA"):
+        smartpot.connect()

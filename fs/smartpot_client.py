@@ -48,11 +48,22 @@ def ack_payload(command_id, executed, message):
     return json.dumps({"id": command_id, "status": "EXECUTED" if executed else "FAILED", "message": message})
 
 
-def check_ca(ca_data):
-    """La CA del broker en PEM, como la trae BROKER["CA_CRT"] de config.py; sin ella no se envía la clave."""
-    if not isinstance(ca_data, str) or "-----BEGIN CERTIFICATE-----" not in ca_data:
+def ca_certificate(ca_data):
+    """La CA del broker en DER a partir del PEM de BROKER["CA_CRT"]; sin ella no se envía la clave.
+
+    config.py lleva el texto PEM porque Wokwi no admite archivos .crt; mbedtls lee DER en cualquier compilación de
+    MicroPython, aunque no traiga soporte de PEM.
+    """
+    import binascii
+
+    begin, end = "-----BEGIN CERTIFICATE-----", "-----END CERTIFICATE-----"
+    if not isinstance(ca_data, str) or begin not in ca_data or end not in ca_data:
         raise ValueError("config.py no trae la CA del broker: copia el bloque BROKER de la guía de conexión")
-    return ca_data
+    body = ca_data.split(begin, 1)[1].split(end, 1)[0]
+    try:
+        return binascii.a2b_base64("".join(body.split()))
+    except ValueError:
+        raise ValueError("la CA de config.py está dañada: copia otra vez el bloque BROKER")
 
 
 def tls_client(factory, client_id, host, options, ca_data):
@@ -63,15 +74,24 @@ def tls_client(factory, client_id, host, options, ca_data):
     """
     import ssl
 
-    check_ca(ca_data)
+    ca = ca_certificate(ca_data)
     try:
         return factory(client_id, host, ssl=True, ssl_params={
-            "server_hostname": host, "cert_reqs": ssl.CERT_REQUIRED, "cadata": ca_data}, **options)
+            "server_hostname": host, "cert_reqs": ssl.CERT_REQUIRED, "cadata": ca}, **options)
     except TypeError:
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         context.verify_mode = ssl.CERT_REQUIRED
-        context.load_verify_locations(cadata=ca_data)
+        context.load_verify_locations(cadata=ca)
         return factory(client_id, host, ssl=context, **options)
+
+
+def refusal(error):
+    """Por qué no se pudo conectar cuando no es un error de red: la clave o la verificación del broker."""
+    detail = str(error).strip()
+    # umqtt.simple lanza MQTTException con el código del CONNACK; mbedtls, un error con el motivo de la verificación.
+    if type(error).__name__ == "MQTTException":
+        return "el broker rechazó la clave del dispositivo (código {})".format(detail)
+    return "no se pudo verificar el broker ({}): revisa la CA de config.py y la hora".format(detail)
 
 
 class SmartPotClient:
@@ -93,7 +113,12 @@ class SmartPotClient:
 
     def connect(self):
         self.client.set_last_will(self.topics["status"], b"offline", retain=True, qos=1)
-        self.client.connect()
+        try:
+            self.client.connect()
+        except OSError:
+            raise
+        except Exception as error:
+            raise OSError(refusal(error))
         self.client.publish(self.topics["status"], b"online", retain=True, qos=1)
         self.client.subscribe(self.topics["commands"], qos=1)
         print("MQTT conectado como", self.crop_id)
