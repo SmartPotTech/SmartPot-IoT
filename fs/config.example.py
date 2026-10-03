@@ -1,6 +1,8 @@
 # Copia este archivo como config.py (no se versiona) y completa los datos del cultivo.
 # El id del cultivo y la clave del dispositivo se obtienen en SmartPot al crear el cultivo
 # o en «Dispositivo → Generar nueva clave».
+# BROKER lleva la CA pública del broker como texto porque Wokwi no admite archivos .crt;
+# así config.py es el único archivo propio de cada dispositivo.
 
 WIFI = {
     "ssid": "Wokwi-GUEST",
