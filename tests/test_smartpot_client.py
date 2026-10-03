@@ -2,7 +2,9 @@ import json
 import pathlib
 import ssl
 
-from conftest import FakeMQTTClient
+import pytest
+
+from conftest import FakeMQTTClient, LegacyMQTTClient
 from smartpot_client import SmartPotClient, ack_payload, parse_command, telemetry_payload, topics
 
 CROP = "66f5a1000000000000000101"
@@ -76,8 +78,25 @@ def test_tls_verifies_the_broker_with_the_ca_of_the_configuration():
     assert (("commonName", "SmartPot MQTT CA"),) in context.get_ca_certs()[0]["subject"]
 
 
-def test_tls_without_a_valid_ca_falls_back_to_unverified_encryption(capsys):
-    smartpot = client(use_tls=True, ca_data="no es un certificado")
+def test_micropython_1_22_receives_the_ca_through_ssl_params():
+    ca = example_config()["BROKER"]["CA_CRT"]
+    smartpot = client(use_tls=True, ca_data=ca, client_factory=LegacyMQTTClient)
     assert smartpot.client.options["ssl"] is True
-    assert smartpot.client.options["ssl_params"] == {"server_hostname": "mqtt.smartpot.app"}
-    assert "sin verificación" in capsys.readouterr().out
+    assert smartpot.client.options["ssl_params"] == {
+        "server_hostname": "mqtt.smartpot.app", "cert_reqs": ssl.CERT_REQUIRED, "cadata": ca}
+
+
+def test_without_the_ca_the_device_key_is_never_sent():
+    for missing in ("", "<CA_DE_SMARTPOT>", None):
+        with pytest.raises(ValueError, match="BROKER"):
+            client(use_tls=True, ca_data=missing)
+
+
+def test_a_damaged_ca_stops_the_connection():
+    damaged = "-----BEGIN CERTIFICATE-----\nno es un certificado\n-----END CERTIFICATE-----"
+    with pytest.raises(OSError):
+        client(use_tls=True, ca_data=damaged)
+
+
+def test_plain_mqtt_needs_no_ca():
+    assert client(use_tls=False, ca_data="").client.options["ssl"] is None

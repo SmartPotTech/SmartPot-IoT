@@ -48,13 +48,30 @@ def ack_payload(command_id, executed, message):
     return json.dumps({"id": command_id, "status": "EXECUTED" if executed else "FAILED", "message": message})
 
 
-def _ssl_context(ca_data):
+def check_ca(ca_data):
+    """La CA del broker en PEM, como la trae BROKER["CA_CRT"] de config.py; sin ella no se envía la clave."""
+    if not isinstance(ca_data, str) or "-----BEGIN CERTIFICATE-----" not in ca_data:
+        raise ValueError("config.py no trae la CA del broker: copia el bloque BROKER de la guía de conexión")
+    return ca_data
+
+
+def tls_client(factory, client_id, host, options, ca_data):
+    """Cliente MQTT sobre TLS que verifica el certificado del broker con la CA y su nombre.
+
+    umqtt.simple de MicroPython 1.22 recibe ssl=True y ssl_params; si recibe un SSLContext lo ignora y cifra sin
+    verificar. Desde 1.23 recibe el SSLContext y rechaza ssl_params, por eso se prueba primero la forma de 1.22.
+    """
     import ssl
 
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    context.verify_mode = ssl.CERT_REQUIRED
-    context.load_verify_locations(cadata=ca_data)
-    return context
+    check_ca(ca_data)
+    try:
+        return factory(client_id, host, ssl=True, ssl_params={
+            "server_hostname": host, "cert_reqs": ssl.CERT_REQUIRED, "cadata": ca_data}, **options)
+    except TypeError:
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        context.verify_mode = ssl.CERT_REQUIRED
+        context.load_verify_locations(cadata=ca_data)
+        return factory(client_id, host, ssl=context, **options)
 
 
 class SmartPotClient:
@@ -67,14 +84,11 @@ class SmartPotClient:
 
             client_factory = MQTTClient
         options = {"port": port, "user": crop_id, "password": device_key, "keepalive": 60}
+        client_id = "smartpot-" + crop_id
         if use_tls:
-            try:
-                options["ssl"] = _ssl_context(ca_data)
-            except (AttributeError, OSError) as error:
-                print("Aviso: TLS sin verificación de la CA ({})".format(error))
-                options["ssl"] = True
-                options["ssl_params"] = {"server_hostname": host}
-        self.client = client_factory("smartpot-" + crop_id, host, **options)
+            self.client = tls_client(client_factory, client_id, host, options, ca_data)
+        else:
+            self.client = client_factory(client_id, host, **options)
         self.client.set_callback(self._on_message)
 
     def connect(self):
@@ -99,6 +113,16 @@ class SmartPotClient:
             self.client.disconnect()
         except OSError:
             pass
+
+    def close(self):
+        """Suelta el socket de una conexión caída antes de volver a conectar."""
+        sock = getattr(self.client, "sock", None)
+        if sock is None:
+            return
+        try:
+            sock.close()
+        except OSError as error:
+            print("El socket ya estaba cerrado:", error)
 
     def _on_message(self, topic, message):
         command = parse_command(message)
