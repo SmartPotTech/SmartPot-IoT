@@ -62,10 +62,12 @@ class FakeDHT22:
 
 
 class FakeMQTTClient:
-    def __init__(self, client_id, server, port=0, user=None, password=None, keepalive=0, ssl=None, ssl_params=None):
+    """umqtt.simple de MicroPython 1.23 o posterior: ssl es un SSLContext y no existe ssl_params."""
+
+    def __init__(self, client_id, server, port=0, user=None, password=None, keepalive=0, ssl=None):
         self.client_id = client_id
         self.server = server
-        self.options = {"port": port, "user": user, "password": password, "ssl": ssl, "ssl_params": ssl_params}
+        self.options = {"port": port, "user": user, "password": password, "ssl": ssl}
         self.published = []
         self.subscriptions = []
         self.will = None
@@ -96,10 +98,42 @@ class FakeMQTTClient:
         pass
 
 
+class LegacyMQTTClient(FakeMQTTClient):
+    """umqtt.simple de MicroPython 1.22: ssl=True y los parámetros de ssl.wrap_socket en ssl_params."""
+
+    def __init__(self, client_id, server, port=0, user=None, password=None, keepalive=0, ssl=False, ssl_params=None):
+        super().__init__(client_id, server, port, user, password, keepalive)
+        self.options.update({"ssl": ssl, "ssl_params": ssl_params})
+
+
+class FakeLcd:
+    """I2cLcd que guarda lo que se escribe en cada fila."""
+
+    def __init__(self, i2c=None, address=0x27, rows=4, cols=20):
+        self.rows = [" " * cols for _ in range(rows)]
+        self.cols = cols
+        self.glyphs = {}
+        self.x = self.y = 0
+
+    def clear(self):
+        self.rows = [" " * self.cols for _ in self.rows]
+
+    def move_to(self, x, y):
+        self.x, self.y = x, y
+
+    def putstr(self, text):
+        row = self.rows[self.y]
+        self.rows[self.y] = (row[:self.x] + text + row[self.x + len(text):])[:self.cols]
+        self.x += len(text)
+
+    def custom_char(self, location, charmap):
+        self.glyphs[location] = list(charmap)
+
+
 machine = types.ModuleType("machine")
 machine.Pin = FakePin
 machine.ADC = FakeADC
-machine.I2C = object
+machine.I2C = lambda *args, **kwargs: None
 dht = types.ModuleType("dht")
 dht.DHT22 = FakeDHT22
 umqtt = types.ModuleType("umqtt")
@@ -108,6 +142,8 @@ umqtt_simple.MQTTClient = FakeMQTTClient
 umqtt.simple = umqtt_simple
 ntptime = types.ModuleType("ntptime")
 ntptime.settime = lambda: None
+i2c_lcd = types.ModuleType("i2c_lcd")
+i2c_lcd.I2cLcd = FakeLcd
 
 sys.modules.update({"machine": machine, "dht": dht, "umqtt": umqtt, "umqtt.simple": umqtt_simple,
-                    "ntptime": ntptime})
+                    "ntptime": ntptime, "i2c_lcd": i2c_lcd})
