@@ -27,7 +27,7 @@ select = ["E", "F", "I", "B", "SIM"]
 
 [tool.ruff.lint.isort]
 known-third-party = ["machine", "dht", "network", "ntptime", "umqtt"]
-known-first-party = ["actuators", "config", "display", "sensors", "smartpot_client", "utils", "conftest"]
+known-first-party = ["actuators", "config", "device", "display", "sensors", "smartpot_client", "utils", "conftest"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
