@@ -17,4 +17,4 @@ sequenceDiagram
   end
   C->>B: commands/ack {id, status, message} (QoS 1)
   B->>A: confirma el comando
-  Note over K: Con durationSeconds, tick lo apaga solo<br/>al cumplirse el tiempo
+  Note over K: Con durationSeconds, tick lo apaga solo<br/>al cumplirse el tiempo, aunque se caiga la conexión
