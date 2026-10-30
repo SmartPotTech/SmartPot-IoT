@@ -14,6 +14,10 @@ permissions:
   contents: read
   security-events: write
 
+env:
+  SNYK_TOKEN: ${{ secrets.SNYK_PAT_ORG || secrets.SNYK_TOKEN }}
+  SNYK_CFG_ORG: ${{ vars.SNYK_CFG_ORG || vars.SNYK_SLUG_ORG || '9c3602e7-da44-48d5-a4d1-5c2f09f7eafe' }}
+
 jobs:
   snyk-sca:
     name: Snyk Open Source (Firmware & Python)
@@ -31,12 +35,10 @@ jobs:
         uses: snyk/actions/setup@v4
 
       - name: Export requirements and run Snyk Test
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           if [ -f pyproject.toml ]; then
             uv export --no-dev --no-hashes -o requirements.txt
-            snyk test --file=requirements.txt --severity-threshold=medium --sarif-file-output=snyk.sarif || {
+            snyk test --org="${{ env.SNYK_CFG_ORG }}" --file=requirements.txt --severity-threshold=medium --sarif-file-output=snyk.sarif || {
               code=$?
               if [ $code -eq 1 ]; then
                 echo "::warning::Snyk detectó vulnerabilidades en dependencias de Python."
