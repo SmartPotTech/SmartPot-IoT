@@ -43,14 +43,14 @@ jobs:
         run: |
           if [ -f pyproject.toml ]; then
             uv export --no-dev --no-hashes --no-header --no-annotate -o requirements.txt || true
-            if [ -f requirements.txt ]; then
+            if [ -s requirements.txt ]; then
               uv pip install --system -r requirements.txt || true
             fi
           fi
 
       - name: Run Snyk Test
         run: |
-          if [ -f requirements.txt ]; then
+          if [ -s requirements.txt ]; then
             snyk test \
               --org="${{ env.SNYK_CFG_ORG }}" \
               --file=requirements.txt \
@@ -69,6 +69,8 @@ jobs:
                 exit $code
               fi
             }
+          else
+            echo "::notice::El repositorio no contiene dependencias de producción externas (firmware MicroPython puro); escaneo omitido."
           fi
 
       - name: Upload SARIF to GitHub Security Tab
