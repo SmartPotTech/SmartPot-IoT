@@ -1,9 +1,11 @@
 #![no_std]
 extern crate alloc;
 
+pub mod codec;
 pub mod config;
 pub mod drivers;
 pub mod events;
+pub mod filter;
 pub mod protocol;
 pub mod tasks;
 
