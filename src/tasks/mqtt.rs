@@ -208,6 +208,7 @@ async fn run_mqtt_client<T>(
     let ack_topic_name = TopicName::new(MqttString::from_str(topic_ack_str).unwrap()).unwrap();
     let telemetry_topic_name =
         TopicName::new(MqttString::from_str(topic_telemetry_str).unwrap()).unwrap();
+    let mut telemetry_seq: u16 = 0;
 
     loop {
         match select3(
@@ -276,11 +277,8 @@ async fn run_mqtt_client<T>(
 
             // Mensajes de telemetría para publicar
             Either3::Third(telem_msg) => {
-                let mut payload: String<255> = String::new();
-                match telem_msg {
-                    TelemetryMessage::SendAll(state) => {
-                        state.to_json(&mut payload);
-                    }
+                let state = match telem_msg {
+                    TelemetryMessage::SendAll(state) => state,
                     TelemetryMessage::SendOne(m) => {
                         let mut state = crate::protocol::SensorState::default();
                         match m {
@@ -300,21 +298,31 @@ async fn run_mqtt_client<T>(
                                 state.update_soil_moisture(sm);
                             }
                         }
-                        state.to_json(&mut payload);
+                        state
                     }
-                }
+                };
+                let mut payload: String<255> = String::new();
+                let mut packet = [0u8; crate::codec::PACKET_SIZE];
+                let body: &[u8] = if config.compact_telemetry {
+                    let mask = crate::codec::encode_state(&state, telemetry_seq, 0, &mut packet);
+                    telemetry_seq = telemetry_seq.wrapping_add(1);
+                    if mask == 0 { &[] } else { &packet }
+                } else {
+                    state.to_json(&mut payload);
+                    if payload.as_str() == "{}" { &[] } else { payload.as_bytes() }
+                };
 
-                if !payload.is_empty() && payload.as_str() != "{}" {
+                if !body.is_empty() {
                     let pub_opts = PublicationOptions::new(TopicReference::Name(
                         telemetry_topic_name.clone(),
                     ));
                     info!(
-                        "[MQTT PUB] Telemetría en {}: {}",
+                        "[MQTT PUB] Telemetría en {} ({} bytes)",
                         topic_telemetry_str,
-                        payload.as_str()
+                        body.len()
                     );
                     if let Err(e) = client
-                        .publish(&pub_opts, rust_mqtt::Bytes::Borrowed(payload.as_bytes()))
+                        .publish(&pub_opts, rust_mqtt::Bytes::Borrowed(body))
                         .await
                     {
                         error!("[MQTT] Error al publicar telemetría: {:?}", e);

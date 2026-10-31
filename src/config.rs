@@ -13,6 +13,9 @@ pub struct Config {
     pub broker_port: u16,
     pub use_tls: bool,
     pub telemetry_interval_secs: u64,
+    /// Telemetría en el paquete compacto v2 (27 bytes) en vez de JSON; se activa definiendo COMPACT_TELEMETRY al
+    /// compilar. La API acepta los dos formatos en el mismo tópico.
+    pub compact_telemetry: bool,
 }
 
 pub const DEFAULT_CONFIG: Config = Config {
@@ -38,5 +41,9 @@ pub const DEFAULT_CONFIG: Config = Config {
     },
     broker_port: 1883,
     use_tls: false,
+    compact_telemetry: match option_env!("COMPACT_TELEMETRY") {
+        Some(_) => true,
+        None => false,
+    },
     telemetry_interval_secs: 15,
 };

@@ -1,24 +1,21 @@
-//! Codificador de paquetes binarios ultracompactos (22 bytes) para transporte de telemetría IoT.
+//! Paquete compacto de telemetría v2 (27 bytes, big-endian): la alternativa binaria al JSON del contrato v1, en el
+//! mismo tópico. La API acepta los dos; el firmware lo usa si se compila con `COMPACT_TELEMETRY`.
 //!
-//! Estructura de paquete:
-//! [0]: Magic Byte 'P' (0x50)
-//! [1]: Protocol Version (0x01)
-//! [2..4]: Sequence ID (u16 BE)
-//! [4..8]: Timestamp Unix Epoch (u32 BE)
-//! [8..10]: Temperature (i16 BE, scale 100, -327.68 .. +327.67 C)
-//! [10..12]: Relative Humidity (u16 BE, scale 100, 0.00 .. 100.00 %)
-//! [12..14]: pH (u16 BE, scale 100, 0.00 .. 14.00)
-//! [14..16]: TDS (u16 BE, scale 1, 0 .. 5000 ppm)
-//! [16..18]: Soil Moisture (u16 BE, scale 100, 0.00 .. 100.00 %)
-//! [18..20]: Brightness (u16 BE, scale 1, 0 .. 65535 lux)
-//! [20]: Flags / Reserve (0x00)
-//! [21]: CRC-8 Checksum (Polinomio 0x07 sobre bytes 0..21)
+//! - `[0]` 'P' (0x50) · `[1]` versión 2 · `[2..4]` secuencia u16 · `[4..8]` época u32 en s (0 = sin hora)
+//! - `[8..10]` máscara de presencia u16: bit 0 temperatura, 1 humedad, 2 luz, 3 pH, 4 TDS, 5 presión, 6 sustrato
+//! - `[10..12]` temperatura i16 ×100 °C · `[12..14]` humedad u16 ×100 % · `[14..18]` luz u32 lux
+//! - `[18..20]` pH u16 ×100 · `[20..22]` TDS u16 ppm · `[22..24]` presión u16 ×10 hPa · `[24..26]` sustrato ×100 %
+//! - `[26]` CRC-8 (polinomio 0x07) de los bytes 0..26
+//!
+//! Un sensor sin lectura deja su bit en 0 (como omitirlo en el JSON); un 0 real lleva su bit.
+
+use crate::protocol::SensorState;
 
 pub const COMPACT_BINARY_MAGIC: u8 = 0x50;
-pub const COMPACT_BINARY_VERSION: u8 = 0x01;
-pub const PACKET_SIZE: usize = 22;
+pub const COMPACT_BINARY_VERSION: u8 = 0x02;
+pub const PACKET_SIZE: usize = 27;
 
-/// Calcula el checksum CRC-8 ATM (polinomio 0x07) sobre el slice dado.
+/// Calcula el checksum CRC-8 (polinomio 0x07) sobre el slice dado.
 pub fn calc_crc8(data: &[u8]) -> u8 {
     let mut crc: u8 = 0x00;
     for &b in data {
@@ -34,74 +31,55 @@ pub fn calc_crc8(data: &[u8]) -> u8 {
     crc
 }
 
-/// Datos de telemetría para empaquetado binario.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct TelemetryRaw {
-    pub seq_id: u16,
-    pub timestamp_epoch: u32,
-    pub temperature: f32,
-    pub humidity: f32,
-    pub ph: f32,
-    pub tds: f32,
-    pub soil_moisture: f32,
-    pub brightness: f32,
-    pub flags: u8,
+/// Codifica el estado de los sensores en `out` y devuelve la máscara de presencia (0 = nada que enviar).
+pub fn encode_state(
+    state: &SensorState,
+    seq_id: u16,
+    timestamp_epoch: u32,
+    out: &mut [u8; PACKET_SIZE],
+) -> u16 {
+    *out = [0u8; PACKET_SIZE];
+    out[0] = COMPACT_BINARY_MAGIC;
+    out[1] = COMPACT_BINARY_VERSION;
+    out[2..4].copy_from_slice(&seq_id.to_be_bytes());
+    out[4..8].copy_from_slice(&timestamp_epoch.to_be_bytes());
+
+    let mut mask: u16 = 0;
+    if let Some(v) = finite(state.temperature) {
+        mask |= 1 << 0;
+        out[10..12].copy_from_slice(&((v * 100.0).clamp(-32768.0, 32767.0) as i16).to_be_bytes());
+    }
+    if let Some(v) = finite(state.humidity) {
+        mask |= 1 << 1;
+        out[12..14].copy_from_slice(&((v.clamp(0.0, 100.0) * 100.0) as u16).to_be_bytes());
+    }
+    if let Some(v) = finite(state.brightness) {
+        mask |= 1 << 2;
+        out[14..18].copy_from_slice(&(v.clamp(0.0, 4.0e9) as u32).to_be_bytes());
+    }
+    if let Some(v) = finite(state.ph) {
+        mask |= 1 << 3;
+        out[18..20].copy_from_slice(&((v.clamp(0.0, 14.0) * 100.0) as u16).to_be_bytes());
+    }
+    if let Some(v) = finite(state.tds) {
+        mask |= 1 << 4;
+        out[20..22].copy_from_slice(&(v.clamp(0.0, 65535.0) as u16).to_be_bytes());
+    }
+    if let Some(v) = finite(state.atmosphere) {
+        mask |= 1 << 5;
+        out[22..24].copy_from_slice(&((v.clamp(0.0, 6553.5) * 10.0) as u16).to_be_bytes());
+    }
+    if let Some(v) = finite(state.soil_moisture) {
+        mask |= 1 << 6;
+        out[24..26].copy_from_slice(&((v.clamp(0.0, 100.0) * 100.0) as u16).to_be_bytes());
+    }
+    out[8..10].copy_from_slice(&mask.to_be_bytes());
+    out[PACKET_SIZE - 1] = calc_crc8(&out[..PACKET_SIZE - 1]);
+    mask
 }
 
-impl TelemetryRaw {
-    /// Codifica las medidas en un búfer de 22 bytes con verificación CRC-8.
-    pub fn encode(&self, out: &mut [u8; PACKET_SIZE]) {
-        out[0] = COMPACT_BINARY_MAGIC;
-        out[1] = COMPACT_BINARY_VERSION;
-
-        let seq_bytes = self.seq_id.to_be_bytes();
-        out[2] = seq_bytes[0];
-        out[3] = seq_bytes[1];
-
-        let ts_bytes = self.timestamp_epoch.to_be_bytes();
-        out[4..8].copy_from_slice(&ts_bytes);
-
-        // Temperatura con escala x100 (con signo)
-        let temp_scaled = (self.temperature * 100.0) as i16;
-        let temp_bytes = temp_scaled.to_be_bytes();
-        out[8] = temp_bytes[0];
-        out[9] = temp_bytes[1];
-
-        // Humedad x100 (sin signo)
-        let hum_scaled = (self.humidity.clamp(0.0, 100.0) * 100.0) as u16;
-        let hum_bytes = hum_scaled.to_be_bytes();
-        out[10] = hum_bytes[0];
-        out[11] = hum_bytes[1];
-
-        // pH x100 (sin signo)
-        let ph_scaled = (self.ph.clamp(0.0, 14.0) * 100.0) as u16;
-        let ph_bytes = ph_scaled.to_be_bytes();
-        out[12] = ph_bytes[0];
-        out[13] = ph_bytes[1];
-
-        // TDS x1 (sin signo)
-        let tds_scaled = self.tds.clamp(0.0, 65535.0) as u16;
-        let tds_bytes = tds_scaled.to_be_bytes();
-        out[14] = tds_bytes[0];
-        out[15] = tds_bytes[1];
-
-        // Humedad sustrato x100 (sin signo)
-        let moist_scaled = (self.soil_moisture.clamp(0.0, 100.0) * 100.0) as u16;
-        let moist_bytes = moist_scaled.to_be_bytes();
-        out[16] = moist_bytes[0];
-        out[17] = moist_bytes[1];
-
-        // Brillo x1 (sin signo)
-        let bright_scaled = self.brightness.clamp(0.0, 65535.0) as u16;
-        let bright_bytes = bright_scaled.to_be_bytes();
-        out[18] = bright_bytes[0];
-        out[19] = bright_bytes[1];
-
-        out[20] = self.flags;
-
-        // CRC-8 sobre los primeros 21 bytes
-        out[21] = calc_crc8(&out[..21]);
-    }
+fn finite(value: Option<f32>) -> Option<f32> {
+    value.filter(|v| v.is_finite())
 }
 
 #[cfg(test)]
@@ -109,42 +87,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_codec_crc8() {
-        let data = b"123456789";
-        // Check standard CRC-8 ATM
-        let crc = calc_crc8(data);
-        assert_eq!(crc, calc_crc8(data));
-    }
-
-    #[test]
-    fn test_encode_packet_parity() {
-        let raw = TelemetryRaw {
-            seq_id: 42,
-            timestamp_epoch: 1700000000,
-            temperature: 23.50,
-            humidity: 62.00,
-            ph: 6.50,
-            tds: 480.0,
-            soil_moisture: 55.00,
-            brightness: 15000.0,
-            flags: 0,
+    fn test_encode_state_marks_present_sensors() {
+        let state = SensorState {
+            temperature: Some(0.0),
+            brightness: Some(98_000.0),
+            atmosphere: Some(1013.2),
+            ..Default::default()
         };
-
         let mut packet = [0u8; PACKET_SIZE];
-        raw.encode(&mut packet);
+        let mask = encode_state(&state, 42, 0, &mut packet);
 
+        assert_eq!(mask, 0b0010_0101);
         assert_eq!(packet[0], COMPACT_BINARY_MAGIC);
         assert_eq!(packet[1], COMPACT_BINARY_VERSION);
         assert_eq!(u16::from_be_bytes([packet[2], packet[3]]), 42);
-        assert_eq!(u32::from_be_bytes([packet[4], packet[5], packet[6], packet[7]]), 1700000000);
-        assert_eq!(i16::from_be_bytes([packet[8], packet[9]]), 2350);
-        assert_eq!(u16::from_be_bytes([packet[10], packet[11]]), 6200);
-        assert_eq!(u16::from_be_bytes([packet[12], packet[13]]), 650);
-        assert_eq!(u16::from_be_bytes([packet[14], packet[15]]), 480);
-        assert_eq!(u16::from_be_bytes([packet[16], packet[17]]), 5500);
-        assert_eq!(u16::from_be_bytes([packet[18], packet[19]]), 15000);
-
-        // Validar CRC
-        assert_eq!(calc_crc8(&packet[..21]), packet[21]);
+        assert_eq!(u16::from_be_bytes([packet[8], packet[9]]), mask);
+        assert_eq!(i16::from_be_bytes([packet[10], packet[11]]), 0);
+        assert_eq!(
+            u32::from_be_bytes([packet[14], packet[15], packet[16], packet[17]]),
+            98_000
+        );
+        assert_eq!(
+            calc_crc8(&packet[..PACKET_SIZE - 1]),
+            packet[PACKET_SIZE - 1]
+        );
     }
 }
