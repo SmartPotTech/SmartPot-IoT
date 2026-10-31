@@ -164,3 +164,18 @@ uv run --with paho-mqtt python tests/verify_contract_v1.py
 
 Para conocer todos los detalles técnicos, diseño del circuito y pruebas de validación, consulta:
 * [Documentación Completa de SmartPot-IoT-Rust](docs/SmartPot_IoT_Rust_Documentation.md)
+
+## Hoja de Ruta Industrial: Filtrado Digital en el Borde y Payload Binario de 22 Bytes
+
+Como parte del **Plan Maestro de Maximización del Stack B (demo-beta)**, `SmartPot-IoT-Rust` implementa las siguientes optimizaciones ciberfísicas en el ESP32:
+
+1. **Filtrado Digital en el Borde (Edge Filtering)**:
+   - Lectura continua de ADC1 mediante DMA.
+   - Filtro de mediana móvil de 5 muestras para eliminar perturbaciones impulsivas causadas por conmutación de relés.
+   - Filtro de Kalman unidimensional (1D EKF) implementado en aritmética de punto fijo Q16.16 sin punto flotante pesado.
+2. **Serialización Compacta Postcard de 22 Bytes**:
+   - Sustitución del JSON de ~180 bytes por un esquema binario de longitud fija:
+     `timestamp_delta (u16) | temp_centi (i16) | rh_centi (u16) | soil_moisture_centi (u16) | ph_milli (u16) | tds_ppm (u16) | light_lux (u32) | battery_mv (u16) | status_flags (u8) | crc8 (u8)`.
+   - Reducción del 88% en el consumo de ancho de banda y tiempo de transmisión Wi-Fi.
+3. **mTLS con Curva Ed25519 y MQTT v5**:
+   - Autenticación criptográfica en el handshake TLS y uso de Topic Aliases para reducir el encabezado del paquete MQTT a 2 bytes.
