@@ -1,0 +1,58 @@
+%%{init: {"theme": "base", "fontFamily": "Segoe UI, Arial, sans-serif", "themeVariables": {"fontFamily": "Segoe UI, Arial, sans-serif", "fontSize": "15px", "primaryColor": "#DDF5EA", "primaryTextColor": "#17261F", "primaryBorderColor": "#067A52", "secondaryColor": "#E3F2FB", "secondaryTextColor": "#17261F", "secondaryBorderColor": "#1F6FA0", "tertiaryColor": "#F2F7F4", "tertiaryTextColor": "#17261F", "tertiaryBorderColor": "#D5E3DC", "lineColor": "#5B6B63", "textColor": "#17261F", "mainBkg": "#DDF5EA", "nodeBorder": "#067A52", "clusterBkg": "#F7FAF8", "clusterBorder": "#D5E3DC", "edgeLabelBackground": "#FFFFFF", "actorBkg": "#067A52", "actorBorder": "#0B3D2B", "actorTextColor": "#FFFFFF", "actorLineColor": "#5B6B63", "signalColor": "#17261F", "signalTextColor": "#17261F", "labelBoxBkgColor": "#0B3D2B", "labelBoxBorderColor": "#0B3D2B", "labelTextColor": "#FFFFFF", "loopTextColor": "#0B3D2B", "noteBkgColor": "#FDF4DD", "noteBorderColor": "#C98D12", "noteTextColor": "#17261F", "activationBkgColor": "#DDF5EA", "activationBorderColor": "#067A52", "attributeBackgroundColorOdd": "#FFFFFF", "attributeBackgroundColorEven": "#F2F7F4"}, "layout": "elk", "elk": {"nodePlacementStrategy": "BRANDES_KOEPF", "mergeEdges": false, "cycleBreakingStrategy": "GREEDY"}}}%%
+flowchart LR
+  subgraph esp["ESP32 Dual-Core · Rust 2024 no_std · Embassy Runtime"]
+    direction TB
+    subgraph core0["Core 0 · Red y Comunicaciones"]
+      direction TB
+      wifi["tasks/wifi.rs<br/>WiFi Station · Reintentos"]
+      mqtt["tasks/mqtt.rs<br/>Cliente MQTT v1 · TLS 1.2+<br/>LWT retenido · select3 loop"]
+      telem["tasks/wifi.rs: telemetry_task<br/>Agregación · SensorState"]
+    end
+
+    subgraph core1["Core 1 · Adquisición y Control"]
+      direction TB
+      i2c["tasks/sensors.rs: bme280 & bh1750<br/>Temperatura, Humedad, Presión, Lux"]
+      adc["tasks/sensors.rs: analog_sensors<br/>TDS, pH, Humedad Sustrato"]
+      act["tasks/command.rs: actuator_task<br/>Bomba, Luces, Ventilador, Humidificador<br/>Temporizador Instant::now() + Duration"]
+    end
+
+    subgraph channels["Canales Estáticos Embassy (Sin Bloqueos)"]
+      direction TB
+      sch["SENSOR_CH<br/>Mediciones físicas"]
+      cch["COMMAND_CH<br/>Órdenes entrantes"]
+      ach["ACK_CH<br/>Confirmaciones en español"]
+      tch["TELEMETRY_CH<br/>Payloads v1 sin nulos"]
+    end
+  end
+
+  subgraph hw["Periféricos y Circuito"]
+    direction TB
+    sens["I2C SCL 22 / SDA 21<br/>ADC GPIO 34, 35, 32"]
+    outs["Bomba 25 · Luces 26<br/>Ventilador 27 · Humidificador 5"]
+  end
+
+  broker["EMQX Broker / Mosquitto<br/>mqtt.smartpot.app:8883"]
+
+  sens --> i2c & adc
+  act --> outs
+
+  i2c & adc -->|"produce mediciones"| sch
+  sch -->|"consume y agrega"| telem
+  telem -->|"emite JSON v1"| tch
+  tch -->|"publica en bus"| mqtt
+
+  mqtt <-->|"smartpot/v1/{cropId}/..."| broker
+  mqtt -->|"despacha orden válida"| cch
+  cch -->|"ejecuta y temporiza"| act
+  act -->|"emite ACK"| ach
+  ach -->|"publica confirmación"| mqtt
+
+  classDef leaf fill:#DDF5EA,stroke:#067A52,color:#17261F
+  classDef water fill:#E3F2FB,stroke:#1F6FA0,color:#17261F
+  classDef sun fill:#FDF4DD,stroke:#C98D12,color:#17261F
+  classDef clay fill:#FBE9E1,stroke:#B85A38,color:#17261F
+  classDef core fill:#067A52,stroke:#0B3D2B,color:#FFFFFF
+  classDef deep fill:#0B3D2B,stroke:#06281C,color:#FFFFFF
+  classDef muted fill:#F2F7F4,stroke:#5B6B63,color:#17261F
+  class mqtt,act core
+  class broker deep

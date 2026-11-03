@@ -1,22 +1,169 @@
-
 {
-    "version": 1,
-    "author": "SmartPot",
-    "editor": "wokwi",
-    "parts": [
-        {
-            "type": "wokwi-esp32-devkit-v1",
-            "id": "esp",
-            "top": 0,
-            "left": 0,
-            "attrs": {}
-        }
-    ],
-    "connections": [],
-    "serialMonitor": {
-        "display": "always",
-        "newline": "lf",
-        "convertEol": false
+  "version": 1,
+  "author": "Sebastián López O",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-devkit-c-v4",
+      "id": "esp",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
     },
-    "dependencies": {}
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot_tds",
+      "top": -160,
+      "left": 480,
+      "attrs": {
+        "label": "TDS (ppm)"
+      }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot_ph",
+      "top": -160,
+      "left": 380,
+      "attrs": {
+        "label": "pH (0-14)"
+      }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot_soil",
+      "top": -160,
+      "left": 280,
+      "attrs": {
+        "label": "Humedad Sustrato (%)"
+      }
+    },
+    {
+      "type": "wokwi-bme280",
+      "id": "bme",
+      "top": -160,
+      "left": 160,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_pump",
+      "top": -180,
+      "left": -160,
+      "attrs": {
+        "color": "blue",
+        "flip": "1",
+        "label": "Bomba"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_pump",
+      "top": -110,
+      "left": -170,
+      "rotate": 90,
+      "attrs": {
+        "value": "1000"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_lights",
+      "top": -180,
+      "left": -100,
+      "attrs": {
+        "color": "purple",
+        "flip": "1",
+        "label": "Luces"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_lights",
+      "top": -110,
+      "left": -110,
+      "rotate": 90,
+      "attrs": {
+        "value": "1000"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_fan",
+      "top": -180,
+      "left": -40,
+      "attrs": {
+        "color": "orange",
+        "flip": "1",
+        "label": "Ventilador"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_fan",
+      "top": -110,
+      "left": -50,
+      "rotate": 90,
+      "attrs": {
+        "value": "1000"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_humidifier",
+      "top": -180,
+      "left": 20,
+      "attrs": {
+        "color": "green",
+        "flip": "1",
+        "label": "Humidificador"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_humidifier",
+      "top": -110,
+      "left": 10,
+      "rotate": 90,
+      "attrs": {
+        "value": "1000"
+      }
+    }
+  ],
+  "connections": [
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+
+    [ "pot_tds:SIG", "esp:34", "green", [] ],
+    [ "pot_ph:SIG", "esp:35", "green", [] ],
+    [ "pot_soil:SIG", "esp:32", "green", [] ],
+
+    [ "esp:3V3", "pot_tds:VCC", "red", [] ],
+    [ "esp:3V3", "pot_ph:VCC", "red", [] ],
+    [ "esp:3V3", "pot_soil:VCC", "red", [] ],
+
+    [ "esp:GND.1", "pot_tds:GND", "black", [] ],
+    [ "esp:GND.1", "pot_ph:GND", "black", [] ],
+    [ "esp:GND.1", "pot_soil:GND", "black", [] ],
+
+    [ "esp:21", "bme:SDA", "blue", [] ],
+    [ "esp:22", "bme:SCL", "yellow", [] ],
+    [ "esp:3V3", "bme:VCC", "red", [] ],
+    [ "esp:GND.2", "bme:GND", "black", [] ],
+
+    [ "esp:25", "led_pump:A", "blue", [] ],
+    [ "led_pump:C", "r_pump:1", "black", [] ],
+    [ "r_pump:2", "esp:GND.1", "black", [] ],
+
+    [ "esp:26", "led_lights:A", "purple", [] ],
+    [ "led_lights:C", "r_lights:1", "black", [] ],
+    [ "r_lights:2", "esp:GND.1", "black", [] ],
+
+    [ "esp:27", "led_fan:A", "orange", [] ],
+    [ "led_fan:C", "r_fan:1", "black", [] ],
+    [ "r_fan:2", "esp:GND.1", "black", [] ],
+
+    [ "esp:5", "led_humidifier:A", "green", [] ],
+    [ "led_humidifier:C", "r_humidifier:1", "black", [] ],
+    [ "r_humidifier:2", "esp:GND.2", "black", [] ]
+  ]
 }

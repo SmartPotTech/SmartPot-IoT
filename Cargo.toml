@@ -1,7 +1,7 @@
 [package]
 edition      = "2024"
 name         = "smartpot-iot"
-rust-version = "1.91"
+rust-version = "1.90"
 version      = "0.1.0"
 default-run = "smartpot-iot"
 
@@ -55,6 +55,7 @@ esp-radio = { version = "0.18.0", default-features = false, features = [
 ] }
 
 embedded-hal-async = "1.0.0"
+embedded-io-async = "0.7"
 embedded-tls = { version = "0.18", default-features = false, features = ["embedded-io-adapters", "defmt"] }
 
 embassy-futures = "0.1.2"
@@ -91,4 +92,3 @@ incremental      = false
 lto              = 'fat'
 opt-level        = 's'
 overflow-checks  = false
-

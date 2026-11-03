@@ -1,0 +1,5 @@
+[wokwi]
+version = 1
+elf = "target/xtensa-esp32-none-elf/debug/smartpot-iot"
+firmware = "target/xtensa-esp32-none-elf/debug/smartpot-iot"
+rfc2217ServerPort = 4000
