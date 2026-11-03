@@ -17,40 +17,68 @@ use crate::drivers::tca9548a::{Tca9548a, TcaChannel};
 // TODO: dynamic recon of devices
 // TODO: Configurable measure time
 
+/// Try to initialize a BME280. A missing or misbehaving sensor is not fatal:
+/// the caller simply skips that channel while the rest keep working.
+async fn try_bme280<I2C>(i2c: I2C, address: u8, label: &str) -> Option<crate::drivers::bme280::Bme280<I2C>>
+where
+    I2C: embedded_hal_async::i2c::I2c,
+{
+    match crate::drivers::bme280::Bme280::new(i2c, address).await {
+        Ok(sensor) => {
+            info!("BME280 {} initialized on 0x{:02x}", label, address);
+            Some(sensor)
+        }
+        Err(_e) => {
+            error!("BME280 {} not available on 0x{:02x}; skipping channel", label, address);
+            None
+        }
+    }
+}
+
 #[task]
 pub async fn bme280_sequential_task(tca: Tca9548a<I2c<'static, Async>> , sensor_channel: DynPublisher<'static, Measurements>) {
     let [_, _, ch2, ch3, ch4, _, _, _] = tca.split();
 
     let address = 0x76;
-    let mut bme1 = crate::drivers::bme280::Bme280::new(ch2, address).await.unwrap();
-    let mut bme2 = crate::drivers::bme280::Bme280::new(ch3, address).await.unwrap();
-    let mut bme3 = crate::drivers::bme280::Bme280::new(ch4, address).await.unwrap();
+    let mut bme1 = try_bme280(ch2, address, "channel 2").await;
+    let mut bme2 = try_bme280(ch3, address, "channel 3").await;
+    let mut bme3 = try_bme280(ch4, address, "channel 4").await;
+
+    if bme1.is_none() && bme2.is_none() && bme3.is_none() {
+        error!("No BME280 sensors detected; sensor task will stay idle");
+    }
 
     loop {
-        match bme1.measure().await {
-            Ok(m) => {
-                debug!("Sending BME280:2 measurementes: {}", &m);
-                sensor_channel.publish_immediate(Measurements::BME280((m.temperature, m.humidity, m.pressure)));}
-            Err(_e) => {
-                error!("Error measuring BME280:3 sensor on {}", address);
+        if let Some(sensor) = bme1.as_mut() {
+            match sensor.measure().await {
+                Ok(m) => {
+                    debug!("Sending BME280:2 measurementes: {}", &m);
+                    sensor_channel.publish_immediate(Measurements::BME280((m.temperature, m.humidity, m.pressure)));}
+                Err(_e) => {
+                    error!("Error measuring BME280:2 sensor on {}", address);
+                }
             }
         }
 
-        match bme2.measure().await {
-            Ok(m) => {
-                debug!("Sending BME280:3 measurementes {}", &m);
-                sensor_channel.publish_immediate(Measurements::BME280((m.temperature, m.humidity, m.pressure)));}
-            Err(_e) => {
-                error!("Error measuring BME280:3 sensor on {}", address);
+        if let Some(sensor) = bme2.as_mut() {
+            match sensor.measure().await {
+                Ok(m) => {
+                    debug!("Sending BME280:3 measurementes {}", &m);
+                    sensor_channel.publish_immediate(Measurements::BME280((m.temperature, m.humidity, m.pressure)));}
+                Err(_e) => {
+                    error!("Error measuring BME280:3 sensor on {}", address);
+                }
             }
         }
 
-        match bme3.measure().await {
-            Ok(m) => {
-                debug!("Sending BME280:4 measurementes {}", &m);
-                sensor_channel.publish_immediate(Measurements::BME280((m.temperature, m.humidity, m.pressure)));}
-            Err(_e) => {
-                error!("Error measuring BME280:4 sensor on {}", address);
+        if let Some(sensor) = bme3.as_mut() {
+            match sensor.measure().await {
+                Ok(m) => {
+                    debug!("Sending BME280:4 measurementes {}", &m);
+                    sensor_channel.publish_immediate(Measurements::BME280((m.temperature, m.humidity, m.pressure)));}
+                Err(_e) => {
+                    error!("Error measuring BME280:4 sensor on {}", address);
+                }
             }
         }
 
