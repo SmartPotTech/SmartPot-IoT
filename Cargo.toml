@@ -56,6 +56,7 @@ esp-radio = { version = "=1.0.0-beta.1", default-features = false, features = [
 ] }
 
 embedded-hal-async = "1.0.0"
+embedded-io-async = "0.7"
 embedded-tls = { version = "0.19", default-features = false, features = ["embedded-io-adapters", "defmt"] }
 
 embassy-futures = "0.1.2"
@@ -93,4 +94,3 @@ incremental      = false
 lto              = 'fat'
 opt-level        = 's'
 overflow-checks  = false
-

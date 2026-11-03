@@ -1,11 +1,13 @@
 #![no_std]
 extern crate alloc;
 
-pub mod events;
-pub mod tasks;
-
-#[cfg(feature = "sensors")]
+pub mod codec;
+pub mod config;
 pub mod drivers;
+pub mod events;
+pub mod filter;
+pub mod protocol;
+pub mod tasks;
 
 #[cfg(feature = "sensors")]
 pub mod i2c_scanner {
@@ -13,16 +15,13 @@ pub mod i2c_scanner {
     use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
     use embassy_sync::blocking_mutex::raw::NoopRawMutex;
     use embedded_hal_async::i2c::I2c as I2cAsync;
-    use esp_hal::{Async, i2c::master::I2c};
+    use esp_hal::{i2c::master::I2c, Async};
 
     pub struct I2CScanner<I2C> {
-        i2c: I2C,
+        i2c: I2C
     }
 
-    impl<I2C> I2CScanner<I2C>
-    where
-        I2C: I2cAsync,
-    {
+    impl<I2C> I2CScanner<I2C> where I2C: I2cAsync {
         pub async fn new(i2c: I2C) -> Self {
             Self { i2c }
         }
@@ -30,11 +29,9 @@ pub mod i2c_scanner {
         pub async fn i2c_scan_tca9548a(&mut self) {
             info!("Iniciando escaneo I2C con TCA9548A...");
 
-            // Iterar sobre los 8 canales del TCA
             for channel in 0..8 {
                 let channel_mask = 1 << channel;
 
-                // Seleccionar canal en el TCA (0x70)
                 match self.i2c.write(0x70, &[channel_mask]).await {
                     Ok(_) => {
                         info!("Canal {} seleccionado", channel);
@@ -45,13 +42,9 @@ pub mod i2c_scanner {
                     }
                 }
 
-                // (Opcional pero recomendado) pequeño delay
-                // embassy_time::Timer::after_millis(5).await;
-
-                // Escanear direcciones en ese canal
                 for addr in 0x03..=0x77 {
                     if addr == 0x70 {
-                        continue; // evitar el propio TCA
+                        continue;
                     }
 
                     if self.i2c.write(addr, &[]).await.is_ok() {

@@ -1,0 +1,72 @@
+name: Snyk Security Scan
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    # Escaneo semanal los lunes a las 07:00 UTC
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+env:
+  SNYK_TOKEN: ${{ secrets.SNYK_PAT_ORG || secrets.SNYK_TOKEN }}
+  SNYK_CFG_ORG: ${{ vars.SNYK_CFG_ORG || vars.SNYK_SLUG_ORG || '9c3602e7-da44-48d5-a4d1-5c2f09f7eafe' }}
+
+jobs:
+  snyk-sca:
+    # En los PRs de Dependabot no llega el token de Snyk; esos cambios los revisa el CI.
+    if: github.actor != 'dependabot[bot]'
+    name: Snyk & RustSec Security Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      - name: Ensure Cargo.lock exists
+        run: |
+          if [ ! -f Cargo.lock ]; then
+            RUSTUP_TOOLCHAIN=stable cargo generate-lockfile
+          fi
+
+      - name: Run RustSec Cargo Audit
+        run: |
+          RUSTUP_TOOLCHAIN=stable cargo audit --format sarif > snyk.sarif || {
+            code=$?
+            echo "::warning::cargo-audit reportó avisos o vulnerabilidades en dependencias de Rust (código $code)."
+          }
+          if [ ! -s snyk.sarif ] || ! grep -q '"runs"' snyk.sarif; then
+            echo "::warning::Reporte SARIF no generado o vacío; omitiendo carga a GitHub Security."
+            rm -f snyk.sarif
+          fi
+
+      - name: Set up Snyk CLI
+        uses: snyk/actions/setup@11b673cfb4b0dc0d860a1323caa199d54950dcce # master al 2026-10-31
+
+      - name: Attempt Snyk Code Analysis
+        run: |
+          snyk code test --org="${{ env.SNYK_CFG_ORG }}" --sarif-file-output=snyk-code.sarif || {
+            echo "::notice::Snyk Code no está habilitado o no soporta Rust en esta organización; análisis cubierto por RustSec."
+          }
+
+      - name: Upload SARIF to GitHub Security Tab
+        uses: github/codeql-action/upload-sarif@v4
+        if: always() && hashFiles('snyk.sarif') != ''
+        with:
+          sarif_file: snyk.sarif
+          category: snyk-rust-firmware

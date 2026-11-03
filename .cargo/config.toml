@@ -9,7 +9,8 @@ PASSWORD="PASSWORD"
 [build]
 rustflags = [
   "-C", "link-arg=-nostartfiles",
-  "-Z", "macro-backtrace"
+  "-Z", "macro-backtrace",
+  "-Z", "crate-attr=feature(ip_from)"
 ]
 
 target = "xtensa-esp32-none-elf"
