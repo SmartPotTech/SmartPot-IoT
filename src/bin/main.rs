@@ -213,7 +213,7 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
         #[cfg(any(feature = "sensors", feature = "actuators", feature = "mqtt", feature = "http-api", feature = "ble"))]
         use smartpot_iot::{
             events::telemetry::TELEMETRY_CH,
-            tasks::wifi::telemetry_task
+            tasks::telemetry::telemetry_task
         };
 
         info!("Configurando pila de red Wi-Fi y radio...");

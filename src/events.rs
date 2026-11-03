@@ -77,9 +77,6 @@ pub mod telemetry {
     use embassy_sync::{
         blocking_mutex::raw::CriticalSectionRawMutex, pubsub::PubSubChannel,
     };
-    use crate::events::{Measurements, SensorState};
-    use defmt::Format;
-    use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, pubsub::PubSubChannel};
 
     #[derive(Copy, Clone, Format)]
     pub enum TelemetryMessage {

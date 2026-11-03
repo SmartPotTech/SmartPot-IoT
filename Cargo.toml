@@ -8,7 +8,7 @@ default-run = "smartpot-iot"
 [features]
 # Perfil seguro por defecto: solo arranque, sin sensores ni red.
 # Asi `cargo run` funciona en una placa sin hardware conectado.
-default = []
+default = ["full"]
 
 sensors = []
 actuators = []
@@ -56,7 +56,7 @@ esp-radio = { version = "0.18.0", default-features = false, features = [
 
 embedded-hal-async = "1.0.0"
 embedded-io-async = "0.7"
-embedded-tls = { version = "0.18", default-features = false, features = ["embedded-io-adapters", "defmt"] }
+embedded-tls = { version = "0.19", default-features = false, features = ["embedded-io-adapters", "defmt"] }
 
 embassy-futures = "0.1.2"
 embassy-executor = { version = "0.10", features = ["defmt", "executor-thread"] }

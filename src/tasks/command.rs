@@ -47,8 +47,7 @@ pub async fn catch_commands(
         match select(
             command_channel.next_message_pure(),
             Timer::after(Duration::from_millis(250)),
-        )
-        .await
+        ).await
         {
             Either::First(cmd) => {
                 info!("[ACTUATOR] Recibido comando: {:?}", cmd);
