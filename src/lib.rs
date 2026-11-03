@@ -1,22 +1,28 @@
 #![no_std]
 extern crate alloc;
 
-pub mod tasks;
 pub mod events;
+pub mod tasks;
+
+#[cfg(feature = "sensors")]
 pub mod drivers;
 
+#[cfg(feature = "sensors")]
 pub mod i2c_scanner {
     use defmt::{info, warn};
     use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
     use embassy_sync::blocking_mutex::raw::NoopRawMutex;
     use embedded_hal_async::i2c::I2c as I2cAsync;
-    use esp_hal::{i2c::master::I2c, Async};
+    use esp_hal::{Async, i2c::master::I2c};
 
     pub struct I2CScanner<I2C> {
-        i2c: I2C
+        i2c: I2C,
     }
 
-    impl<I2C> I2CScanner<I2C> where I2C: I2cAsync {
+    impl<I2C> I2CScanner<I2C>
+    where
+        I2C: I2cAsync,
+    {
         pub async fn new(i2c: I2C) -> Self {
             Self { i2c }
         }

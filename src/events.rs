@@ -1,26 +1,34 @@
 use defmt::Format;
-use embassy_sync::pubsub::PubSubChannel;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_sync::pubsub::PubSubChannel;
+
+#[cfg(feature = "sensors")]
 use heapless::String;
 
-// TODO: Hide event channels and task behind features
 // SENSORS
+#[cfg(feature = "sensors")]
 #[derive(Clone, Copy, Debug, Format)]
 pub enum Measurements {
-    BME280( (f32, f32, f32) ),
-    BH1750( f32 ),
-    PH( f32 ),
-    TDS( f32 ),
+    BME280((f32, f32, f32)),
+    BH1750(f32),
+    PH(f32),
+    TDS(f32),
 }
+#[cfg(feature = "sensors")]
 unsafe impl Send for Measurements {}
 
+#[cfg(feature = "sensors")]
 impl Measurements {
     pub fn to_json<const N: usize>(&self, buf: &mut String<N>) {
         use core::fmt::Write;
 
         let _ = match self {
             Measurements::BME280((t, h, p)) => {
-                write!(buf, "{{\"temperature\":{},\"humidity\":{},\"pressure\":{}}}", t, h, p)
+                write!(
+                    buf,
+                    "{{\"temperature\":{},\"humidity\":{},\"pressure\":{}}}",
+                    t, h, p
+                )
             }
             Measurements::BH1750(l) => {
                 write!(buf, "{{\"lux\":{}}}", l)
@@ -44,10 +52,20 @@ impl Measurements {
     }
 }
 
+#[cfg(feature = "sensors")]
 pub const SENSOR_CH_CAP: usize = 32;
+#[cfg(feature = "sensors")]
 pub const SENSOR_CH_PUB: usize = 4;
+#[cfg(feature = "sensors")]
 pub const SENSOR_CH_SUB: usize = 2;
-pub static SENSOR_CH: PubSubChannel<CriticalSectionRawMutex, Measurements, SENSOR_CH_CAP, SENSOR_CH_SUB, SENSOR_CH_PUB> = PubSubChannel::new();
+#[cfg(feature = "sensors")]
+pub static SENSOR_CH: PubSubChannel<
+    CriticalSectionRawMutex,
+    Measurements,
+    SENSOR_CH_CAP,
+    SENSOR_CH_SUB,
+    SENSOR_CH_PUB,
+> = PubSubChannel::new();
 
 //
 // COMMANDS / ACTUATORS
@@ -75,6 +93,8 @@ impl Actuators {
 pub enum Command {
     Activate(Actuators),
     Disable(Actuators),
+
+    #[cfg(feature = "sensors")]
     Threshold(Measurements),
 }
 
@@ -86,23 +106,28 @@ impl Command {
             "activate" => {
                 let actuator = Actuators::from_str(arg)?;
                 Ok(Command::Activate(actuator))
-
-            },
+            }
             "disable" => {
                 let actuator = Actuators::from_str(arg)?;
                 Ok(Command::Disable(actuator))
-            },
-            _ => Err(())
+            }
+            _ => Err(()),
         }
     }
-
 }
 
 pub const COMMAND_CH_CAP: usize = 8;
 pub const COMMAND_CH_PUB: usize = 1;
 pub const COMMAND_CH_SUB: usize = 1;
-pub static COMMAND_CH: PubSubChannel<CriticalSectionRawMutex, Command, COMMAND_CH_CAP, COMMAND_CH_SUB, COMMAND_CH_PUB> = PubSubChannel::new();
+pub static COMMAND_CH: PubSubChannel<
+    CriticalSectionRawMutex,
+    Command,
+    COMMAND_CH_CAP,
+    COMMAND_CH_SUB,
+    COMMAND_CH_PUB,
+> = PubSubChannel::new();
 
+#[cfg(feature = "sensors")]
 #[derive(Clone, Copy, Default, Format)]
 pub struct SensorState {
     pub temperature: Option<f32>,
@@ -113,6 +138,7 @@ pub struct SensorState {
     pub tds: Option<f32>,
 }
 
+#[cfg(feature = "sensors")]
 impl SensorState {
     pub fn update(&mut self, measurement: Measurements) {
         match measurement {
@@ -137,21 +163,23 @@ impl SensorState {
     }
 
     pub fn clean(&mut self) {
-        *self = Self { temperature: None, humidity: None, pressure: None, lux: None, ph: None, tds: None };
+        *self = Self {
+            temperature: None,
+            humidity: None,
+            pressure: None,
+            lux: None,
+            ph: None,
+            tds: None,
+        };
     }
 }
 
+#[cfg(feature = "sensors")]
 impl SensorState {
-    pub fn to_json<const N: usize>(
-        &self,
-        buf: &mut heapless::String<N>,
-    ) {
+    pub fn to_json<const N: usize>(&self, buf: &mut heapless::String<N>) {
         use core::fmt::Write;
 
-        fn write_opt<const N: usize>(
-            buf: &mut heapless::String<N>,
-            value: Option<f32>,
-        ) {
+        fn write_opt<const N: usize>(buf: &mut heapless::String<N>, value: Option<f32>) {
             match value {
                 Some(v) => {
                     let _ = write!(buf, "{}", v);
@@ -169,11 +197,7 @@ impl SensorState {
         //
         match self.lux {
             Some(v) => {
-                let _ = write!(
-                    buf,
-                    "\"lux\":{},",
-                    v
-                );
+                let _ = write!(buf, "\"lux\":{},", v);
             }
             None => {
                 let _ = write!(buf, "\"lux\":null,");
@@ -198,11 +222,7 @@ impl SensorState {
         //
         match self.tds {
             Some(v) => {
-                let _ = write!(
-                    buf,
-                    "\"tds\":{},",
-                    v
-                );
+                let _ = write!(buf, "\"tds\":{},", v);
             }
             None => {
                 let _ = write!(buf, "\"tds\":null,");
@@ -214,11 +234,7 @@ impl SensorState {
         //
         match self.ph {
             Some(v) => {
-                let _ = write!(
-                    buf,
-                    "\"ph\":{}",
-                    v
-                );
+                let _ = write!(buf, "\"ph\":{}", v);
             }
             None => {
                 let _ = write!(buf, "\"ph\":null");
@@ -230,14 +246,14 @@ impl SensorState {
 }
 
 // Events to send
-#[cfg(any(feature = "mqtt", feature = "http-api", feature = "ble", feature = "sensors"))]
+#[cfg(all(
+    feature = "sensors",
+    any(feature = "mqtt", feature = "http-api", feature = "ble")
+))]
 pub mod telemetry {
-    use defmt::Format;
-    use embassy_sync::{
-        blocking_mutex::raw::CriticalSectionRawMutex,
-        pubsub::PubSubChannel,
-    };
     use crate::events::{Measurements, SensorState};
+    use defmt::Format;
+    use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, pubsub::PubSubChannel};
 
     #[derive(Copy, Clone, Format)]
     pub enum TelemetryMessage {

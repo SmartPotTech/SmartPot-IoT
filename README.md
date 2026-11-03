@@ -18,6 +18,25 @@ Overall, SmartPot functions as a smart monitoring platform for plant pots or cro
 * **Defmt Logging**: The project uses defmt logging, providing a efficient and flexible logging system.
 * **Heapless Allocator**: The project uses the heapless allocator, providing a memory-safe and efficient allocation system.
 
+## Build profiles
+
+The default build is intentionally minimal so the firmware can be flashed and
+monitored without sensors, WiFi, or an MQTT broker connected.
+
+| Profile | Command | Requires |
+|---|---|---|
+| Base | `cargo run` | Only the ESP32 |
+| Network retry | `cargo run --features net` | ESP32 (WiFi may be unavailable) |
+| Actuators | `cargo run --features actuators` | ESP32 + actuator pins |
+| Sensors | `cargo run --features sensors` | Sensors connected |
+| Full | `cargo run --features full` | Sensors, actuators, WiFi and broker |
+
+`cargo build --all-features` is only for checking that every feature combination
+compiles. Do not flash `--all-features` unless all the hardware is connected.
+
+`mqtt` currently implies `sensors`, because it publishes telemetry. Do not run
+`--features mqtt` until the sensors are connected.
+
 ## Project Structure
 ```markdown
 src

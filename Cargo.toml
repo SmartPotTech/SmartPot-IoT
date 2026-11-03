@@ -6,14 +6,26 @@ version      = "0.1.0"
 default-run = "smartpot-iot"
 
 [features]
-default = ["mqtt", "wifi", "sensors", "actuators"]
+# Perfil seguro por defecto: solo arranque, sin sensores ni red.
+# Asi `cargo run` funciona en una placa sin hardware conectado.
+default = []
+
 sensors = []
 actuators = []
 
 wifi = []
-http-api = ["wifi"]
-mqtt = ["wifi"]
+
+# Reservadas: la implementacion se hara mas adelante.
+# Cuando existan, deberian implicar: http-api = ["wifi", "sensors"] y ble = ["sensors"].
+http-api = []
 ble = []
+
+# MQTT publica telemetria, por lo que necesita sensores y red.
+mqtt = ["wifi", "sensors"]
+
+# Perfiles de conveniencia para no encadenar muchas features a mano.
+net = ["wifi"]
+full = ["sensors", "actuators", "wifi", "mqtt"]
 
 [[bin]]
 name = "smartpot-iot"
@@ -39,7 +51,7 @@ esp-radio = { version = "0.18.0", default-features = false, features = [
   "esp32",
   "unstable",
   "wifi",
-  "print-logs-from-driver"
+  #"print-logs-from-driver"
 ] }
 
 embedded-hal-async = "1.0.0"

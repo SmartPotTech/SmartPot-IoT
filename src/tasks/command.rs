@@ -6,7 +6,12 @@ use esp_hal::gpio::Output;
 use crate::events::{Actuators, Command};
 
 #[task]
-pub async fn catch_commands(mut command_channel: DynSubscriber<'static, Command>, mut w: Output<'static>, mut l: Output<'static>, mut h: Output<'static>) {
+pub async fn catch_commands(
+    mut command_channel: DynSubscriber<'static, Command>,
+    mut w: Output<'static>,
+    mut l: Output<'static>,
+    mut h: Output<'static>,
+) {
     loop {
         let command = command_channel.next_message_pure().await;
 
@@ -24,6 +29,7 @@ pub async fn catch_commands(mut command_channel: DynSubscriber<'static, Command>
                 Actuators::Humidifier => h.set_low(),
             },
 
+            #[cfg(feature = "sensors")]
             Command::Threshold(_) => {
                 // TODO
             }
