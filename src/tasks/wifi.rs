@@ -16,7 +16,7 @@ use crate::events::telemetry::TelemetryMessage;
 use crate::events::{Measurements, SensorState};
 
 #[task]
-pub async fn net_task(mut runner: Runner<'static, Interface<'static>>) {
+pub async fn net_task(mut runner: Runner<'static, Interface>) {
     info!("Starting network stack");
     runner.run().await
 }

@@ -155,46 +155,6 @@ compiles. Do not flash `--all-features` unless all the hardware is connected.
 `mqtt` currently implies `sensors`, because it publishes telemetry. Do not run
 `--features mqtt` until the sensors are connected.
 
-## Project Structure
-```markdown
-src
-├── bin
-│   └── main.rs
-├── drivers
-│   ├── bme280.rs
-│   ├── mod.rs
-│   └── tca9548a.rs
-├── events.rs
-├── lib.rs
-└── tasks
-    ├── command.rs
-    ├── mod.rs
-    ├── mqtt.rs
-    ├── sensors.rs
-    └── wifi.rs
-Cargo.toml
-### Requisitos
-* Cadena de herramientas oficial de Espressif para Rust (`esp` channel):
-  ```bash
-  cargo +esp --version
-  ```
-* Herramienta `espflash` para flashear el microcontrolador:
-  ```bash
-  cargo install espflash
-  ```
-
-### Comandos de Construcción
-```bash
-# Verificación de sintaxis y tipos
-cargo +esp check --ignore-rust-version
-
-# Compilación del binario ejecutable
-cargo +esp build --bin smartpot-iot --ignore-rust-version
-
-# Grabación en placa física ESP32 y monitor serie defmt
-espflash flash target/xtensa-esp32-none-elf/debug/smartpot-iot --monitor
-```
-
 ## Pruebas de Integración con `demo-beta`
 
 El firmware incluye una suite de pruebas automatizadas en `tests/verify_contract_v1.py` que comprueba:

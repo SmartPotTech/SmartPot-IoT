@@ -19,11 +19,8 @@ use esp_hal::{
 };
 use esp_println::{self as _, println};
 
-#[cfg(any(feature = "sensors", feature = "actuators"))]
 use esp_rtos::embassy::Executor;
-#[cfg(any(feature = "sensors", feature = "actuators"))]
 use esp_rtos::start_second_core;
-#[cfg(any(feature = "wifi", feature = "sensors", feature = "actuators"))]
 use static_cell::StaticCell;
 
 use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
@@ -190,7 +187,7 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
 
             start_second_core(
                 peripherals.CPU_CTRL,
-                sw_int.software_interrupt1,
+                peripherals.FROM_CPU_INTR1,
                 core1_stack,
                 || {
                     info!("Starting second cpu (CORE1)");

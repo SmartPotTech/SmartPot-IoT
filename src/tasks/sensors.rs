@@ -1,7 +1,5 @@
 //! Tareas de adquisición de sensores (I2C: BME280, BH1750; Analógicos: TDS, pH, Humedad de suelo).
 
-use bh1750_embedded::r#async::Bh1750Async;
-use bh1750_embedded::Resolution;
 use defmt::{debug, error, info};
 use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
 use embassy_executor::task;
@@ -162,13 +160,10 @@ where
 
 #[task]
 pub async fn bh1750_task(
-    i2c_bus: I2cDevice<'static, NoopRawMutex, I2c<'static, Async>>,
+    mut i2c_bus: I2cDevice<'static, NoopRawMutex, I2c<'static, Async>>,
     sensor_channel: DynPublisher<'static, Measurements>,
 ) {
     info!("Iniciando sensor de luminosidad BH1750...");
-    let delay = embassy_time::Delay;
-    let mut sensor = Bh1750Async::new(i2c_bus, delay, bh1750_embedded::Address::Low);
-
     loop {
         debug!("Measuring BH1750 sensor");
         let lux: f32 = match bh1750_measure_lux(&mut i2c_bus).await {
