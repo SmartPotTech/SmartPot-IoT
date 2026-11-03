@@ -3,10 +3,12 @@ use embassy_net::Runner;
 use embassy_time::{Duration, Timer};
 use esp_radio::wifi::scan::ScanConfig;
 use esp_radio::wifi::sta::StationConfig;
-use esp_radio::wifi::{Config, Interface, WifiController};
+use esp_radio::wifi::{
+    AuthenticationMethodConfig, Config, Interface, Password, Ssid, WifiController,
+};
 
 #[embassy_executor::task]
-pub async fn net_task(mut runner: Runner<'static, Interface<'static>>) {
+pub async fn net_task(mut runner: Runner<'static, Interface>) {
     info!("Starting network stack");
     runner.run().await
 }
@@ -17,10 +19,12 @@ pub async fn wifi_connection_task(
     ssid: &'static str,
     password: &'static str,
 ) -> ! {
+    let ssid: Ssid = ssid.try_into().expect("SSID too long");
+    let password: Password = password.try_into().expect("Password too long");
     let sta_config = Config::Station(
         StationConfig::default()
             .with_ssid(ssid)
-            .with_password(password.into()),
+            .with_authentication(AuthenticationMethodConfig::Wpa2Personal(password)),
     );
     let scan_config = ScanConfig::default().with_max(10);
     wifi.set_config(&sta_config).unwrap();

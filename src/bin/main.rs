@@ -9,7 +9,7 @@
 
 use defmt::info;
 use esp_hal::clock::CpuClock;
-use esp_hal::interrupt::software::SoftwareInterruptControl;
+use esp_hal::ram;
 use esp_hal::timer::timg::TimerGroup;
 use esp_println::{self as _, println};
 
@@ -56,11 +56,12 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
 
-    esp_alloc::heap_allocator!(size: 98768);
+    // Place the heap in the region reclaimed from the bootloader so that
+    // `dram_seg` keeps enough room for static data and the main stack.
+    esp_alloc::heap_allocator!(#[ram(reclaimed)] size: 98768);
 
     let timg0 = TimerGroup::new(peripherals.TIMG0);
-    let sw_int = SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
-    esp_rtos::start(timg0.timer0, sw_int.software_interrupt0);
+    esp_rtos::start(timg0.timer0, peripherals.FROM_CPU_INTR0);
     info!("Embassy initialized!");
 
     //
@@ -171,7 +172,7 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
 
             start_second_core(
                 peripherals.CPU_CTRL,
-                sw_int.software_interrupt1,
+                peripherals.FROM_CPU_INTR1,
                 core1_stack,
                 || {
                     info!("Starting second cpu (CORE1)");
@@ -193,15 +194,14 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
     {
         use embassy_net::{DhcpConfig, StackResources};
         use esp_hal::rng::Trng;
-        use esp_radio::wifi::ControllerConfig;
+        use esp_radio::wifi::{ControllerConfig, Interface, WifiController};
         use smartpot_iot::tasks::wifi::{net_task, wifi_connection_task};
 
         info!("Setting up network stack");
 
-        let (wifi_controller, interfaces) =
-            esp_radio::wifi::new(peripherals.WIFI, ControllerConfig::default())
-                .expect("Could not initialize wifi controller");
-        let wifi_interface = interfaces.station;
+        let wifi_controller = WifiController::new(peripherals.WIFI, ControllerConfig::default())
+            .expect("Could not initialize wifi controller");
+        let wifi_interface = Interface::station();
 
         static STACK_RESOURCES: StaticCell<StackResources<5>> = StaticCell::new();
         let stack_resources = STACK_RESOURCES.init_with(|| StackResources::<5>::new());

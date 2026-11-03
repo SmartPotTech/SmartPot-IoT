@@ -10,8 +10,6 @@ use embassy_sync::{blocking_mutex::raw::NoopRawMutex};
 use embassy_sync::pubsub::DynPublisher;
 
 use crate::events::Measurements;
-use bh1750_embedded::r#async::Bh1750Async;
-use bh1750_embedded::Resolution;
 use esp_hal::analog::adc::Adc;
 use esp_hal::peripherals::{GPIO34, GPIO35};
 use crate::drivers::tca9548a::{Tca9548a, TcaChannel};
@@ -103,15 +101,34 @@ where I2C: embedded_hal_async::i2c::I2c
 }
 
 
+// BH1750 in one-time high-resolution mode. The conversion below is the same
+// one used by `bh1750-embedded` (raw / 1.2 for the default MTreg). It is done
+// here to avoid an LLVM 21 Xtensa backend bug when selecting a constant pool
+// with two `f32` values.
+const BH1750_ADDRESS: u8 = 0x23;
+const BH1750_ONE_TIME_HIGH_RES: u8 = 0x20;
+const BH1750_MEASUREMENT_MS: u64 = 180;
+
+async fn bh1750_measure_lux<I>(i2c: &mut I) -> Result<f32, I::Error>
+where
+    I: embedded_hal_async::i2c::I2c,
+{
+    i2c.write(BH1750_ADDRESS, &[BH1750_ONE_TIME_HIGH_RES]).await?;
+    Timer::after(Duration::from_millis(BH1750_MEASUREMENT_MS)).await;
+
+    let mut buf = [0u8; 2];
+    i2c.read(BH1750_ADDRESS, &mut buf).await?;
+
+    Ok(u16::from_be_bytes(buf) as f32 / 1.2)
+}
+
 #[task]
-pub async fn bh1750_task(i2c_bus: I2cDevice<'static, NoopRawMutex, I2c<'static, Async>>, sensor_channel: DynPublisher<'static, Measurements>) {
+pub async fn bh1750_task(mut i2c_bus: I2cDevice<'static, NoopRawMutex, I2c<'static, Async>>, sensor_channel: DynPublisher<'static, Measurements>) {
     info!("Starting BM1750 sensor task...");
-    let delay = embassy_time::Delay;
-    let mut sensor = Bh1750Async::new(i2c_bus, delay, bh1750_embedded::Address::Low);
 
     loop {
         debug!("Measuring BH1750 sensor");
-        let lux: f32 = match sensor.one_time_measurement(Resolution::High).await {
+        let lux: f32 = match bh1750_measure_lux(&mut i2c_bus).await {
             Ok(measure) => { measure }
             Err(_e) => { error!("Measuring BH1750 sensor:"); -1.0}
         };

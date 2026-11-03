@@ -18,6 +18,17 @@ Overall, SmartPot functions as a smart monitoring platform for plant pots or cro
 * **Defmt Logging**: The project uses defmt logging, providing a efficient and flexible logging system.
 * **Heapless Allocator**: The project uses the heapless allocator, providing a memory-safe and efficient allocation system.
 
+## Toolchain
+
+The project is pinned to the Espressif Rust toolchain `1.95.0.0` (the minimum
+stable version required by the updated ESP stack). Install it under the
+`esp-1.95` name used by `rust-toolchain.toml`:
+
+```bash
+espup install -v 1.95.0.0 -t esp32 -a esp-1.95
+. "$HOME/export-esp.sh"
+```
+
 ## Build profiles
 
 The default build is intentionally minimal so the firmware can be flashed and

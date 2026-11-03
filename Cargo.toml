@@ -1,7 +1,7 @@
 [package]
 edition      = "2024"
 name         = "smartpot-iot"
-rust-version = "1.91"
+rust-version = "1.95"
 version      = "0.1.0"
 default-run = "smartpot-iot"
 
@@ -34,23 +34,24 @@ path = "src/bin/main.rs"
 [dependencies]
 defmt = "1.2"
 static_cell = "2.1.1"
-esp-println = { version = "0.17.0", features = ["defmt-espflash", "esp32"] }
-esp-bootloader-esp-idf = { version = "0.5.0", features = ["defmt", "esp32"] }
-esp-alloc = { version = "0.10.0", features = ["defmt", ] }
+esp-println = { version = "0.18.0", features = ["defmt-espflash", "esp32"] }
+esp-bootloader-esp-idf = { version = "0.6.0", features = ["defmt", "esp32"] }
+esp-alloc = { version = "0.11.0", features = ["defmt", "esp32"] }
 
-esp-hal = { version = "1.1.0-rc.0", features = ["defmt", "esp32", "unstable"] }
-esp-rtos = { version = "0.3.0", features = [
+esp-hal = { version = "1.2.2", features = ["defmt", "esp32", "unstable"] }
+esp-rtos = { version = "0.4.0", features = [
   "defmt",
   "embassy",
   "esp-alloc",
   "esp-radio",
   "esp32",
 ] }
-esp-radio = { version = "0.18.0", default-features = false, features = [
+esp-radio = { version = "=1.0.0-beta.1", default-features = false, features = [
   "defmt",
   "esp32",
   "unstable",
   "wifi",
+  "esp-alloc",
   #"print-logs-from-driver"
 ] }
 
@@ -75,13 +76,14 @@ nb = "1.1.0"
 heapless = "0.9.3"
 rust-mqtt = { version = "0.5", features = ["defmt"]}
 
-# Sensors
-bh1750-embedded = { version = "0.1.0", features = ["async"] } # lux
-
 [profile.dev]
 # Rust debug is too slow.
 # For debug builds always builds with some optimization
 opt-level = "s"
+
+# The Wi-Fi/BLE blobs require opt-level 2 or 3 to work correctly.
+[profile.dev.package.esp-radio]
+opt-level = 3
 
 [profile.release]
 codegen-units    = 1     # LLVM can perform better optimizations using a single thread
