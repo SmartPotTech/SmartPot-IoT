@@ -1,5 +1,5 @@
-use embedded_hal_async::i2c::I2c;
 use defmt::Format;
+use embedded_hal_async::i2c::I2c;
 
 pub struct Bme280<I2C> {
     i2c: I2C,
@@ -54,16 +54,16 @@ where
     }
 
     async fn init(&mut self) -> Result<(), I2C::Error> {
-        // Reset
+        // Reinicio del sensor
         self.write_reg(0xE0, 0xB6).await?;
 
-        // ctrl_hum = x1
+        // ctrl_hum = sobremuestreo x1
         self.write_reg(0xF2, 0x01).await?;
 
-        // ctrl_meas = temp x1, press x1, normal mode
+        // ctrl_meas = temperatura x1, presión x1, modo normal
         self.write_reg(0xF4, 0x27).await?;
 
-        // config = standby 1000ms
+        // config = tiempo de espera 1000 ms
         self.write_reg(0xF5, 0xA0).await?;
 
         self.read_calibration().await?;
@@ -131,9 +131,13 @@ where
     }
 
     fn compensate_temp(&self, adc_t: i32) -> (f32, i32) {
-        let var1 = (((adc_t >> 3) - ((self.calib.dig_t1 as i32) << 1)) * self.calib.dig_t2 as i32) >> 11;
-        let var2 = (((((adc_t >> 4) - self.calib.dig_t1 as i32) * ((adc_t >> 4) - self.calib.dig_t1 as i32)) >> 12)
-            * self.calib.dig_t3 as i32) >> 14;
+        let var1 =
+            (((adc_t >> 3) - ((self.calib.dig_t1 as i32) << 1)) * self.calib.dig_t2 as i32) >> 11;
+        let var2 = (((((adc_t >> 4) - self.calib.dig_t1 as i32)
+            * ((adc_t >> 4) - self.calib.dig_t1 as i32))
+            >> 12)
+            * self.calib.dig_t3 as i32)
+            >> 14;
 
         let t_fine = var1 + var2;
         let t = (t_fine * 5 + 128) >> 8;
@@ -167,11 +171,18 @@ where
     fn compensate_humidity(&self, adc_h: i32, t_fine: i32) -> f32 {
         let mut v = t_fine - 76800;
 
-        v = ((((adc_h << 14) - ((self.calib.dig_h4 as i32) << 20)
-            - ((self.calib.dig_h5 as i32) * v)) + 16384) >> 15)
+        v = ((((adc_h << 14)
+            - ((self.calib.dig_h4 as i32) << 20)
+            - ((self.calib.dig_h5 as i32) * v))
+            + 16384)
+            >> 15)
             * (((((((v * self.calib.dig_h6 as i32) >> 10)
-            * (((v * self.calib.dig_h3 as i32) >> 11) + 32768)) >> 10)
-            + 2097152) * self.calib.dig_h2 as i32 + 8192) >> 14);
+                * (((v * self.calib.dig_h3 as i32) >> 11) + 32768))
+                >> 10)
+                + 2097152)
+                * self.calib.dig_h2 as i32
+                + 8192)
+                >> 14);
 
         v -= ((((v >> 15) * (v >> 15)) >> 7) * self.calib.dig_h1 as i32) >> 4;
 

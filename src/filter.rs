@@ -1,5 +1,5 @@
 //! Motores de filtrado y estimación de señales de sensores para SmartPot IoT.
-//! 
+//!
 //! Implementa:
 //! 1. `MedianFilter5`: Filtro de mediana móvil sobre ventana deslizante de 5 muestras para rechazo de espurias ADC.
 //! 2. `Q16KalmanFilter`: Filtro de Kalman 1D en aritmética de punto fijo Q16.16 para microcontroladores sin FPU o de bajo consumo.
@@ -36,7 +36,7 @@ impl MedianFilter5 {
             sorted[i] = self.buffer[i];
         }
 
-        // Insertion sort para 1 a 5 elementos (cero overhead, sin alloc)
+        // Ordenamiento por inserción para 1 a 5 elementos (cero sobrecarga, sin asignaciones)
         for i in 1..self.count {
             let key = sorted[i];
             let mut j = i;
@@ -177,12 +177,12 @@ mod tests {
     fn test_median_filter_5() {
         let mut mf = MedianFilter5::new();
         assert_eq!(mf.update(10.0), 10.0);
-        assert_eq!(mf.update(100.0), 100.0); // median of [10, 100] is 100 (index 1)
-        assert_eq!(mf.update(12.0), 12.0);  // sorted [10, 12, 100] -> median 12
-        assert_eq!(mf.update(11.0), 12.0);  // sorted [10, 11, 12, 100] -> index 2 is 12
-        assert_eq!(mf.update(13.0), 12.0);  // sorted [10, 11, 12, 13, 100] -> median 12.0
+        assert_eq!(mf.update(100.0), 100.0); // Mediana de [10, 100] es 100 (índice 1)
+        assert_eq!(mf.update(12.0), 12.0); // Ordenado [10, 12, 100] -> mediana 12
+        assert_eq!(mf.update(11.0), 12.0); // Ordenado [10, 11, 12, 100] -> índice 2 es 12
+        assert_eq!(mf.update(13.0), 12.0); // Ordenado [10, 11, 12, 13, 100] -> mediana 12.0
 
-        // Inyección de espuria (glitch de 500.0)
+        // Inyección de espuria (pico de 500.0)
         let filtered = mf.update(500.0);
         assert!(filtered < 15.0); // El pico de 500 es rechazado completamente
     }

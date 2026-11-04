@@ -1,12 +1,12 @@
+use crate::protocol::SensorState;
 use defmt::info;
+use embassy_executor::task;
 use embassy_futures::select::{Either, select};
 use embassy_sync::pubsub::{DynPublisher, DynSubscriber};
 use embassy_time::{Duration, Timer};
-use embassy_executor::task;
-use crate::protocol::SensorState;
 
-use crate::events::telemetry::TelemetryMessage;
 use crate::events::Measurements;
+use crate::events::telemetry::TelemetryMessage;
 
 #[task]
 pub async fn telemetry_task(
@@ -15,7 +15,7 @@ pub async fn telemetry_task(
     interval_seconds: u64,
 ) {
     info!(
-        "Tarea de telemetría iniciada con intervalo de {} s",
+        "Telemetry task started with interval of {} s",
         interval_seconds
     );
 
@@ -24,15 +24,13 @@ pub async fn telemetry_task(
 
     loop {
         match select(sensors_channel.next_message_pure(), &mut snapshot_timer).await {
-            Either::First(m) => {
-                match m {
-                    Measurements::BME280((t, h, p)) => sensor_state.update_bme280(t, h, p),
-                    Measurements::BH1750(l) => sensor_state.update_lux(l),
-                    Measurements::PH(p) => sensor_state.update_ph(p),
-                    Measurements::TDS(t) => sensor_state.update_tds(t),
-                    Measurements::SoilMoisture(sm) => sensor_state.update_soil_moisture(sm),
-                }
-            }
+            Either::First(m) => match m {
+                Measurements::BME280((t, h, p)) => sensor_state.update_bme280(t, h, p),
+                Measurements::BH1750(l) => sensor_state.update_lux(l),
+                Measurements::PH(p) => sensor_state.update_ph(p),
+                Measurements::TDS(t) => sensor_state.update_tds(t),
+                Measurements::SoilMoisture(sm) => sensor_state.update_soil_moisture(sm),
+            },
 
             Either::Second(_) => {
                 if !sensor_state.is_empty() {

@@ -8,28 +8,27 @@ use core::str;
 use defmt::{error, info, warn};
 
 use embassy_executor::task;
-use embassy_futures::select::{select3, Either3};
-use embassy_net::tcp::TcpSocket as NetTcpSocket;
+use embassy_futures::select::{Either3, select3};
 use embassy_net::Stack;
+use embassy_net::tcp::TcpSocket as NetTcpSocket;
 use embassy_sync::pubsub::{DynPublisher, DynSubscriber};
 use embassy_time::{Duration, Timer};
-use embassy_futures::select::{select, Either};
 
 use embedded_tls::{Aes128GcmSha256, TlsConfig, TlsConnection, TlsContext, UnsecureProvider};
 use heapless::String;
 use rust_mqtt::buffer::AllocBuffer;
+use rust_mqtt::client::Client;
 use rust_mqtt::client::event::Event;
 use rust_mqtt::client::options::{
     ConnectOptions, PublicationOptions, SubscriptionOptions, TopicReference, WillOptions,
 };
-use rust_mqtt::client::Client;
 use rust_mqtt::config::KeepAlive;
 use rust_mqtt::types::{MqttBinary, MqttString, TopicName};
 
 use crate::config::Config;
 use crate::events::telemetry::TelemetryMessage;
 use crate::events::{AckMessage, Command};
-use crate::protocol::{parse_command, TopicResolver};
+use crate::protocol::{TopicResolver, parse_command};
 
 #[task]
 pub async fn mqtt_task(
@@ -57,35 +56,39 @@ pub async fn mqtt_task(
     loop {
         if let Some(net_cfg) = stack.config_v4() {
             info!(
-                "[MQTT] IP local: {}, Gateway: {:?}",
+                "[MQTT] Local IP: {}, Gateway: {:?}",
                 net_cfg.address, net_cfg.gateway
             );
         }
 
         info!(
-            "[MQTT] Conectando a {}:{} (Cultivo: {})",
+            "[MQTT] Connecting to {}:{} (Crop: {})",
             config.broker_host, config.broker_port, config.crop_id
         );
 
         let mut socket = NetTcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
-        let broker_addr: SocketAddrV4 = match alloc::format!("{}:{}", config.broker_host, config.broker_port).parse() {
-            Ok(addr) => addr,
-            Err(e) => {
-                error!("[MQTT] Dirección de broker inválida: {:?}", defmt::Debug2Format(&e));
-                Timer::after(Duration::from_secs(5)).await;
-                continue;
-            }
-        };
+        let broker_addr: SocketAddrV4 =
+            match alloc::format!("{}:{}", config.broker_host, config.broker_port).parse() {
+                Ok(addr) => addr,
+                Err(e) => {
+                    error!(
+                        "[MQTT] Invalid broker address: {:?}",
+                        defmt::Debug2Format(&e)
+                    );
+                    Timer::after(Duration::from_secs(5)).await;
+                    continue;
+                }
+            };
 
         if let Err(e) = socket.connect(broker_addr).await {
-            error!("[MQTT] Conexión TCP fallida: {:?}", e);
+            error!("[MQTT] TCP connection failed: {:?}", e);
             Timer::after(Duration::from_secs(5)).await;
             continue;
         }
-        info!("[MQTT] Conexión TCP establecida");
+        info!("[MQTT] TCP connection established");
 
         if config.use_tls {
-            let tls_config: TlsConfig<> = TlsConfig::new()
+            let tls_config: TlsConfig = TlsConfig::new()
                 .with_server_name(config.broker_host)
                 .enable_rsa_signatures();
             let tls_context = TlsContext::new(
@@ -94,11 +97,11 @@ pub async fn mqtt_task(
             );
             let mut tls = TlsConnection::new(socket, &mut tls_rx, &mut tls_tx);
             if let Err(e) = tls.open(tls_context).await {
-                error!("[MQTT] Fallo en enlace TLS: {:?}", e);
+                error!("[MQTT] TLS handshake failed: {:?}", e);
                 Timer::after(Duration::from_secs(5)).await;
                 continue;
             }
-            info!("[MQTT] Enlace TLS verificado");
+            info!("[MQTT] TLS link verified");
 
             run_mqtt_client(
                 &mut tls,
@@ -128,7 +131,7 @@ pub async fn mqtt_task(
         }
         info!("[MQTT] TLS Connected");
 
-        warn!("[MQTT] Conexión cerrada. Reintentando en 5 s...");
+        warn!("[MQTT] Connection closed. Retrying in 5 s...");
         Timer::after(Duration::from_secs(5)).await;
     }
 }
@@ -173,10 +176,10 @@ async fn run_mqtt_client<T>(
         )
         .await
     {
-        error!("[MQTT] Fallo en CONNACK: {:?}", e);
+        error!("[MQTT] CONNACK failed: {:?}", e);
         return;
     }
-    info!("[MQTT] Sesión MQTT autenticada con éxito");
+    info!("[MQTT] MQTT session authenticated successfully");
 
     // Publicar estado online retenido
     let status_topic_name =
@@ -188,9 +191,9 @@ async fn run_mqtt_client<T>(
         .publish(&pub_online, rust_mqtt::Bytes::Borrowed(b"online"))
         .await
     {
-        error!("[MQTT] No se pudo publicar status online: {:?}", e);
+        error!("[MQTT] Could not publish online status: {:?}", e);
     } else {
-        info!("[MQTT] Publicado status 'online' en {}", topic_status_str);
+        info!("[MQTT] Published 'online' status to {}", topic_status_str);
     }
 
     // Suscribirse al tópico de comandos
@@ -203,10 +206,10 @@ async fn run_mqtt_client<T>(
         )
         .await
     {
-        error!("[MQTT] Error al suscribirse a comandos: {:?}", e);
+        error!("[MQTT] Error subscribing to commands: {:?}", e);
         return;
     }
-    info!("[MQTT] Suscripción activa a {}", topic_commands_str);
+    info!("[MQTT] Active subscription to {}", topic_commands_str);
 
     let ack_topic_name = TopicName::new(MqttString::from_str(topic_ack_str).unwrap()).unwrap();
     let telemetry_topic_name =
@@ -226,18 +229,20 @@ async fn run_mqtt_client<T>(
                 Ok(Event::Publish(pub_event)) => {
                     let msg_bytes = pub_event.message.as_bytes();
                     if let Ok(msg_str) = str::from_utf8(msg_bytes) {
-                        info!("[MQTT SUB] Mensaje recibido: {}", msg_str);
+                        info!("[MQTT SUB] Message received: {}", msg_str);
                         match parse_command(msg_str) {
                             Ok(cmd) => {
                                 commands_channel.publish_immediate(cmd);
                             }
                             Err(_) => {
-                                warn!("[MQTT SUB] Comando inválido descartado: {}", msg_str);
+                                warn!("[MQTT SUB] Invalid command discarded: {}", msg_str);
                                 // Si es un JSON con id, emitir ACK de fallo
-                                if let Ok(id) = crate::protocol::command::extract_str_field(msg_str, "id") {
+                                if let Ok(id) =
+                                    crate::protocol::command::extract_str_field(msg_str, "id")
+                                {
                                     let fail_ack = AckMessage::failure(
                                         id.as_str(),
-                                        "Comando inválido o actuador desconocido",
+                                        "Invalid command or unknown actuator",
                                     );
                                     let ack_json: String<160> = fail_ack.to_json();
                                     let pub_opts = PublicationOptions::new(TopicReference::Name(
@@ -257,7 +262,7 @@ async fn run_mqtt_client<T>(
                 }
                 Ok(_) => {}
                 Err(e) => {
-                    error!("[MQTT] Error en sondeo MQTT: {:?}", e);
+                    error!("[MQTT] MQTT poll error: {:?}", e);
                     break;
                 }
             },
@@ -268,12 +273,16 @@ async fn run_mqtt_client<T>(
                 let pub_opts =
                     PublicationOptions::new(TopicReference::Name(ack_topic_name.clone()))
                         .at_least_once();
-                info!("[MQTT ACK] Publicando en {}: {}", topic_ack_str, ack_json.as_str());
+                info!(
+                    "[MQTT ACK] Publishing to {}: {}",
+                    topic_ack_str,
+                    ack_json.as_str()
+                );
                 if let Err(e) = client
                     .publish(&pub_opts, rust_mqtt::Bytes::Borrowed(ack_json.as_bytes()))
                     .await
                 {
-                    error!("[MQTT] Error al publicar confirmación ACK: {:?}", e);
+                    error!("[MQTT] Error publishing ACK confirmation: {:?}", e);
                     break;
                 }
             }
@@ -312,15 +321,18 @@ async fn run_mqtt_client<T>(
                     if mask == 0 { &[] } else { &packet }
                 } else {
                     state.to_json(&mut payload);
-                    if payload.as_str() == "{}" { &[] } else { payload.as_bytes() }
+                    if payload.as_str() == "{}" {
+                        &[]
+                    } else {
+                        payload.as_bytes()
+                    }
                 };
 
                 if !body.is_empty() {
-                    let pub_opts = PublicationOptions::new(TopicReference::Name(
-                        telemetry_topic_name.clone(),
-                    ));
+                    let pub_opts =
+                        PublicationOptions::new(TopicReference::Name(telemetry_topic_name.clone()));
                     info!(
-                        "[MQTT PUB] Telemetría en {} ({} bytes)",
+                        "[MQTT PUB] Telemetry on {} ({} bytes)",
                         topic_telemetry_str,
                         body.len()
                     );
@@ -328,7 +340,7 @@ async fn run_mqtt_client<T>(
                         .publish(&pub_opts, rust_mqtt::Bytes::Borrowed(body))
                         .await
                     {
-                        error!("[MQTT] Error al publicar telemetría: {:?}", e);
+                        error!("[MQTT] Error publishing telemetry: {:?}", e);
                         break;
                     }
                 }

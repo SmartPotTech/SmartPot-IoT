@@ -3,14 +3,17 @@ use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::mutex::Mutex;
 use embedded_hal_async::i2c::{ErrorType, I2c as I2cAsync, Operation, SevenBitAddress};
 
-// TODO: enable multiple devices with the same channel
+// Pendiente: permitir múltiples dispositivos en el mismo canal
 
 pub struct Tca9548a<BUS: 'static> {
     bus: &'static Mutex<NoopRawMutex, BUS>,
     addr: u8,
 }
 
-impl<BUS> Tca9548a<BUS> where BUS: {
+impl<BUS> Tca9548a<BUS>
+where
+    BUS:,
+{
     pub fn new(bus: &'static Mutex<NoopRawMutex, BUS>, addr: u8) -> Self {
         Self { bus, addr }
     }
@@ -32,12 +35,16 @@ impl<BUS> Tca9548a<BUS> where BUS: {
 pub struct TcaChannel<I2C> {
     i2c: I2C,
     tca_addr: u8,
-    channel: u8
+    channel: u8,
 }
 
 impl<I2C> TcaChannel<I2C> {
     pub fn new(i2c: I2C, tca_addr: u8, channel: u8) -> Self {
-        Self { i2c, tca_addr, channel }
+        Self {
+            i2c,
+            tca_addr,
+            channel,
+        }
     }
 
     pub fn get_channel(&self) -> u8 {
@@ -45,14 +52,22 @@ impl<I2C> TcaChannel<I2C> {
     }
 }
 
-impl<I2C> I2cAsync for TcaChannel<I2C> where I2C: I2cAsync {
+impl<I2C> I2cAsync for TcaChannel<I2C>
+where
+    I2C: I2cAsync,
+{
     async fn write(&mut self, address: SevenBitAddress, write: &[u8]) -> Result<(), Self::Error> {
         self.i2c.write(self.tca_addr, &[1 << self.channel]).await?;
         self.i2c.write(address, write).await?;
         Ok(())
     }
 
-    async fn write_read(&mut self, address: SevenBitAddress, write: &[u8], read: &mut [u8]) -> Result<(), Self::Error> {
+    async fn write_read(
+        &mut self,
+        address: SevenBitAddress,
+        write: &[u8],
+        read: &mut [u8],
+    ) -> Result<(), Self::Error> {
         self.i2c.write(self.tca_addr, &[1 << self.channel]).await?;
         self.i2c.write_read(address, write, read).await?;
         Ok(())
@@ -63,7 +78,6 @@ impl<I2C> I2cAsync for TcaChannel<I2C> where I2C: I2cAsync {
         address: SevenBitAddress,
         operations: &mut [Operation<'_>],
     ) -> Result<(), Self::Error> {
-
         // 1. Seleccionar canal UNA sola vez
         self.i2c.write(self.tca_addr, &[1 << self.channel]).await?;
 
@@ -73,6 +87,9 @@ impl<I2C> I2cAsync for TcaChannel<I2C> where I2C: I2cAsync {
     }
 }
 
-impl<I2C> ErrorType for TcaChannel<I2C> where I2C: ErrorType {
+impl<I2C> ErrorType for TcaChannel<I2C>
+where
+    I2C: ErrorType,
+{
     type Error = I2C::Error;
 }

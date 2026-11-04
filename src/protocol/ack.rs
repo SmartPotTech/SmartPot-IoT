@@ -1,9 +1,9 @@
 //! Generación de confirmaciones de comando (ACK) según el contrato v1 de SmartPot.
 
+use super::command::{Action, Actuators};
 use core::fmt::Write;
 use defmt::Format;
 use heapless::String;
-use super::command::{Action, Actuators};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Format)]
 pub enum AckStatus {
@@ -31,21 +31,20 @@ pub fn format_readable_duration<const N: usize>(seconds: u32, buf: &mut String<N
 impl AckMessage {
     pub fn success(id: &str, actuator: Actuators, action: Action, duration: Option<u32>) -> Self {
         let mut msg: String<96> = String::new();
-        let name = actuator.name_es();
-        let ending = if actuator.is_feminine() { "a" } else { "o" };
+        let name = actuator.name();
 
         match action {
             Action::Activate => {
                 if let Some(secs) = duration {
                     let mut dur_buf: String<16> = String::new();
                     format_readable_duration(secs, &mut dur_buf);
-                    let _ = write!(msg, "{} encendid{} por {}", name, ending, dur_buf.as_str());
+                    let _ = write!(msg, "{} turned on for {}", name, dur_buf.as_str());
                 } else {
-                    let _ = write!(msg, "{} encendid{}", name, ending);
+                    let _ = write!(msg, "{} turned on", name);
                 }
             }
             Action::Deactivate => {
-                let _ = write!(msg, "{} apagad{}", name, ending);
+                let _ = write!(msg, "{} turned off", name);
             }
         }
 

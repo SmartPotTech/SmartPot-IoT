@@ -2,16 +2,11 @@
 
 use defmt::{info, warn};
 use embassy_executor::task;
-use embassy_futures::select::{select, Either};
 use embassy_net::Runner;
-use embassy_sync::pubsub::{DynPublisher, DynSubscriber};
 use embassy_time::{Duration, Timer};
 use esp_radio::wifi::scan::ScanConfig;
 use esp_radio::wifi::sta::StationConfig;
 use esp_radio::wifi::{Config, Interface, WifiController};
-
-use crate::events::telemetry::TelemetryMessage;
-use crate::events::{Measurements, SensorState};
 
 #[task]
 pub async fn net_task(mut runner: Runner<'static, Interface<'static>>) {
@@ -35,11 +30,11 @@ pub async fn wifi_connection_task(
     Timer::after(Duration::from_secs(2)).await;
 
     loop {
-        info!("[WIFI] Conectando a red Wi-Fi: {}", ssid);
+        info!("[WIFI] Connecting to Wi-Fi network: {}", ssid);
         if let Ok(networks) = wifi.scan_async(&scan_config).await {
             for ap in networks {
                 info!(
-                    "[WIFI SCAN] Red detectada: {} (RSSI: {} dBm)",
+                    "[WIFI SCAN] Detected network: {} (RSSI: {} dBm)",
                     ap.ssid.as_str(),
                     ap.signal_strength
                 );
@@ -48,21 +43,21 @@ pub async fn wifi_connection_task(
 
         wifi.set_config(&sta_config).unwrap();
         if wifi.connect_async().await.is_err() {
-            warn!("[WIFI] No se pudo conectar a la red Wi-Fi '{}'", ssid);
+            warn!("[WIFI] Could not connect to Wi-Fi network '{}'", ssid);
         }
 
         if wifi.is_connected() {
-            info!("[WIFI] Conexión Wi-Fi establecida y en línea");
+            info!("[WIFI] Wi-Fi connection established and online");
             match wifi.wait_for_disconnect_async().await {
                 Ok(info) => {
-                    warn!("[WIFI] Wi-Fi desconectado: {}", info.reason);
+                    warn!("[WIFI] Wi-Fi disconnected: {}", info.reason);
                 }
                 Err(e) => {
-                    warn!("[WIFI] Error durante la desconexión: {}", e);
+                    warn!("[WIFI] Error during disconnection: {}", e);
                 }
             }
         } else {
-            warn!("[WIFI] Wi-Fi fuera de línea. Reintentando...");
+            warn!("[WIFI] Wi-Fi offline. Retrying...");
             Timer::after(Duration::from_secs(5)).await;
         }
     }

@@ -14,8 +14,8 @@ use esp_hal::interrupt::software::SoftwareInterruptControl;
 use esp_hal::rng::Trng;
 use esp_hal::timer::timg::TimerGroup;
 use esp_hal::{
-    i2c::master::{Config, I2c},
     Async,
+    i2c::master::{Config, I2c},
 };
 use esp_println::{self as _, println};
 use esp_radio::wifi::ControllerConfig;
@@ -104,7 +104,7 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
     let humidifier_pin = peripherals.GPIO5;
 
     let cpu1_main = move |_spawner: embassy_executor::Spawner| {
-        debug!("Iniciando tareas de sensores y actuadores en CORE 1");
+        debug!("Starting sensor and actuator tasks on CORE 1");
         static I2C_BUS: StaticCell<Mutex<NoopRawMutex, I2c<'static, Async>>> = StaticCell::new();
         let i2c = I2c::new(i2c0, Config::default())
             .unwrap()
@@ -115,42 +115,38 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
 
         #[cfg(feature = "sensors")]
         {
-            _spawner
-                .spawn(
-                    smartpot_iot::i2c_scanner::scan_i2c(I2cDevice::new(_i2c_bus))
-                        .expect("Fallo al crear scan_i2c"),
-                );
+            _spawner.spawn(
+                smartpot_iot::i2c_scanner::scan_i2c(I2cDevice::new(_i2c_bus))
+                    .expect("Failed to spawn scan_i2c"),
+            );
 
             let tca = Tca9548a::new(_i2c_bus, 0x70);
-            _spawner
-                .spawn(
-                    smartpot_iot::tasks::sensors::bme280_sequential_task(
-                        tca,
-                        SENSOR_CH.dyn_publisher().unwrap(),
-                    )
-                    .expect("Fallo al crear bme280_sequential_task"),
-                );
+            _spawner.spawn(
+                smartpot_iot::tasks::sensors::bme280_sequential_task(
+                    tca,
+                    SENSOR_CH.dyn_publisher().unwrap(),
+                )
+                .expect("Failed to spawn bme280_sequential_task"),
+            );
 
-            _spawner
-                .spawn(
-                    smartpot_iot::tasks::sensors::bh1750_task(
-                        I2cDevice::new(_i2c_bus),
-                        SENSOR_CH.dyn_publisher().unwrap(),
-                    )
-                    .expect("Fallo al crear bh1750_task"),
-                );
+            _spawner.spawn(
+                smartpot_iot::tasks::sensors::bh1750_task(
+                    I2cDevice::new(_i2c_bus),
+                    SENSOR_CH.dyn_publisher().unwrap(),
+                )
+                .expect("Failed to spawn bh1750_task"),
+            );
 
-            _spawner
-                .spawn(
-                    smartpot_iot::tasks::sensors::analog_sensors_task(
-                        adc1,
-                        tds,
-                        ph,
-                        soil,
-                        SENSOR_CH.dyn_publisher().unwrap(),
-                    )
-                    .expect("Fallo al crear analog_sensors_task"),
-                );
+            _spawner.spawn(
+                smartpot_iot::tasks::sensors::analog_sensors_task(
+                    adc1,
+                    tds,
+                    ph,
+                    soil,
+                    SENSOR_CH.dyn_publisher().unwrap(),
+                )
+                .expect("Failed to spawn analog_sensors_task"),
+            );
         }
 
         #[cfg(feature = "actuators")]
@@ -162,25 +158,25 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
             let fan = Output::new(fan_pin, Level::Low, OutputConfig::default());
             let humidifier = Output::new(humidifier_pin, Level::Low, OutputConfig::default());
 
-            _spawner
-                .spawn(
-                    smartpot_iot::tasks::command::catch_commands(
-                        COMMAND_CH.dyn_subscriber().unwrap(),
-                        ACK_CH.dyn_publisher().unwrap(),
-                        water,
-                        lights,
-                        fan,
-                        humidifier,
-                    )
-                    .expect("Fallo al crear catch_commands"),
-                );
+            _spawner.spawn(
+                smartpot_iot::tasks::command::catch_commands(
+                    COMMAND_CH.dyn_subscriber().unwrap(),
+                    ACK_CH.dyn_publisher().unwrap(),
+                    water,
+                    lights,
+                    fan,
+                    humidifier,
+                )
+                .expect("Failed to spawn catch_commands"),
+            );
         }
     };
 
     #[allow(static_mut_refs)]
     {
         const CORE1_STACK_SIZE: usize = 8192;
-        static CORE1_STACK: StaticCell<esp_hal::system::Stack<CORE1_STACK_SIZE>> = StaticCell::new();
+        static CORE1_STACK: StaticCell<esp_hal::system::Stack<CORE1_STACK_SIZE>> =
+            StaticCell::new();
         let core1_stack = CORE1_STACK.init_with(esp_hal::system::Stack::new);
 
         start_second_core(
@@ -188,7 +184,7 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
             sw_int.software_interrupt1,
             core1_stack,
             || {
-                info!("Iniciando segundo núcleo (CORE1)");
+                info!("Starting second core (CORE1)");
                 static EXECUTOR_CORE1: StaticCell<Executor> = StaticCell::new();
                 let exec = EXECUTOR_CORE1.init(Executor::new());
 
@@ -210,13 +206,16 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
         use esp_radio::wifi::ControllerConfig;
         use smartpot_iot::tasks::wifi::{net_task, wifi_connection_task};
 
-        #[cfg(any(feature = "sensors", feature = "actuators", feature = "mqtt", feature = "http-api", feature = "ble"))]
-        use smartpot_iot::{
-            events::telemetry::TELEMETRY_CH,
-            tasks::telemetry::telemetry_task
-        };
+        #[cfg(any(
+            feature = "sensors",
+            feature = "actuators",
+            feature = "mqtt",
+            feature = "http-api",
+            feature = "ble"
+        ))]
+        use smartpot_iot::{events::telemetry::TELEMETRY_CH, tasks::telemetry::telemetry_task};
 
-        info!("Configurando pila de red Wi-Fi y radio...");
+        info!("Configuring Wi-Fi network stack and radio...");
         let (wifi_controller, interfaces) =
             esp_radio::wifi::new(peripherals.WIFI, ControllerConfig::default())
                 .expect("Could not initialize wifi controller");
@@ -226,7 +225,7 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
         let stack_resources = STACK_RESOURCES.init_with(StackResources::<5>::new);
 
         let mut trng_buf = [0u8; 16];
-        // let _trng_source = TrngSource::new(peripherals.RNG, peripherals.ADC1.reborrow());
+        // Generador aleatorio de hardware del ESP32 para semillas de red y TLS
         let trng = Trng::try_new().unwrap();
         trng.read(&mut trng_buf);
 
@@ -235,14 +234,14 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
         let (_stack, runner) =
             embassy_net::new(wifi_interface, net_config, stack_resources, net_seed);
 
-        spawner.spawn(net_task(runner).expect("Fallo al iniciar net_task"));
+        spawner.spawn(net_task(runner).expect("Failed to start net_task"));
         spawner.spawn(
             wifi_connection_task(
                 wifi_controller,
                 DEFAULT_CONFIG.wifi_ssid,
                 DEFAULT_CONFIG.wifi_password,
             )
-            .expect("Fallo al iniciar wifi_connection_task"),
+            .expect("Failed to start wifi_connection_task"),
         );
 
         spawner.spawn(
@@ -251,7 +250,7 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
                 TELEMETRY_CH.dyn_publisher().unwrap(),
                 DEFAULT_CONFIG.telemetry_interval_secs,
             )
-            .expect("Fallo al iniciar telemetry_task"),
+            .expect("Failed to start telemetry_task"),
         );
 
         #[cfg(all(feature = "mqtt", feature = "actuators", feature = "sensors"))]
@@ -264,17 +263,11 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
                 COMMAND_CH.dyn_publisher().unwrap(),
                 ACK_CH.dyn_subscriber().unwrap(),
             )
-            .expect("Fallo al iniciar mqtt_task"),
+            .expect("Failed to start mqtt_task"),
         );
     }
 
     loop {
-        /*
-        info!("Free heap: {} bytes", esp_alloc::HEAP.free());
-        info!("Used: {} bytes", esp_alloc::HEAP.used());
-        info!("stats: {} ", esp_alloc::HEAP.stats());
-        embassy_time::Timer::after(embassy_time::Duration::from_secs(5)).await;
-        */
         core::future::pending::<()>().await;
     }
 }

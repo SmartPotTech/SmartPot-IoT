@@ -1,17 +1,17 @@
 //! Tareas de adquisición de sensores (I2C: BME280, BH1750; Analógicos: TDS, pH, Humedad de suelo).
 
-use bh1750_embedded::r#async::Bh1750Async;
 use bh1750_embedded::Resolution;
+use bh1750_embedded::r#async::Bh1750Async;
 use defmt::{debug, error, info};
 use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
 use embassy_executor::task;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::pubsub::DynPublisher;
 use embassy_time::{Duration, Timer};
+use esp_hal::Blocking;
 use esp_hal::analog::adc::{Adc, AdcPin};
 use esp_hal::peripherals::{ADC1, GPIO32, GPIO34, GPIO35};
-use esp_hal::Blocking;
-use esp_hal::{i2c::master::I2c, Async};
+use esp_hal::{Async, i2c::master::I2c};
 
 use crate::drivers::tca9548a::{Tca9548a, TcaChannel};
 use crate::drivers::tds::{ph_from_adc, soil_moisture_from_adc, tds_from_adc};
@@ -37,7 +37,10 @@ pub async fn bme280_sequential_task(
 
     loop {
         if let Ok(m) = bme1.measure().await {
-            debug!("BME280 ch2: temp={}, hum={}, press={}", m.temperature, m.humidity, m.pressure);
+            debug!(
+                "BME280 ch2: temp={}, hum={}, press={}",
+                m.temperature, m.humidity, m.pressure
+            );
             sensor_channel.publish_immediate(Measurements::BME280((
                 m.temperature,
                 m.humidity,
@@ -46,7 +49,10 @@ pub async fn bme280_sequential_task(
         }
 
         if let Ok(m) = bme2.measure().await {
-            debug!("BME280 ch3: temp={}, hum={}, press={}", m.temperature, m.humidity, m.pressure);
+            debug!(
+                "BME280 ch3: temp={}, hum={}, press={}",
+                m.temperature, m.humidity, m.pressure
+            );
             sensor_channel.publish_immediate(Measurements::BME280((
                 m.temperature,
                 m.humidity,
@@ -55,7 +61,10 @@ pub async fn bme280_sequential_task(
         }
 
         if let Ok(m) = bme3.measure().await {
-            debug!("BME280 ch4: temp={}, hum={}, press={}", m.temperature, m.humidity, m.pressure);
+            debug!(
+                "BME280 ch4: temp={}, hum={}, press={}",
+                m.temperature, m.humidity, m.pressure
+            );
             sensor_channel.publish_immediate(Measurements::BME280((
                 m.temperature,
                 m.humidity,
@@ -73,7 +82,7 @@ pub async fn bme280_task(
     sensor_channel: DynPublisher<'static, Measurements>,
     address: u8,
 ) {
-    info!("Iniciando sensor BME280 en dirección 0x{:02X}...", address);
+    info!("Starting BME280 sensor at address 0x{:02X}...", address);
     if let Ok(mut bme280) = crate::drivers::bme280::Bme280::new(i2c_bus, address).await {
         loop {
             match bme280.measure().await {
@@ -85,13 +94,13 @@ pub async fn bme280_task(
                     )));
                 }
                 Err(_) => {
-                    error!("Error al leer BME280");
+                    error!("Error reading BME280");
                 }
             }
             Timer::after(Duration::from_secs(5)).await;
         }
     } else {
-        error!("No se pudo inicializar BME280 en 0x{:02X}", address);
+        error!("Could not initialize BME280 at 0x{:02X}", address);
     }
 }
 
@@ -102,7 +111,7 @@ pub async fn bme280_task_tca(
     address: u8,
 ) {
     let channel = i2c_bus.get_channel();
-    info!("Iniciando BME280 en TCA canal {}...", channel);
+    info!("Starting BME280 on TCA channel {}...", channel);
     if let Ok(mut bme280) = crate::drivers::bme280::Bme280::new(i2c_bus, address).await {
         loop {
             if let Ok(m) = bme280.measure().await {
@@ -122,7 +131,7 @@ pub async fn bh1750_task(
     i2c_bus: I2cDevice<'static, NoopRawMutex, I2c<'static, Async>>,
     sensor_channel: DynPublisher<'static, Measurements>,
 ) {
-    info!("Iniciando sensor de luminosidad BH1750...");
+    info!("Starting BH1750 light sensor...");
     let delay = embassy_time::Delay;
     let mut sensor = Bh1750Async::new(i2c_bus, delay, bh1750_embedded::Address::Low);
 
@@ -148,7 +157,7 @@ pub async fn analog_sensors_task(
     mut soil: AdcPin<GPIO32<'static>, ADC1<'static>>,
     sensor_channel: DynPublisher<'static, Measurements>,
 ) {
-    info!("Iniciando sensores analógicos (TDS, pH, Humedad de suelo)...");
+    info!("Starting analog sensors (TDS, pH, Soil Moisture)...");
     let temperature: f32 = 25.0;
 
     loop {

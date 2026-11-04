@@ -2,7 +2,7 @@
 
 use defmt::info;
 use embassy_executor::task;
-use embassy_futures::select::{select, Either};
+use embassy_futures::select::{Either, select};
 use embassy_sync::pubsub::{DynPublisher, DynSubscriber};
 use embassy_time::{Duration, Instant, Timer};
 use esp_hal::gpio::Output;
@@ -47,77 +47,70 @@ pub async fn catch_commands(
         match select(
             command_channel.next_message_pure(),
             Timer::after(Duration::from_millis(250)),
-        ).await
+        )
+        .await
         {
             Either::First(cmd) => {
-                info!("[ACTUATOR] Recibido comando: {:?}", cmd);
+                info!("[ACTUATOR] Received command: {:?}", cmd);
                 let now = Instant::now();
 
                 match cmd.actuator {
-                    Actuators::WaterPump => {
-                        match cmd.action {
-                            Action::Activate => {
-                                water.set_high();
-                                water_state.active = true;
-                                water_state.until = cmd
-                                    .duration_seconds
-                                    .map(|s| now + Duration::from_secs(s as u64));
-                            }
-                            Action::Deactivate => {
-                                water.set_low();
-                                water_state.active = false;
-                                water_state.until = None;
-                            }
+                    Actuators::WaterPump => match cmd.action {
+                        Action::Activate => {
+                            water.set_high();
+                            water_state.active = true;
+                            water_state.until = cmd
+                                .duration_seconds
+                                .map(|s| now + Duration::from_secs(s as u64));
                         }
-                    }
-                    Actuators::Lights => {
-                        match cmd.action {
-                            Action::Activate => {
-                                lights.set_high();
-                                lights_state.active = true;
-                                lights_state.until = cmd
-                                    .duration_seconds
-                                    .map(|s| now + Duration::from_secs(s as u64));
-                            }
-                            Action::Deactivate => {
-                                lights.set_low();
-                                lights_state.active = false;
-                                lights_state.until = None;
-                            }
+                        Action::Deactivate => {
+                            water.set_low();
+                            water_state.active = false;
+                            water_state.until = None;
                         }
-                    }
-                    Actuators::Fan => {
-                        match cmd.action {
-                            Action::Activate => {
-                                fan.set_high();
-                                fan_state.active = true;
-                                fan_state.until = cmd
-                                    .duration_seconds
-                                    .map(|s| now + Duration::from_secs(s as u64));
-                            }
-                            Action::Deactivate => {
-                                fan.set_low();
-                                fan_state.active = false;
-                                fan_state.until = None;
-                            }
+                    },
+                    Actuators::Lights => match cmd.action {
+                        Action::Activate => {
+                            lights.set_high();
+                            lights_state.active = true;
+                            lights_state.until = cmd
+                                .duration_seconds
+                                .map(|s| now + Duration::from_secs(s as u64));
                         }
-                    }
-                    Actuators::Humidifier => {
-                        match cmd.action {
-                            Action::Activate => {
-                                humidifier.set_high();
-                                humidifier_state.active = true;
-                                humidifier_state.until = cmd
-                                    .duration_seconds
-                                    .map(|s| now + Duration::from_secs(s as u64));
-                            }
-                            Action::Deactivate => {
-                                humidifier.set_low();
-                                humidifier_state.active = false;
-                                humidifier_state.until = None;
-                            }
+                        Action::Deactivate => {
+                            lights.set_low();
+                            lights_state.active = false;
+                            lights_state.until = None;
                         }
-                    }
+                    },
+                    Actuators::Fan => match cmd.action {
+                        Action::Activate => {
+                            fan.set_high();
+                            fan_state.active = true;
+                            fan_state.until = cmd
+                                .duration_seconds
+                                .map(|s| now + Duration::from_secs(s as u64));
+                        }
+                        Action::Deactivate => {
+                            fan.set_low();
+                            fan_state.active = false;
+                            fan_state.until = None;
+                        }
+                    },
+                    Actuators::Humidifier => match cmd.action {
+                        Action::Activate => {
+                            humidifier.set_high();
+                            humidifier_state.active = true;
+                            humidifier_state.until = cmd
+                                .duration_seconds
+                                .map(|s| now + Duration::from_secs(s as u64));
+                        }
+                        Action::Deactivate => {
+                            humidifier.set_low();
+                            humidifier_state.active = false;
+                            humidifier_state.until = None;
+                        }
+                    },
                 }
 
                 // Generar y publicar la confirmación ACK inmediata
@@ -138,28 +131,28 @@ pub async fn catch_commands(
                     water.set_low();
                     water_state.active = false;
                     water_state.until = None;
-                    info!("[ACTUATOR] Bomba de agua apagada por tiempo");
+                    info!("[ACTUATOR] Water pump turned off after timer elapsed");
                 }
 
                 if lights_state.active && lights_state.until.map_or(false, |u| now >= u) {
                     lights.set_low();
                     lights_state.active = false;
                     lights_state.until = None;
-                    info!("[ACTUATOR] Luz de cultivo apagada por tiempo");
+                    info!("[ACTUATOR] Grow light turned off after timer elapsed");
                 }
 
                 if fan_state.active && fan_state.until.map_or(false, |u| now >= u) {
                     fan.set_low();
                     fan_state.active = false;
                     fan_state.until = None;
-                    info!("[ACTUATOR] Ventilador apagado por tiempo");
+                    info!("[ACTUATOR] Fan turned off after timer elapsed");
                 }
 
                 if humidifier_state.active && humidifier_state.until.map_or(false, |u| now >= u) {
                     humidifier.set_low();
                     humidifier_state.active = false;
                     humidifier_state.until = None;
-                    info!("[ACTUATOR] Humidificador apagado por tiempo");
+                    info!("[ACTUATOR] Humidifier turned off after timer elapsed");
                 }
             }
         }

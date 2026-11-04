@@ -1,14 +1,13 @@
 """
-Script de inicio y preparación para la simulación de SmartPot-IoT-Rust en Wokwi.
+Startup and preparation script for simulating SmartPot-IoT-Rust in Wokwi.
 
-Funciones:
-1. Verifica y construye el binario ejecutable ELF para ESP32 si no existe.
-2. Comprueba la configuración de Wokwi (wokwi.toml y diagram.json).
-3. Lanza la simulación local mediante wokwi-cli si está instalado, o indica
-   cómo ejecutarla mediante el plugin de PyCharm / VS Code.
+Functions:
+1. Checks and builds the ELF executable binary for ESP32 if it does not exist.
+2. Verifies the Wokwi configuration (wokwi.toml and diagram.json).
+3. Launches the local simulation via wokwi-cli if installed, or prints
+   instructions to run it via the PyCharm / VS Code plugin.
 """
 
-import os
 import shutil
 import subprocess
 import sys
@@ -21,53 +20,53 @@ DIAGRAM_JSON = BASE_DIR / "diagram.json"
 
 
 def ensure_binary_built():
-    """Verifica si el binario ELF existe; si no, lo compila con la toolchain esp."""
+    """Checks whether the ELF binary exists; if not, builds it using the esp toolchain."""
     if TARGET_ELF.exists():
-        print(f"[OK] Binario firmware encontrado: {TARGET_ELF}")
+        print(f"[OK] Firmware binary found: {TARGET_ELF}")
         return True
 
-    print("[INFO] Binario no encontrado. Compilando con cargo +esp...")
+    print("[INFO] Binary not found. Building with cargo +esp...")
     try:
         cmd = ["cargo", "+esp", "build", "--bin", "smartpot-iot", "--ignore-rust-version"]
         subprocess.run(cmd, cwd=BASE_DIR, check=True)
-        print(f"[OK] Compilación exitosa: {TARGET_ELF}")
+        print(f"[OK] Build succeeded: {TARGET_ELF}")
         return True
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        print(f"[ERROR] No se pudo compilar el firmware con cargo +esp: {e}")
+        print(f"[ERROR] Could not build firmware with cargo +esp: {e}")
         return False
 
 
 def run_wokwi_simulation():
-    """Ejecuta la simulación local en Wokwi CLI o muestra instrucciones para el IDE."""
+    """Runs the local simulation in Wokwi CLI or prints IDE instructions."""
     if not WOKWI_TOML.exists() or not DIAGRAM_JSON.exists():
-        sys.exit("[ERROR] Faltan archivos requeridos: wokwi.toml o diagram.json")
+        sys.exit("[ERROR] Missing required files: wokwi.toml or diagram.json")
 
     wokwi_cli = shutil.which("wokwi-cli")
     if wokwi_cli:
-        print(f"[INFO] Iniciando simulación local con wokwi-cli...")
+        print("[INFO] Starting local simulation with wokwi-cli...")
         try:
             subprocess.run([wokwi_cli, "."], cwd=BASE_DIR, check=True)
             return
         except subprocess.CalledProcessError as err:
-            sys.exit(f"[ERROR] wokwi-cli finalizó con error: {err}")
+            sys.exit(f"[ERROR] wokwi-cli exited with error: {err}")
 
     print("\n" + "=" * 65)
-    print(" SmartPot-IoT-Rust · Simulación en Wokwi Lista")
+    print(" SmartPot-IoT-Rust · Wokwi Simulation Ready")
     print("=" * 65)
-    print("Archivos de simulación preparados:")
+    print("Simulation files ready:")
     print(f"  * diagram.json: {DIAGRAM_JSON}")
     print(f"  * wokwi.toml:   {WOKWI_TOML}")
     print(f"  * ELF binary:   {TARGET_ELF}")
-    print("\nOpciones para iniciar la simulación:")
-    print("  1. En PyCharm / CLion (JetBrains):")
-    print("     - Instala el plugin 'Wokwi Simulator'.")
-    print("     - Abre 'diagram.json' y presiona el botón verde de 'Play' (Start Simulation).")
-    print("\n  2. En VS Code:")
-    print("     - Instala la extensión 'Wokwi Simulator'.")
-    print("     - Presiona F1 -> 'Wokwi: Start Simulator'.")
-    print("\n  3. Mediante Wokwi CLI:")
-    print("     - Instala: npm install -g @wokwi/cli  (o cargo install wokwi-cli)")
-    print("     - Ejecuta: wokwi-cli .")
+    print("\nOptions to start the simulation:")
+    print("  1. In PyCharm / CLion (JetBrains):")
+    print("     - Install the 'Wokwi Simulator' plugin.")
+    print("     - Open 'diagram.json' and click the green 'Play' button (Start Simulation).")
+    print("\n  2. In VS Code:")
+    print("     - Install the 'Wokwi Simulator' extension.")
+    print("     - Press F1 -> 'Wokwi: Start Simulator'.")
+    print("\n  3. Via Wokwi CLI:")
+    print("     - Install: npm install -g @wokwi/cli  (or cargo install wokwi-cli)")
+    print("     - Run: wokwi-cli .")
     print("=" * 65 + "\n")
 
 

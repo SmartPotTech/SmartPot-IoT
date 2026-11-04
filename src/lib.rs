@@ -15,29 +15,32 @@ pub mod i2c_scanner {
     use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
     use embassy_sync::blocking_mutex::raw::NoopRawMutex;
     use embedded_hal_async::i2c::I2c as I2cAsync;
-    use esp_hal::{i2c::master::I2c, Async};
+    use esp_hal::{Async, i2c::master::I2c};
 
     pub struct I2CScanner<I2C> {
-        i2c: I2C
+        i2c: I2C,
     }
 
-    impl<I2C> I2CScanner<I2C> where I2C: I2cAsync {
+    impl<I2C> I2CScanner<I2C>
+    where
+        I2C: I2cAsync,
+    {
         pub async fn new(i2c: I2C) -> Self {
             Self { i2c }
         }
 
         pub async fn i2c_scan_tca9548a(&mut self) {
-            info!("Iniciando escaneo I2C con TCA9548A...");
+            info!("Starting I2C scan with TCA9548A...");
 
             for channel in 0..8 {
                 let channel_mask = 1 << channel;
 
                 match self.i2c.write(0x70, &[channel_mask]).await {
                     Ok(_) => {
-                        info!("Canal {} seleccionado", channel);
+                        info!("Channel {} selected", channel);
                     }
                     Err(_) => {
-                        warn!("No se pudo seleccionar el canal {}", channel);
+                        warn!("Could not select channel {}", channel);
                         continue;
                     }
                 }
@@ -48,12 +51,12 @@ pub mod i2c_scanner {
                     }
 
                     if self.i2c.write(addr, &[]).await.is_ok() {
-                        info!("Canal {} → dispositivo en 0x{:02X}", channel, addr);
+                        info!("Channel {} -> device at 0x{:02X}", channel, addr);
                     }
                 }
             }
 
-            warn!("Escaneo I2C terminado");
+            warn!("I2C scan finished");
         }
     }
 

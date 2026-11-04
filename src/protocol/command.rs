@@ -27,19 +27,12 @@ impl Actuators {
         }
     }
 
-    pub fn name_es(&self) -> &'static str {
+    pub fn name(&self) -> &'static str {
         match self {
-            Self::WaterPump => "Bomba de agua",
-            Self::Lights => "Luz de cultivo",
-            Self::Fan => "Ventilador",
-            Self::Humidifier => "Humidificador",
-        }
-    }
-
-    pub fn is_feminine(&self) -> bool {
-        match self {
-            Self::WaterPump | Self::Lights => true,
-            Self::Fan | Self::Humidifier => false,
+            Self::WaterPump => "Water pump",
+            Self::Lights => "Grow light",
+            Self::Fan => "Fan",
+            Self::Humidifier => "Humidifier",
         }
     }
 }
@@ -78,7 +71,10 @@ pub fn extract_str_field(json: &str, field: &str) -> Result<String<64>, ()> {
     let mut i = 0;
 
     while i + key.len() + 2 < bytes.len() {
-        if bytes[i] == b'"' && &bytes[i + 1..i + 1 + key.len()] == key && bytes[i + 1 + key.len()] == b'"' {
+        if bytes[i] == b'"'
+            && &bytes[i + 1..i + 1 + key.len()] == key
+            && bytes[i + 1 + key.len()] == b'"'
+        {
             let mut j = i + 1 + key.len() + 1;
             while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b':' || bytes[j] == b'\t') {
                 j += 1;
@@ -107,7 +103,10 @@ pub fn extract_u32_field(json: &str, field: &str) -> Option<u32> {
     let mut i = 0;
 
     while i + key.len() + 2 < bytes.len() {
-        if bytes[i] == b'"' && &bytes[i + 1..i + 1 + key.len()] == key && bytes[i + 1 + key.len()] == b'"' {
+        if bytes[i] == b'"'
+            && &bytes[i + 1..i + 1 + key.len()] == key
+            && bytes[i + 1 + key.len()] == b'"'
+        {
             let mut j = i + 1 + key.len() + 1;
             while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b':' || bytes[j] == b'\t') {
                 j += 1;
