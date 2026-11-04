@@ -1,2 +1,4 @@
 [toolchain]
 channel = "esp"
+components = ["rustfmt", "cargo"]
+targets = ["xtensa-esp32-none-elf"]
