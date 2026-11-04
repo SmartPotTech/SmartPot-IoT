@@ -82,7 +82,8 @@ bh1750-embedded = { version = "0.1.0", features = ["async"] } # lux
 [profile.dev]
 # Rust debug is too slow.
 # For debug builds always builds with some optimization
-opt-level = "s"
+opt-level = 0
+debug = 2
 
 [profile.release]
 codegen-units    = 1     # LLVM can perform better optimizations using a single thread
