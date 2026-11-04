@@ -56,7 +56,12 @@ impl TopicResolver {
     pub fn is_command_topic(&self, topic: &str) -> bool {
         let mut expected: String<64> = String::new();
         use core::fmt::Write;
-        let _ = write!(expected, "{}/{}/commands", self.prefix, self.crop_id.as_str());
+        let _ = write!(
+            expected,
+            "{}/{}/commands",
+            self.prefix,
+            self.crop_id.as_str()
+        );
         topic == expected.as_str()
     }
 }

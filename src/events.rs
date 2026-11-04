@@ -5,8 +5,8 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::pubsub::PubSubChannel;
 
 pub use crate::protocol::{
-    format_readable_duration, parse_command, AckMessage, AckStatus, Action, Actuators, Command,
-    SensorState, TopicResolver, TOPIC_PREFIX,
+    AckMessage, AckStatus, Action, Actuators, Command, SensorState, TOPIC_PREFIX, TopicResolver,
+    format_readable_duration, parse_command,
 };
 
 #[derive(Clone, Copy, Debug, Format)]
@@ -74,9 +74,7 @@ pub mod telemetry {
     use super::Measurements;
     use crate::protocol::SensorState;
     use defmt::Format;
-    use embassy_sync::{
-        blocking_mutex::raw::CriticalSectionRawMutex, pubsub::PubSubChannel,
-    };
+    use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, pubsub::PubSubChannel};
 
     #[derive(Copy, Clone, Format)]
     pub enum TelemetryMessage {
