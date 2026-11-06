@@ -1,4 +1,7 @@
 [toolchain]
-channel = "esp"
+# El firmware se compila con el toolchain Xtensa mediante `cargo +esp` (lo
+# instala CI o espup). El toolchain por defecto queda en stable para que
+# Dependabot y las herramientas de host puedan resolver Cargo.lock sin el
+# toolchain propietario de Espressif.
+channel = "stable"
 components = ["rustfmt", "cargo"]
-targets = ["xtensa-esp32-none-elf"]
