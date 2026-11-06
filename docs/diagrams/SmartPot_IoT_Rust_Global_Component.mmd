@@ -5,30 +5,31 @@ flowchart LR
     subgraph core0["Core 0 · Red y Comunicaciones"]
       direction TB
       wifi["tasks/wifi.rs<br/>WiFi Station · Reintentos"]
-      mqtt["tasks/mqtt.rs<br/>Cliente MQTT v1 · TLS 1.2+<br/>LWT retenido · select3 loop"]
-      telem["tasks/wifi.rs: telemetry_task<br/>Agregación · SensorState"]
+      mqtt["tasks/mqtt.rs<br/>Cliente MQTT v1 · TLS 1.3<br/>LWT retenido · select3 loop"]
+      telem["tasks/telemetry.rs: telemetry_task<br/>Agregación · SensorState"]
+      caps["capabilities retenido<br/>esquema 1 · 7 sensores · 4 actuadores"]
     end
 
     subgraph core1["Core 1 · Adquisición y Control"]
       direction TB
-      i2c["tasks/sensors.rs: bme280 & bh1750<br/>Temperatura, Humedad, Presión, Lux"]
+      i2c["tasks/sensors.rs: bme280 & bh1750<br/>Temperatura, Humedad, Presión, Lux<br/>mediana 5 + Kalman Q16.16"]
       adc["tasks/sensors.rs: analog_sensors<br/>TDS, pH, Humedad Sustrato"]
-      act["tasks/command.rs: actuator_task<br/>Bomba, Luces, Ventilador, Humidificador<br/>Temporizador Instant::now() + Duration"]
+      act["tasks/command.rs: catch_commands<br/>Bomba, Luz UV (alias LIGHTS), Ventilador, Humidificador<br/>Temporizador Instant::now() + Duration"]
     end
 
     subgraph channels["Canales Estáticos Embassy (Sin Bloqueos)"]
       direction TB
-      sch["SENSOR_CH<br/>Mediciones físicas"]
+      sch["SENSOR_CH<br/>Mediciones filtradas"]
       cch["COMMAND_CH<br/>Órdenes entrantes"]
-      ach["ACK_CH<br/>Confirmaciones en español"]
-      tch["TELEMETRY_CH<br/>Payloads v1 sin nulos"]
+      ach["ACK_CH<br/>Confirmaciones en inglés"]
+      tch["TELEMETRY_CH<br/>v1 JSON / v2 27 B sin nulos"]
     end
   end
 
   subgraph hw["Periféricos y Circuito"]
     direction TB
     sens["I2C SCL 22 / SDA 21<br/>ADC GPIO 34, 35, 32"]
-    outs["Bomba 25 · Luces 26<br/>Ventilador 27 · Humidificador 5"]
+    outs["Bomba 25 · Luz UV 26<br/>Ventilador 27 · Humidificador 5"]
   end
 
   broker["SmartPot-Broker (EMQX)<br/>mqtt.smartpot.app:8883"]
@@ -38,8 +39,9 @@ flowchart LR
 
   i2c & adc -->|"produce mediciones"| sch
   sch -->|"consume y agrega"| telem
-  telem -->|"emite JSON v1"| tch
+  telem -->|"emite JSON v1 / binario v2"| tch
   tch -->|"publica en bus"| mqtt
+  mqtt -->|"publica capabilities retenido"| caps
 
   mqtt <-->|"smartpot/v1/{cropId}/..."| broker
   mqtt -->|"despacha orden válida"| cch
