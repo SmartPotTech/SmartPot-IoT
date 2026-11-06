@@ -1,8 +1,8 @@
 [package]
-edition      = "2024"
-name         = "smartpot-iot"
+edition = "2024"
+name = "smartpot-iot"
 rust-version = "1.90"
-version      = "0.1.0"
+version = "0.1.0"
 default-run = "smartpot-iot"
 
 [features]
@@ -40,18 +40,18 @@ esp-alloc = { version = "0.10.0", features = ["defmt", ] }
 
 esp-hal = { version = "1.1.0-rc.0", features = ["defmt", "esp32", "unstable"] }
 esp-rtos = { version = "0.3.0", features = [
-  "defmt",
-  "embassy",
-  "esp-alloc",
-  "esp-radio",
-  "esp32",
+    "defmt",
+    "embassy",
+    "esp-alloc",
+    "esp-radio",
+    "esp32",
 ] }
 esp-radio = { version = "0.18.0", default-features = false, features = [
-  "defmt",
-  "esp32",
-  "unstable",
-  "wifi",
-  #"print-logs-from-driver"
+    "defmt",
+    "esp32",
+    "unstable",
+    "wifi",
+    #"print-logs-from-driver"
 ] }
 
 embedded-hal-async = "1.0.0"
@@ -65,17 +65,17 @@ embassy-sync = { version = "0.8", features = ["defmt"] }
 embassy-time = { version = "0.5.1", features = ["defmt"] }
 embassy-embedded-hal = "0.6.0"
 embassy-net = { version = "0.9.1", features = [
-  "defmt",
-  "dhcpv4",
-  "medium-ethernet",
-  "tcp",
-  "udp",
-  "dns",
+    "defmt",
+    "dhcpv4",
+    "medium-ethernet",
+    "tcp",
+    "udp",
+    "dns",
 ] }
 
 nb = "1.1.0"
 heapless = "0.9.2"
-rust-mqtt = { version = "0.5", features = ["defmt"]}
+rust-mqtt = { version = "0.5", features = ["defmt"] }
 
 # Sensores
 bh1750-embedded = { version = "0.1.0", features = ["async"] } # lux
@@ -87,10 +87,10 @@ opt-level = 0
 debug = 2
 
 [profile.release]
-codegen-units    = 1     # LLVM optimiza mejor utilizando un único hilo de generación de código
-debug            = 2
+codegen-units = 1     # LLVM optimiza mejor utilizando un único hilo de generación de código
+debug = 2
 debug-assertions = false
-incremental      = false
-lto              = 'fat'
-opt-level        = 's'
-overflow-checks  = false
+incremental = false
+lto = 'fat'
+opt-level = 's'
+overflow-checks = false

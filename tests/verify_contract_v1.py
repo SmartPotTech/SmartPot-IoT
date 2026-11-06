@@ -15,9 +15,9 @@ Test architecture:
 """
 
 import json
+import paho.mqtt.client as mqtt
 import time
 import urllib.request
-import paho.mqtt.client as mqtt
 
 BROKER_HOST = "127.0.0.1"
 BROKER_PORT = 1883
@@ -207,15 +207,18 @@ def run_e2e_verification():
     print(f"Total ACKs received on bus: {len(acks_raw)}")
 
     ack_01 = next((a for a in acks_raw if a["id"] == "cmd-rust-01" and "Water pump" in a.get("message", "")), None)
-    assert ack_01 is not None and ack_01["status"] == "EXECUTED" and ack_01["message"] == "Water pump turned on for 15 s"
+    assert ack_01 is not None and ack_01["status"] == "EXECUTED" and ack_01[
+        "message"] == "Water pump turned on for 15 s"
     print("  [OK] Validated ACK cmd-rust-01 (Water pump)")
 
     ack_02 = next((a for a in acks_raw if a["id"] == "cmd-rust-02" and "UV light" in a.get("message", "")), None)
     assert ack_02 is not None and ack_02["status"] == "EXECUTED" and ack_02["message"] == "UV light turned off"
     print("  [OK] Validated ACK cmd-rust-02 (UV light)")
 
-    ack_legacy = next((a for a in acks_raw if a["id"] == "cmd-rust-legacy" and "UV light" in a.get("message", "")), None)
-    assert ack_legacy is not None and ack_legacy["status"] == "EXECUTED" and ack_legacy["message"] == "UV light turned on"
+    ack_legacy = next((a for a in acks_raw if a["id"] == "cmd-rust-legacy" and "UV light" in a.get("message", "")),
+                      None)
+    assert ack_legacy is not None and ack_legacy["status"] == "EXECUTED" and ack_legacy[
+        "message"] == "UV light turned on"
     print("  [OK] Validated legacy LIGHTS alias as UV light")
 
     ack_03 = next((a for a in acks_raw if a["id"] == "cmd-rust-03" and "Fan" in a.get("message", "")), None)
