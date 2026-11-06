@@ -1,6 +1,6 @@
-# SmartPot-IoT-Rust
+# SmartPot-IoT
 
-[![Firmware Rust CI](https://github.com/SmartPotTech/SmartPot-IoT-Rust/actions/workflows/ci.yml/badge.svg)](https://github.com/SmartPotTech/SmartPot-IoT-Rust/actions/workflows/ci.yml)
+[![Firmware Rust CI](https://github.com/SmartPotTech/SmartPot-IoT/actions/workflows/ci.yml/badge.svg)](https://github.com/SmartPotTech/SmartPot-IoT/actions/workflows/ci.yml)
 
 [English](#english) | [Español](#español)
 
@@ -43,7 +43,7 @@ flowchart LR
 * **Dual-Core Isolation**: Core 0 dedicated to the Wi-Fi network stack and MQTT v1 link; Core 1 dedicated to sensor sampling and real-time actuator control.
 * **Full MQTT v1 Contract**: Strict compliance with topics, retained LWT (`offline` / `online`), null-free telemetry, and English ACK confirmations.
 * **Strong Types & Memory Safety**: Zero-allocation serialization and deserialization (`heapless`), rejecting invalid commands with typed ACKs.
-* **Native `demo-beta` Integration**: Fully compatible with the modern SmartPot stack (EMQX with HTTP authentication over `SmartPot-API-Go`, TimescaleDB, and SolidJS PWA).
+* **Native Production Stack B Integration**: Fully compatible with the modern SmartPot stack (EMQX with HTTP authentication over `SmartPot-API`, TimescaleDB, and SolidJS PWA). Note: for quick software-only prototyping or Wokwi simulation, refer to the [SmartPot-IoT-Python](https://github.com/SmartPotTech/SmartPot-IoT-Python) MicroPython companion.
 
 ### Pinout Assignment
 
@@ -84,7 +84,7 @@ cargo +esp build --bin smartpot-iot --ignore-rust-version
 espflash flash target/xtensa-esp32-none-elf/debug/smartpot-iot --monitor
 ```
 
-### Integration Testing with `demo-beta`
+### Integration Testing with Local Demo
 
 ```bash
 uv run --with paho-mqtt python tests/verify_contract_v1.py
@@ -111,7 +111,7 @@ El dispositivo adquiere lecturas de 7 variables físicas (I2C y ADC), publica te
 * **Aislamiento Dual-Core**: Core 0 dedicado al stack de red WiFi y enlace MQTT v1; Core 1 dedicado al muestreo de sensores y control en tiempo real de actuadores.
 * **Contrato MQTT v1 Completo**: Cumplimiento riguroso de tópicos, LWT retenido (`offline` / `online`), telemetría sin valores nulos y confirmaciones ACK en inglés.
 * **Seguridad y Tipos Fuertes**: Serialización y deserialización sin asignaciones dinámicas (`heapless`), rechazando comandos inválidos con ACKs tipados.
-* **Integración Nativa con `demo-beta`**: Totalmente compatible con la pila moderna de SmartPot (EMQX con autenticación HTTP sobre `SmartPot-API-Go`, TimescaleDB y SolidJS PWA).
+* **Integración Nativa con Stack B en Producción**: Totalmente compatible con la pila moderna de SmartPot (EMQX con autenticación HTTP sobre `SmartPot-API`, TimescaleDB y SolidJS PWA). Para prototipado rápido en software o simulación en Wokwi, consulta el compañero MicroPython [SmartPot-IoT-Python](https://github.com/SmartPotTech/SmartPot-IoT-Python).
 
 ### Asignación de Pines (Pinout)
 
@@ -152,7 +152,7 @@ cargo +esp build --bin smartpot-iot --ignore-rust-version
 espflash flash target/xtensa-esp32-none-elf/debug/smartpot-iot --monitor
 ```
 
-### Pruebas de Integración con `demo-beta`
+### Pruebas de Integración con Demo Local
 
 ```bash
 uv run --with paho-mqtt python tests/verify_contract_v1.py

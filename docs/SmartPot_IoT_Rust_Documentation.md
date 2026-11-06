@@ -1,16 +1,16 @@
 <!-- portada
 eyebrow: Component Documentation · Documentación del componente
-titulo: SmartPot-IoT-Rust
+titulo: SmartPot-IoT
 acento: IoT
 subtitulo: High-Performance Real Crop Firmware in Rust · Firmware de alto rendimiento para cultivo real en Rust
 bajada: Rust 2024 no_std on dual-core ESP32 with Embassy: task-driven async architecture, lock-free channels, strict MQTT v1 contract over TLS, exact actuator timing, and 7-sensor physical telemetry. / Rust 2024 no_std sobre ESP32 dual-core con Embassy: arquitectura asíncrona por tareas, canales libres de bloqueo, contrato MQTT v1 estricto con TLS, temporización exacta de actuadores y telemetría de 7 variables físicas.
-documento: SmartPot-IoT-Rust
-version: 1.0 · October 2026 / octubre 2026
+documento: SmartPot-IoT
+version: 2.0 · November 2026 / noviembre 2026
 equipo: SmartPotTech
 proyecto: smartpot.app
 -->
 
-# SmartPot-IoT-Rust
+# SmartPot-IoT
 
 [English](#english) | [Español](#español)
 
@@ -23,9 +23,9 @@ proyecto: smartpot.app
 | Field                  | Value                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 |------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Project                | SmartPot · [smartpot.app](https://smartpot.app)                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Component              | [SmartPot-IoT-Rust](https://github.com/SmartPotTech/SmartPot-IoT-Rust)                                                                                                                                                                                                                                                                                                                                                                          |
-| Version                | 1.0 · October 2026                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| Scope                  | Dual-core architecture, Embassy async runtime, MQTT v1 contract, timed actuator bank, I2C/ADC acquisition, and `demo-beta` verification                                                                                                                                                                                                                                                                                                         |
+| Component              | [SmartPot-IoT](https://github.com/SmartPotTech/SmartPot-IoT)                                                                                                                                                                                                                                                                                                                                                                          |
+| Version                | 2.0 · November 2026                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Scope                  | Dual-core architecture, Embassy async runtime, MQTT v1 contract, timed actuator bank, I2C/ADC acquisition, and production stack integration                                                                                                                                                                                                                                                                                                         |
 | Platform Documentation | [Technical Documentation](https://github.com/SmartPotTech/.github/blob/main/docs/SmartPot_Technical_Documentation.md), [Project Journey](https://github.com/SmartPotTech/.github/blob/main/docs/SmartPot_Project_Journey.md), [Software Lifecycle](https://github.com/SmartPotTech/.github/blob/main/docs/SmartPot_Software_Lifecycle.md), and [Global Diagrams](https://github.com/SmartPotTech/.github/blob/main/docs/README.md#diagramas-generales) |
 | Maintenance            | Updated alongside hardware specifications and the platform MQTT contract                                                                                                                                                                                                                                                                                                                                                                        |
 
@@ -155,9 +155,9 @@ Each actuator holds an independent `ActuatorRuntime` state:
 | Campo | Valor |
 | --- | --- |
 | Proyecto | SmartPot · [smartpot.app](https://smartpot.app) |
-| Componente | [SmartPot-IoT-Rust](https://github.com/SmartPotTech/SmartPot-IoT-Rust) |
-| Versión | 1.0 · octubre 2026 |
-| Alcance | Arquitectura dual-core, Embassy async runtime, contrato MQTT v1, banco de actuadores temporizados, adquisición I2C/ADC y pruebas contra demo-beta |
+| Componente | [SmartPot-IoT](https://github.com/SmartPotTech/SmartPot-IoT) |
+| Versión | 2.0 · noviembre 2026 |
+| Alcance | Arquitectura dual-core, Embassy async runtime, contrato MQTT v1, banco de actuadores temporizados, adquisición I2C/ADC e integración con el stack de producción |
 | Documentación de la plataforma | [Documentación técnica](https://github.com/SmartPotTech/.github/blob/main/docs/SmartPot_Technical_Documentation.md), [recorrido del proyecto](https://github.com/SmartPotTech/.github/blob/main/docs/SmartPot_Project_Journey.md), [ciclo de vida](https://github.com/SmartPotTech/.github/blob/main/docs/SmartPot_Software_Lifecycle.md) y [diagramas generales](https://github.com/SmartPotTech/.github/blob/main/docs/README.md#diagramas-generales) |
 | Mantenimiento | Se actualiza en conjunto con las especificaciones de hardware y el contrato MQTT de la plataforma |
 
