@@ -84,7 +84,8 @@ def on_device_message(client, userdata, msg):
 
         actuator_names = {
             "WATER_PUMP": "Water pump",
-            "LIGHTS": "Grow light",
+            "UV_LIGHT": "UV light",
+            "LIGHTS": "UV light",  # Alias heredado del contrato anterior.
             "FAN": "Fan",
             "HUMIDIFIER": "Humidifier"
         }
@@ -174,7 +175,8 @@ def run_e2e_verification():
     print("\n--- 6. Admin sends actuator commands ---")
     commands_to_send = [
         {"id": "cmd-rust-01", "actuator": "WATER_PUMP", "action": "ACTIVATE", "durationSeconds": 15},
-        {"id": "cmd-rust-02", "actuator": "LIGHTS", "action": "DEACTIVATE"},
+        {"id": "cmd-rust-02", "actuator": "UV_LIGHT", "action": "DEACTIVATE"},
+        {"id": "cmd-rust-legacy", "actuator": "LIGHTS", "action": "ACTIVATE"},
         {"id": "cmd-rust-03", "actuator": "FAN", "action": "ACTIVATE", "durationSeconds": 600},
         {"id": "cmd-rust-04", "actuator": "HUMIDIFIER", "action": "ACTIVATE"},
         {"id": "cmd-rust-err", "actuator": "SOLENOID_UNKNOWN", "action": "ACTIVATE"}
@@ -208,9 +210,13 @@ def run_e2e_verification():
     assert ack_01 is not None and ack_01["status"] == "EXECUTED" and ack_01["message"] == "Water pump turned on for 15 s"
     print("  [OK] Validated ACK cmd-rust-01 (Water pump)")
 
-    ack_02 = next((a for a in acks_raw if a["id"] == "cmd-rust-02" and "Grow light" in a.get("message", "")), None)
-    assert ack_02 is not None and ack_02["status"] == "EXECUTED" and ack_02["message"] == "Grow light turned off"
-    print("  [OK] Validated ACK cmd-rust-02 (Grow light)")
+    ack_02 = next((a for a in acks_raw if a["id"] == "cmd-rust-02" and "UV light" in a.get("message", "")), None)
+    assert ack_02 is not None and ack_02["status"] == "EXECUTED" and ack_02["message"] == "UV light turned off"
+    print("  [OK] Validated ACK cmd-rust-02 (UV light)")
+
+    ack_legacy = next((a for a in acks_raw if a["id"] == "cmd-rust-legacy" and "UV light" in a.get("message", "")), None)
+    assert ack_legacy is not None and ack_legacy["status"] == "EXECUTED" and ack_legacy["message"] == "UV light turned on"
+    print("  [OK] Validated legacy LIGHTS alias as UV light")
 
     ack_03 = next((a for a in acks_raw if a["id"] == "cmd-rust-03" and "Fan" in a.get("message", "")), None)
     assert ack_03 is not None and ack_03["status"] == "EXECUTED" and ack_03["message"] == "Fan turned on for 10 min"

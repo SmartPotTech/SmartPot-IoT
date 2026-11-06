@@ -1,47 +1,42 @@
-use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
+//! Driver para el multiplexor I2C TCA9548A.
+//!
+//! Cada `TcaChannel` comparte el mismo mutex del bus y selecciona su canal
+//! dentro de la misma sección crítica que la operación del dispositivo. Así la
+//! selección del canal es atómica respecto a `write`, `write_read` y
+//! `transaction`, incluso si varias tareas usan canales distintos.
+
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::mutex::Mutex;
 use embedded_hal_async::i2c::{ErrorType, I2c as I2cAsync, Operation, SevenBitAddress};
 
-// Pendiente: permitir múltiples dispositivos en el mismo canal
-
+/// Multiplexor TCA9548A sobre un bus compartido.
 pub struct Tca9548a<BUS: 'static> {
     bus: &'static Mutex<NoopRawMutex, BUS>,
     addr: u8,
 }
 
-impl<BUS> Tca9548a<BUS>
-where
-    BUS:,
-{
+impl<BUS: 'static> Tca9548a<BUS> {
     pub fn new(bus: &'static Mutex<NoopRawMutex, BUS>, addr: u8) -> Self {
         Self { bus, addr }
     }
 
-    pub fn split(self) -> [TcaChannel<I2cDevice<'static, NoopRawMutex, BUS>>; 8] {
-        [
-            TcaChannel::new(I2cDevice::new(self.bus), self.addr, 0),
-            TcaChannel::new(I2cDevice::new(self.bus), self.addr, 1),
-            TcaChannel::new(I2cDevice::new(self.bus), self.addr, 2),
-            TcaChannel::new(I2cDevice::new(self.bus), self.addr, 3),
-            TcaChannel::new(I2cDevice::new(self.bus), self.addr, 4),
-            TcaChannel::new(I2cDevice::new(self.bus), self.addr, 5),
-            TcaChannel::new(I2cDevice::new(self.bus), self.addr, 6),
-            TcaChannel::new(I2cDevice::new(self.bus), self.addr, 7),
-        ]
+    /// Divide el multiplexor en ocho canales que comparten el mismo bus.
+    pub fn split(self) -> [TcaChannel<BUS>; 8] {
+        core::array::from_fn(|channel| TcaChannel::new(self.bus, self.addr, channel as u8))
     }
 }
 
-pub struct TcaChannel<I2C> {
-    i2c: I2C,
+/// Canal lógico de un TCA9548A.
+pub struct TcaChannel<BUS: 'static> {
+    bus: &'static Mutex<NoopRawMutex, BUS>,
     tca_addr: u8,
     channel: u8,
 }
 
-impl<I2C> TcaChannel<I2C> {
-    pub fn new(i2c: I2C, tca_addr: u8, channel: u8) -> Self {
+impl<BUS: 'static> TcaChannel<BUS> {
+    pub fn new(bus: &'static Mutex<NoopRawMutex, BUS>, tca_addr: u8, channel: u8) -> Self {
         Self {
-            i2c,
+            bus,
             tca_addr,
             channel,
         }
@@ -52,14 +47,17 @@ impl<I2C> TcaChannel<I2C> {
     }
 }
 
-impl<I2C> I2cAsync for TcaChannel<I2C>
+impl<BUS: 'static> I2cAsync for TcaChannel<BUS>
 where
-    I2C: I2cAsync,
+    BUS: I2cAsync,
 {
     async fn write(&mut self, address: SevenBitAddress, write: &[u8]) -> Result<(), Self::Error> {
-        self.i2c.write(self.tca_addr, &[1 << self.channel]).await?;
-        self.i2c.write(address, write).await?;
-        Ok(())
+        // Un único bloqueo cubre la selección y la escritura del dispositivo.
+        let tca_addr = self.tca_addr;
+        let channel_mask = 1u8 << self.channel;
+        let mut bus = self.bus.lock().await;
+        bus.write(tca_addr, &[channel_mask]).await?;
+        bus.write(address, write).await
     }
 
     async fn write_read(
@@ -68,9 +66,12 @@ where
         write: &[u8],
         read: &mut [u8],
     ) -> Result<(), Self::Error> {
-        self.i2c.write(self.tca_addr, &[1 << self.channel]).await?;
-        self.i2c.write_read(address, write, read).await?;
-        Ok(())
+        // Un único bloqueo cubre la selección y la lectura del dispositivo.
+        let tca_addr = self.tca_addr;
+        let channel_mask = 1u8 << self.channel;
+        let mut bus = self.bus.lock().await;
+        bus.write(tca_addr, &[channel_mask]).await?;
+        bus.write_read(address, write, read).await
     }
 
     async fn transaction(
@@ -78,18 +79,18 @@ where
         address: SevenBitAddress,
         operations: &mut [Operation<'_>],
     ) -> Result<(), Self::Error> {
-        // 1. Seleccionar canal UNA sola vez
-        self.i2c.write(self.tca_addr, &[1 << self.channel]).await?;
-
-        // 2. Ejecutar toda la transacción
-        self.i2c.transaction(address, operations).await?;
-        Ok(())
+        // La selección del canal y toda la transacción son indivisibles.
+        let tca_addr = self.tca_addr;
+        let channel_mask = 1u8 << self.channel;
+        let mut bus = self.bus.lock().await;
+        bus.write(tca_addr, &[channel_mask]).await?;
+        bus.transaction(address, operations).await
     }
 }
 
-impl<I2C> ErrorType for TcaChannel<I2C>
+impl<BUS> ErrorType for TcaChannel<BUS>
 where
-    I2C: ErrorType,
+    BUS: 'static + ErrorType,
 {
-    type Error = I2C::Error;
+    type Error = BUS::Error;
 }

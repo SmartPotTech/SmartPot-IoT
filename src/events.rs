@@ -3,6 +3,8 @@
 use defmt::Format;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::pubsub::PubSubChannel;
+#[cfg(feature = "sensors")]
+use embassy_sync::watch::Watch;
 
 pub use crate::protocol::{
     AckMessage, AckStatus, Action, Actuators, Command, SensorState, TOPIC_PREFIX, TopicResolver,
@@ -47,6 +49,16 @@ pub static SENSOR_CH: PubSubChannel<
     SENSOR_CH_SUB,
     SENSOR_CH_PUB,
 > = PubSubChannel::new();
+
+/// Aviso de que el escáner I2C terminó. El `Watch` conserva el valor para que
+/// las tareas que arranquen después no pierdan el evento.
+#[cfg(feature = "sensors")]
+pub static I2C_SCAN_DONE: Watch<CriticalSectionRawMutex, bool, 4> = Watch::new_with(false);
+
+/// Última temperatura válida leída por los BME280. El valor inicial de 25.0 °C
+/// es el respaldo de compensación mientras no exista una lectura real.
+#[cfg(feature = "sensors")]
+pub static BME_TEMPERATURE: Watch<CriticalSectionRawMutex, f32, 2> = Watch::new_with(25.0);
 
 pub const COMMAND_CH_CAP: usize = 8;
 pub const COMMAND_CH_PUB: usize = 2;

@@ -1,13 +1,18 @@
 #![no_std]
 extern crate alloc;
 
+pub mod capabilities;
+pub mod clock;
 pub mod codec;
 pub mod config;
 pub mod drivers;
 pub mod events;
 pub mod filter;
+pub mod limits;
 pub mod protocol;
 pub mod tasks;
+#[cfg(feature = "mqtt")]
+pub mod tls;
 
 #[cfg(feature = "sensors")]
 pub mod i2c_scanner {
@@ -56,6 +61,10 @@ pub mod i2c_scanner {
                 }
             }
 
+            // Deja el multiplexor sin canal seleccionado para que el bus
+            // principal (BH1750) quede accesible al terminar el diagnóstico.
+            let _ = self.i2c.write(0x70, &[0x00]).await;
+
             warn!("I2C scan finished");
         }
     }
@@ -64,5 +73,9 @@ pub mod i2c_scanner {
     pub async fn scan_i2c(i2c_bus: I2cDevice<'static, NoopRawMutex, I2c<'static, Async>>) {
         let mut scanner = I2CScanner::new(i2c_bus).await;
         scanner.i2c_scan_tca9548a().await;
+
+        // `I2C_SCAN_DONE` lo esperan las tareas de sensores antes de tocar el
+        // bus. La tarea del escáner siempre se lanza con la feature `sensors`.
+        crate::events::I2C_SCAN_DONE.sender().send(true);
     }
 }

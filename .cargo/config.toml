@@ -1,5 +1,9 @@
 [target.xtensa-esp32-none-elf]
 runner = "espflash flash --monitor --chip esp32 --log-format defmt"
+rustflags = [
+  "-C", "link-arg=-nostartfiles",
+  "-Z", "macro-backtrace"
+]
 
 [env]
 DEFMT_LOG="info"
@@ -7,12 +11,6 @@ SSID="SSID"
 PASSWORD="PASSWORD"
 
 [build]
-rustflags = [
-  "-C", "link-arg=-nostartfiles",
-  "-Z", "macro-backtrace",
-  "-Z", "crate-attr=feature(ip_from)"
-]
-
 target = "xtensa-esp32-none-elf"
 
 [unstable]

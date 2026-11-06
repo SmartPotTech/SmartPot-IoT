@@ -1,5 +1,9 @@
-use defmt::Format;
+use defmt::{Format, warn};
+use embassy_time::{Duration, Timer};
 use embedded_hal_async::i2c::I2c;
+
+/// Tiempo máximo de espera del bit de medición del BME280.
+const MEASURE_TIMEOUT_MS: u32 = 20;
 
 pub struct Bme280<I2C> {
     i2c: I2C,
@@ -57,6 +61,10 @@ where
         // Reinicio del sensor
         self.write_reg(0xE0, 0xB6).await?;
 
+        // El datasheet exige esperar 2 ms tras el reset antes de escribir
+        // los registros de configuración (copia de la NVM interna).
+        Timer::after(Duration::from_millis(2)).await;
+
         // ctrl_hum = sobremuestreo x1
         self.write_reg(0xF2, 0x01).await?;
 
@@ -112,6 +120,29 @@ where
     }
 
     pub async fn measure(&mut self) -> Result<MeasurementsBME280, I2C::Error> {
+        // Espera acotada a que el sensor termine la conversión. El bit 3 del
+        // registro de estado (0xF3) vale 1 mientras hay una medición en curso.
+        let mut status = [0u8; 1];
+        let mut elapsed_ms = 0u32;
+        loop {
+            self.read_regs(0xF3, &mut status).await?;
+
+            if status[0] & 0x08 == 0 {
+                break;
+            }
+
+            if elapsed_ms >= MEASURE_TIMEOUT_MS {
+                warn!(
+                    "BME280 still measuring after {} ms, reading the last sample",
+                    MEASURE_TIMEOUT_MS
+                );
+                break;
+            }
+
+            Timer::after(Duration::from_millis(1)).await;
+            elapsed_ms += 1;
+        }
+
         let mut data = [0u8; 8];
         self.read_regs(0xF7, &mut data).await?;
 

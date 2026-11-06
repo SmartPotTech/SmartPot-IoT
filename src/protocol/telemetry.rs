@@ -8,10 +8,15 @@
 //! - `tds`: ppm redondeado a entero
 //! - `atmosphere`: hPa con 1 decimal
 //! - `soilMoisture`: % con 1 decimal
+//!
+//! Las lecturas no finitas o fuera de los rangos de la API se omiten para que
+//! una sola medida inválida no invalide el paquete JSON completo.
 
 use core::fmt::Write;
 use defmt::Format;
 use heapless::String;
+
+use crate::limits;
 
 #[derive(Clone, Copy, Default, Debug, Format)]
 pub struct SensorState {
@@ -61,52 +66,53 @@ impl SensorState {
             && self.soil_moisture.is_none()
     }
 
-    /// Serializa el estado de sensores a JSON compacto omitiendo campos ausentes.
+    /// Serializa el estado de sensores a JSON compacto omitiendo campos ausentes
+    /// o fuera de los rangos aceptados por la API.
     pub fn to_json<const N: usize>(&self, buf: &mut String<N>) {
         buf.clear();
         let _ = write!(buf, "{{");
         let mut first = true;
 
-        if let Some(t) = self.temperature {
+        if let Some(t) = valid(self.temperature, limits::TEMPERATURE) {
             let _ = write!(buf, "\"temperature\":{:.1}", t);
             first = false;
         }
-        if let Some(h) = self.humidity {
+        if let Some(h) = valid(self.humidity, limits::HUMIDITY) {
             if !first {
                 let _ = write!(buf, ",");
             }
             let _ = write!(buf, "\"humidity\":{:.1}", h);
             first = false;
         }
-        if let Some(b) = self.brightness {
+        if let Some(b) = valid(self.brightness, limits::BRIGHTNESS) {
             if !first {
                 let _ = write!(buf, ",");
             }
             let _ = write!(buf, "\"brightness\":{:.0}", b);
             first = false;
         }
-        if let Some(p) = self.ph {
+        if let Some(p) = valid(self.ph, limits::PH) {
             if !first {
                 let _ = write!(buf, ",");
             }
             let _ = write!(buf, "\"ph\":{:.2}", p);
             first = false;
         }
-        if let Some(t) = self.tds {
+        if let Some(t) = valid(self.tds, limits::TDS) {
             if !first {
                 let _ = write!(buf, ",");
             }
             let _ = write!(buf, "\"tds\":{:.0}", t);
             first = false;
         }
-        if let Some(atm) = self.atmosphere {
+        if let Some(atm) = valid(self.atmosphere, limits::ATMOSPHERE) {
             if !first {
                 let _ = write!(buf, ",");
             }
             let _ = write!(buf, "\"atmosphere\":{:.1}", atm);
             first = false;
         }
-        if let Some(sm) = self.soil_moisture {
+        if let Some(sm) = valid(self.soil_moisture, limits::SOIL_MOISTURE) {
             if !first {
                 let _ = write!(buf, ",");
             }
@@ -114,5 +120,75 @@ impl SensorState {
         }
 
         let _ = write!(buf, "}}");
+    }
+}
+
+fn valid(value: Option<f32>, range: limits::ApiRange) -> Option<f32> {
+    value.filter(|v| range.contains(*v))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn render(state: &SensorState) -> String<255> {
+        let mut buf = String::new();
+        state.to_json(&mut buf);
+        buf
+    }
+
+    #[test]
+    fn omits_non_finite_and_out_of_range_values() {
+        let state = SensorState {
+            temperature: Some(f32::NAN),
+            humidity: Some(150.0),
+            brightness: Some(-1.0),
+            ph: Some(14.5),
+            tds: Some(10_500.0),
+            atmosphere: Some(1_200.0),
+            soil_moisture: Some(f32::INFINITY),
+        };
+        assert_eq!(render(&state).as_str(), "{}");
+    }
+
+    #[test]
+    fn keeps_valid_values_and_omits_only_the_invalid_field() {
+        let state = SensorState {
+            temperature: Some(21.5),
+            humidity: Some(101.0),
+            brightness: Some(12_345.0),
+            ph: Some(6.4),
+            tds: None,
+            atmosphere: Some(1_013.2),
+            soil_moisture: Some(48.0),
+        };
+        let json = render(&state);
+        assert!(json.contains("\"temperature\":21.5"));
+        assert!(!json.contains("humidity"));
+        assert!(json.contains("\"brightness\":12345"));
+        assert!(json.contains("\"ph\":6.40"));
+        assert!(json.contains("\"atmosphere\":1013.2"));
+        assert!(json.contains("\"soilMoisture\":48.0"));
+    }
+
+    #[test]
+    fn exact_api_boundaries_are_kept() {
+        let state = SensorState {
+            temperature: Some(60.0),
+            humidity: Some(0.0),
+            brightness: Some(200_000.0),
+            ph: Some(14.0),
+            tds: Some(10_000.0),
+            atmosphere: Some(300.0),
+            soil_moisture: Some(100.0),
+        };
+        let json = render(&state);
+        assert!(json.contains("\"temperature\":60.0"));
+        assert!(json.contains("\"humidity\":0.0"));
+        assert!(json.contains("\"brightness\":200000"));
+        assert!(json.contains("\"ph\":14.00"));
+        assert!(json.contains("\"tds\":10000"));
+        assert!(json.contains("\"atmosphere\":300.0"));
+        assert!(json.contains("\"soilMoisture\":100.0"));
     }
 }

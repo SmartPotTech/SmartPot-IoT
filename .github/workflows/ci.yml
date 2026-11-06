@@ -1,0 +1,70 @@
+name: Rust CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  host-tests:
+    name: Host tests and formatting
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # El repositorio fija el toolchain Xtensa en rust-toolchain.toml.
+      # Las pruebas de host se ejecutan con Rust estable y el target del runner.
+      RUSTUP_TOOLCHAIN: stable
+      CARGO_BUILD_TARGET: x86_64-unknown-linux-gnu
+      RUSTFLAGS: ""
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Run host tests
+        run: cargo test --manifest-path tests/host/Cargo.toml
+
+  firmware-check:
+    name: ESP32 firmware checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Xtensa Rust toolchain
+        uses: esp-rs/xtensa-toolchain@v1.5
+        with:
+          default: true
+          buildtargets: esp32
+          ldproxy: true
+
+      - name: Check firmware
+        run: cargo +esp check
+
+      - name: Check firmware formatting
+        run: cargo +esp fmt --check
+
+      - name: Check firmware without default features
+        run: cargo +esp check --no-default-features
+
+      - name: Check firmware with wifi
+        run: cargo +esp check --no-default-features --features wifi
+
+      - name: Check firmware with wifi and sensors
+        run: cargo +esp check --no-default-features --features wifi,sensors
+
+      - name: Check firmware with actuators
+        run: cargo +esp check --no-default-features --features actuators

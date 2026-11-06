@@ -1,4 +1,7 @@
 #[cfg(feature = "wifi")]
+pub mod time;
+
+#[cfg(feature = "wifi")]
 pub mod wifi;
 
 #[cfg(feature = "sensors")]

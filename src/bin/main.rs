@@ -11,22 +11,24 @@ use defmt::{debug, info};
 use esp_hal::analog::adc::{Adc, AdcConfig, Attenuation};
 use esp_hal::clock::CpuClock;
 use esp_hal::interrupt::software::SoftwareInterruptControl;
-use esp_hal::rng::Trng;
 use esp_hal::timer::timg::TimerGroup;
+#[cfg(feature = "sensors")]
 use esp_hal::{
     Async,
     i2c::master::{Config, I2c},
 };
 use esp_println::{self as _, println};
-use esp_radio::wifi::ControllerConfig;
 use esp_rtos::embassy::Executor;
 use esp_rtos::start_second_core;
 use static_cell::StaticCell;
 
+#[cfg(feature = "sensors")]
 use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
-use embassy_net::{DhcpConfig, StackResources};
+#[cfg(feature = "sensors")]
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex};
+#[cfg(feature = "wifi")]
 use smartpot_iot::config::DEFAULT_CONFIG;
+#[cfg(feature = "sensors")]
 use smartpot_iot::drivers::tca9548a::Tca9548a;
 
 #[cfg(feature = "sensors")]
@@ -38,11 +40,6 @@ use smartpot_iot::events::{ACK_CH, COMMAND_CH};
 extern crate alloc;
 
 esp_bootloader_esp_idf::esp_app_desc!();
-
-#[cfg(feature = "wifi")]
-pub const SSID: &str = env!("SSID");
-#[cfg(feature = "wifi")]
-pub const PASSWORD: &str = env!("PASSWORD");
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
@@ -79,11 +76,6 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
     // CORE 1: ADQUISICIÓN DE SENSORES Y CONTROL DE ACTUADORES
     // =========================================================================
 
-    // Pines de protocolo I2C
-    let i2c0 = peripherals.I2C0;
-    let sda = peripherals.GPIO21;
-    let scl = peripherals.GPIO22;
-
     // Sensores analógicos (ADC1)
     let mut adc1_config = AdcConfig::default();
     let tds_pin = peripherals.GPIO34;
@@ -99,22 +91,29 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
 
     // Pines de actuadores (Relés / Transistores)
     let water_pin = peripherals.GPIO25;
-    let lights_pin = peripherals.GPIO26;
+    let uv_light_pin = peripherals.GPIO26;
     let fan_pin = peripherals.GPIO27;
     let humidifier_pin = peripherals.GPIO5;
 
     let cpu1_main = move |_spawner: embassy_executor::Spawner| {
         debug!("Starting sensor and actuator tasks on CORE 1");
-        static I2C_BUS: StaticCell<Mutex<NoopRawMutex, I2c<'static, Async>>> = StaticCell::new();
-        let i2c = I2c::new(i2c0, Config::default())
-            .unwrap()
-            .with_scl(scl)
-            .with_sda(sda)
-            .into_async();
-        let _i2c_bus = I2C_BUS.init(Mutex::new(i2c));
 
         #[cfg(feature = "sensors")]
         {
+            // Pines de protocolo I2C del bus principal.
+            let i2c0 = peripherals.I2C0;
+            let sda = peripherals.GPIO21;
+            let scl = peripherals.GPIO22;
+
+            static I2C_BUS: StaticCell<Mutex<NoopRawMutex, I2c<'static, Async>>> =
+                StaticCell::new();
+            let i2c = I2c::new(i2c0, Config::default())
+                .unwrap()
+                .with_scl(scl)
+                .with_sda(sda)
+                .into_async();
+            let _i2c_bus = I2C_BUS.init(Mutex::new(i2c));
+
             _spawner.spawn(
                 smartpot_iot::i2c_scanner::scan_i2c(I2cDevice::new(_i2c_bus))
                     .expect("Failed to spawn scan_i2c"),
@@ -154,7 +153,7 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
             use esp_hal::gpio::{Level, Output, OutputConfig};
 
             let water = Output::new(water_pin, Level::Low, OutputConfig::default());
-            let lights = Output::new(lights_pin, Level::Low, OutputConfig::default());
+            let uv_light = Output::new(uv_light_pin, Level::Low, OutputConfig::default());
             let fan = Output::new(fan_pin, Level::Low, OutputConfig::default());
             let humidifier = Output::new(humidifier_pin, Level::Low, OutputConfig::default());
 
@@ -163,7 +162,7 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
                     COMMAND_CH.dyn_subscriber().unwrap(),
                     ACK_CH.dyn_publisher().unwrap(),
                     water,
-                    lights,
+                    uv_light,
                     fan,
                     humidifier,
                 )
@@ -183,7 +182,7 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
             peripherals.CPU_CTRL,
             sw_int.software_interrupt1,
             core1_stack,
-            || {
+            move || {
                 info!("Starting second core (CORE1)");
                 static EXECUTOR_CORE1: StaticCell<Executor> = StaticCell::new();
                 let exec = EXECUTOR_CORE1.init(Executor::new());
@@ -204,14 +203,12 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
         use embassy_net::{DhcpConfig, StackResources};
         use esp_hal::rng::Trng;
         use esp_radio::wifi::ControllerConfig;
+        use smartpot_iot::tasks::time::sntp_task;
         use smartpot_iot::tasks::wifi::{net_task, wifi_connection_task};
 
-        #[cfg(any(
+        #[cfg(all(
             feature = "sensors",
-            feature = "actuators",
-            feature = "mqtt",
-            feature = "http-api",
-            feature = "ble"
+            any(feature = "mqtt", feature = "http-api", feature = "ble")
         ))]
         use smartpot_iot::{events::telemetry::TELEMETRY_CH, tasks::telemetry::telemetry_task};
 
@@ -244,6 +241,14 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
             .expect("Failed to start wifi_connection_task"),
         );
 
+        spawner.spawn(
+            sntp_task(_stack, DEFAULT_CONFIG.sntp_server).expect("Failed to start sntp_task"),
+        );
+
+        #[cfg(all(
+            feature = "sensors",
+            any(feature = "mqtt", feature = "http-api", feature = "ble")
+        ))]
         spawner.spawn(
             telemetry_task(
                 SENSOR_CH.dyn_subscriber().unwrap(),

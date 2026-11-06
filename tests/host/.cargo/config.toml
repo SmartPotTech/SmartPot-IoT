@@ -1,0 +1,10 @@
+# La configuración del firmware fija el target Xtensa, `build-std` y flags -Z.
+# Cargo concatena los arrays de las configuraciones padre e hijas, así que un
+# array vacío no borra por sí solo los flags heredados: la anulación efectiva
+# es `RUSTFLAGS=""`, que CI ya define, junto con `--target` para elegir el
+# target del host. No se fija aquí un target de sistema operativo.
+[build]
+rustflags = []
+
+[unstable]
+build-std = []

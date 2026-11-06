@@ -1,7 +1,11 @@
 version: 2
 updates:
-  # Cargo queda fuera: rust-toolchain.toml fija el toolchain «esp» (Xtensa) y el entorno de Dependabot no lo tiene,
-  # así que no puede resolver Cargo.lock. Los crates se revisan a mano con `cargo +esp update` y `cargo +esp check`.
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

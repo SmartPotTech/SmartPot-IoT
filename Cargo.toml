@@ -56,7 +56,8 @@ esp-radio = { version = "0.18.0", default-features = false, features = [
 
 embedded-hal-async = "1.0.0"
 embedded-io-async = "0.7"
-embedded-tls = { version = "0.19", default-features = false, features = ["embedded-io-adapters", "defmt"] }
+embedded-tls = { version = "0.19", default-features = false, features = ["embedded-io-adapters", "defmt", "rustpki", "rsa", "alloc"] }
+libm = "0.2"
 
 embassy-futures = "0.1.2"
 embassy-executor = { version = "0.10", features = ["defmt", "executor-thread"] }

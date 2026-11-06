@@ -1,10 +1,11 @@
 //! Resolución y formateo de tópicos MQTT según el contrato v1 de SmartPot.
 //!
 //! Tópicos por cultivo:
-//! - Telemetría:  `smartpot/v1/{cropId}/telemetry`
-//! - Comandos:    `smartpot/v1/{cropId}/commands`
-//! - Confirmación:`smartpot/v1/{cropId}/commands/ack`
-//! - Estado LWT:  `smartpot/v1/{cropId}/status`
+//! - Telemetría:    `smartpot/v1/{cropId}/telemetry`
+//! - Comandos:      `smartpot/v1/{cropId}/commands`
+//! - Confirmación:  `smartpot/v1/{cropId}/commands/ack`
+//! - Estado LWT:    `smartpot/v1/{cropId}/status`
+//! - Capacidades:   `smartpot/v1/{cropId}/capabilities` (retenido)
 
 use heapless::String;
 
@@ -50,6 +51,14 @@ impl TopicResolver {
         let mut s = String::new();
         use core::fmt::Write;
         let _ = write!(s, "{}/{}/status", self.prefix, self.crop_id.as_str());
+        s
+    }
+
+    /// Tópico retenido donde el dispositivo declara hardware, formatos y rangos.
+    pub fn capabilities<const N: usize>(&self) -> String<N> {
+        let mut s = String::new();
+        use core::fmt::Write;
+        let _ = write!(s, "{}/{}/capabilities", self.prefix, self.crop_id.as_str());
         s
     }
 

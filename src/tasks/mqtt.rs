@@ -1,20 +1,26 @@
 //! Cliente MQTT robusto con soporte de contrato v1 (telemetría, comandos, confirmación ACK y LWT).
+//!
+//! La conexión usa TLS 1.3 con verificación de la CA propia del broker cuando
+//! `USE_TLS` está activo (valor por defecto). El epoch Unix se obtiene por SNTP
+//! antes del handshake y nunca se cae a una conexión sin verificar: si falta la
+//! CA o el reloj, el cliente registra el error y reintenta.
 
 extern crate alloc;
 
-use core::net::SocketAddrV4;
+use core::net::{Ipv4Addr, SocketAddrV4};
 use core::num::NonZero;
 use core::str;
-use defmt::{error, info, warn};
 
+use defmt::{error, info, warn};
 use embassy_executor::task;
 use embassy_futures::select::{Either3, select3};
-use embassy_net::Stack;
+use embassy_net::dns::DnsQueryType;
 use embassy_net::tcp::TcpSocket as NetTcpSocket;
+use embassy_net::{IpAddress, Stack};
 use embassy_sync::pubsub::{DynPublisher, DynSubscriber};
 use embassy_time::{Duration, Timer};
 
-use embedded_tls::{Aes128GcmSha256, TlsConfig, TlsConnection, TlsContext, UnsecureProvider};
+use embedded_tls::{TlsConfig, TlsConnection, TlsContext};
 use heapless::String;
 use rust_mqtt::buffer::AllocBuffer;
 use rust_mqtt::client::Client;
@@ -25,10 +31,16 @@ use rust_mqtt::client::options::{
 use rust_mqtt::config::KeepAlive;
 use rust_mqtt::types::{MqttBinary, MqttString, TopicName};
 
-use crate::config::Config;
+use crate::capabilities::CAPABILITIES_JSON;
+use crate::clock;
+use crate::config::{self, Config};
 use crate::events::telemetry::TelemetryMessage;
 use crate::events::{AckMessage, Command};
 use crate::protocol::{TopicResolver, parse_command};
+use crate::tls::VerifyingProvider;
+
+/// Tamaño del búfer para la cadena de certificados del servidor durante el handshake.
+const TLS_CERT_BUFFER_SIZE: usize = 2048;
 
 #[task]
 pub async fn mqtt_task(
@@ -52,6 +64,7 @@ pub async fn mqtt_task(
     let topic_commands_str: String<64> = resolver.commands();
     let topic_ack_str: String<64> = resolver.ack();
     let topic_status_str: String<64> = resolver.status();
+    let topic_capabilities_str: String<64> = resolver.capabilities();
 
     loop {
         if let Some(net_cfg) = stack.config_v4() {
@@ -61,25 +74,43 @@ pub async fn mqtt_task(
             );
         }
 
+        // Precondiciones de TLS: hora válida y CA propia. Se comprueban antes
+        // de abrir el socket para no mantener conexiones TCP sin verificar.
+        let ca_der = if config.use_tls {
+            while !clock::is_synced() {
+                warn!("[MQTT] Waiting for SNTP time synchronization before TLS");
+                Timer::after(Duration::from_secs(2)).await;
+            }
+
+            match config::ca_cert_der::<TLS_CERT_BUFFER_SIZE>(config.ca_cert_pem) {
+                Ok(der) => der,
+                Err(_) => {
+                    error!(
+                        "[MQTT] CA_CERT_PEM is missing or invalid; refusing to connect without certificate verification"
+                    );
+                    Timer::after(Duration::from_secs(5)).await;
+                    continue;
+                }
+            }
+        } else {
+            heapless::Vec::new()
+        };
+
         info!(
             "[MQTT] Connecting to {}:{} (Crop: {})",
             config.broker_host, config.broker_port, config.crop_id
         );
 
-        let mut socket = NetTcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
-        let broker_addr: SocketAddrV4 =
-            match alloc::format!("{}:{}", config.broker_host, config.broker_port).parse() {
-                Ok(addr) => addr,
-                Err(e) => {
-                    error!(
-                        "[MQTT] Invalid broker address: {:?}",
-                        defmt::Debug2Format(&e)
-                    );
-                    Timer::after(Duration::from_secs(5)).await;
-                    continue;
-                }
-            };
+        let broker_ip = match resolve_broker(stack, config.broker_host).await {
+            Some(ip) => ip,
+            None => {
+                Timer::after(Duration::from_secs(5)).await;
+                continue;
+            }
+        };
+        let broker_addr = SocketAddrV4::new(broker_ip, config.broker_port);
 
+        let mut socket = NetTcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
         if let Err(e) = socket.connect(broker_addr).await {
             error!("[MQTT] TCP connection failed: {:?}", e);
             Timer::after(Duration::from_secs(5)).await;
@@ -88,20 +119,18 @@ pub async fn mqtt_task(
         info!("[MQTT] TCP connection established");
 
         if config.use_tls {
-            let tls_config: TlsConfig = TlsConfig::new()
+            let tls_config = TlsConfig::new()
                 .with_server_name(config.broker_host)
                 .enable_rsa_signatures();
-            let tls_context = TlsContext::new(
-                &tls_config,
-                UnsecureProvider::new::<Aes128GcmSha256>(rng.clone()),
-            );
+            let provider = VerifyingProvider::new(rng.clone(), ca_der.as_slice());
+            let tls_context = TlsContext::new(&tls_config, provider);
             let mut tls = TlsConnection::new(socket, &mut tls_rx, &mut tls_tx);
             if let Err(e) = tls.open(tls_context).await {
                 error!("[MQTT] TLS handshake failed: {:?}", e);
                 Timer::after(Duration::from_secs(5)).await;
                 continue;
             }
-            info!("[MQTT] TLS link verified");
+            info!("[MQTT] TLS session established; broker certificate verified");
 
             run_mqtt_client(
                 &mut tls,
@@ -110,12 +139,15 @@ pub async fn mqtt_task(
                 &topic_commands_str,
                 &topic_ack_str,
                 &topic_status_str,
+                &topic_capabilities_str,
                 &mut telemetry_channel,
                 &commands_channel,
                 &mut ack_channel,
             )
             .await;
         } else {
+            warn!("[MQTT] TLS is disabled; connecting without certificate verification");
+
             run_mqtt_client(
                 &mut socket,
                 &config,
@@ -123,16 +155,35 @@ pub async fn mqtt_task(
                 &topic_commands_str,
                 &topic_ack_str,
                 &topic_status_str,
+                &topic_capabilities_str,
                 &mut telemetry_channel,
                 &commands_channel,
                 &mut ack_channel,
             )
             .await;
         }
-        info!("[MQTT] TLS Connected");
 
         warn!("[MQTT] Connection closed. Retrying in 5 s...");
         Timer::after(Duration::from_secs(5)).await;
+    }
+}
+
+/// Resuelve el host del broker a IPv4 mediante el DNS del stack de red.
+///
+/// `dns_query` acepta tanto nombres como literales IP, por lo que
+/// `BROKER_HOST=127.0.0.1` sigue funcionando sin configuración adicional.
+#[allow(unreachable_patterns)]
+async fn resolve_broker(stack: Stack<'static>, host: &str) -> Option<Ipv4Addr> {
+    match stack.dns_query(host, DnsQueryType::A).await {
+        Ok(addresses) => addresses.iter().find_map(|address| match address {
+            IpAddress::Ipv4(ipv4) => Some(Ipv4Addr::from(ipv4.octets())),
+            // La variante IPv6 solo existe si se compila proto-ipv6.
+            _ => None,
+        }),
+        Err(e) => {
+            error!("[MQTT] DNS resolution failed for {}: {:?}", host, e);
+            None
+        }
     }
 }
 
@@ -143,6 +194,7 @@ async fn run_mqtt_client<T>(
     topic_commands_str: &str,
     topic_ack_str: &str,
     topic_status_str: &str,
+    topic_capabilities_str: &str,
     telemetry_channel: &mut DynSubscriber<'static, TelemetryMessage>,
     commands_channel: &DynPublisher<'static, Command>,
     ack_channel: &mut DynSubscriber<'static, AckMessage>,
@@ -194,6 +246,27 @@ async fn run_mqtt_client<T>(
         error!("[MQTT] Could not publish online status: {:?}", e);
     } else {
         info!("[MQTT] Published 'online' status to {}", topic_status_str);
+    }
+
+    // Publicar capacidades retenidas antes de suscribirse a comandos. Un fallo
+    // aquí no impide operar: se registra y se continúa con la suscripción.
+    let capabilities_topic_name =
+        TopicName::new(MqttString::from_str(topic_capabilities_str).unwrap()).unwrap();
+    let pub_capabilities = PublicationOptions::new(TopicReference::Name(capabilities_topic_name))
+        .retain()
+        .at_least_once();
+    match client
+        .publish(
+            &pub_capabilities,
+            rust_mqtt::Bytes::Borrowed(CAPABILITIES_JSON.as_bytes()),
+        )
+        .await
+    {
+        Ok(_) => info!(
+            "[MQTT] Published retained capabilities to {}",
+            topic_capabilities_str
+        ),
+        Err(e) => warn!("[MQTT] Could not publish capabilities: {:?}", e),
     }
 
     // Suscribirse al tópico de comandos
@@ -316,7 +389,9 @@ async fn run_mqtt_client<T>(
                 let mut payload: String<255> = String::new();
                 let mut packet = [0u8; crate::codec::PACKET_SIZE];
                 let body: &[u8] = if config.compact_telemetry {
-                    let mask = crate::codec::encode_state(&state, telemetry_seq, 0, &mut packet);
+                    let epoch = clock::now().unwrap_or(0) as u32;
+                    let mask =
+                        crate::codec::encode_state(&state, telemetry_seq, epoch, &mut packet);
                     telemetry_seq = telemetry_seq.wrapping_add(1);
                     if mask == 0 { &[] } else { &packet }
                 } else {

@@ -1,0 +1,21 @@
+[package]
+name = "smartpot-iot-host"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Workspace propio: el firmware es un paquete Xtensa y no debe arrastrar sus
+# dependencias de hardware a las pruebas de host.
+[workspace]
+
+[dependencies]
+# `unstable-test` sustituye el logger y los símbolos de enlace de defmt para
+# poder ejecutar las pruebas en el host; solo afecta a este crate auxiliar.
+defmt = { version = "1.0.1", features = ["unstable-test"] }
+# `defmt` aporta `Format` para `heapless::String`; el firmware lo recibe de
+# forma transitiva, pero el crate de host debe pedirlo explícitamente.
+heapless = { version = "0.9.2", features = ["defmt"] }
+libm = "0.2"
+
+[dev-dependencies]
+serde_json = "1.0"
