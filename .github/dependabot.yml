@@ -1,4 +1,7 @@
 version: 2
+# El toolchain por defecto del repositorio es stable; el firmware se compila
+# aparte con `cargo +esp`. Así Dependabot puede resolver Cargo.lock sin el
+# toolchain propietario de Espressif.
 updates:
   - package-ecosystem: "cargo"
     directory: "/"
