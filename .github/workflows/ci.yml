@@ -60,6 +60,14 @@ jobs:
       - name: Lint simulation build
         run: cargo +esp clippy --features sim -- -D warnings
 
+      # Placa del prototipo físico (BME280, TCA9548A, BH1750 y humidificador).
+      - name: Lint physical board build
+        run: cargo +esp clippy --features board-physical -- -D warnings
+
+      # Registros internos en texto además de la consola común con MicroPython.
+      - name: Lint verbose logs build
+        run: cargo +esp clippy --features board-physical,verbose-logs -- -D warnings
+
       - name: Build firmware image
         run: cargo +esp build
 
