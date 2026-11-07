@@ -210,6 +210,22 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
             .expect("Failed to spawn supervisor_task"),
     );
 
+    // Build de simulación: comandos y ganchos de prueba por la consola serie.
+    #[cfg(feature = "sim")]
+    {
+        let rx = esp_hal::uart::UartRx::new(peripherals.UART0, esp_hal::uart::Config::default())
+            .expect("Failed to configure UART0 RX")
+            .with_rx(peripherals.GPIO3)
+            .into_async();
+        spawner.spawn(
+            smartpot_iot::sim::hooks::serial_injector(
+                rx,
+                smartpot_iot::events::COMMAND_CH.dyn_publisher().unwrap(),
+            )
+            .expect("Failed to spawn serial_injector"),
+        );
+    }
+
     #[cfg(feature = "wifi")]
     {
         use embassy_net::{DhcpConfig, StackResources};

@@ -1,0 +1,13 @@
+# Si una tarea del núcleo 1 deja de latir, el supervisor apaga los actuadores
+# y reinicia el chip. El build de simulación fija LIVENESS_TIMEOUT_SECS=10.
+# Al girar la tarea de comandos se detiene todo el ejecutor del núcleo 1, así
+# que el supervisor puede informar de cualquiera de sus tareas.
+name: Supervisor recovers from a stalled core 1
+version: 1
+author: SmartPot
+steps:
+  - wait-serial: 'SMARTPOT-READY'
+  - wait-serial: 'Serial command injector ready'
+  - write-serial: "{\"sim\":\"hang-core1\"}\n"
+  - wait-serial: 'SMARTPOT-FATAL watchdog task='
+  - wait-serial: 'SMARTPOT-READY'

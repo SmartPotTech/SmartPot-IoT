@@ -163,6 +163,10 @@ pub async fn catch_commands(
 
     loop {
         beat(Beat::Command);
+        #[cfg(feature = "sim")]
+        while crate::sim::hooks::core1_should_hang() {
+            core::hint::spin_loop();
+        }
         match select(command_channel.next_message_pure(), Timer::after(TICK)).await {
             Either::First(cmd) => {
                 info!("[ACTUATOR] Received command: {:?}", cmd);

@@ -63,6 +63,8 @@ pub async fn supervisor_task(mut rtc: Rtc<'static>) {
     loop {
         ticker.next().await;
         let now = Instant::now();
+        #[cfg(feature = "sim")]
+        crate::sim::hooks::leak_if_requested();
 
         match liveness.check(
             health::counts(),

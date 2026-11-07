@@ -1,0 +1,9 @@
+# Arranque en frío: el firmware llega a operar, conecta el Wi-Fi y publica su
+# primer informe de memoria sin ningún error fatal.
+name: Boot smoke test
+version: 1
+author: SmartPot
+steps:
+  - wait-serial: 'SMARTPOT-READY'
+  - wait-serial: 'SMARTPOT-WIFI-UP'
+  - wait-serial: 'SMARTPOT-HEAP'
