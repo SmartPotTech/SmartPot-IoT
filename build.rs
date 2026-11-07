@@ -78,6 +78,13 @@ fn linker_be_nice() {
 fn load_shared_config() {
     println!("cargo:rerun-if-changed=config.json");
     let Ok(text) = std::fs::read_to_string("config.json") else {
+        // Sin config.json quedan los valores de demostración (broker 127.0.0.1
+        // y sin CA): el firmware arranca, pero no conecta con un broker real.
+        if std::env::var_os("CROP_ID").is_none() {
+            println!(
+                "cargo:warning=config.json not found: using demo defaults (broker 127.0.0.1, no broker CA); copy config.example.json or the block from the SmartPot connection guide"
+            );
+        }
         return;
     };
     let config: serde_json::Value =
