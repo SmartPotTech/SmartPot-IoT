@@ -9,6 +9,8 @@ use esp_radio::wifi::sta::StationConfig;
 use esp_radio::wifi::{AuthenticationMethod, Config, Interface, WifiController};
 
 use crate::backoff::Backoff;
+use crate::events::WIFI_ONLINE;
+use embassy_time::Instant;
 
 /// Primer reintento a los 2 s; nunca se espera más de 60 s.
 const RETRY_BASE_MS: u32 = 2_000;
@@ -47,6 +49,9 @@ pub async fn wifi_connection_task(
     let sta_config = station_config(ssid, password);
     let scan_config = ScanConfig::default().with_max(10);
     let mut backoff = Backoff::new(RETRY_BASE_MS, RETRY_MAX_MS);
+    let started = Instant::now();
+    let mut ever_connected = false;
+    let mut offline_announced = false;
     Timer::after(Duration::from_secs(2)).await;
 
     loop {
@@ -79,6 +84,8 @@ pub async fn wifi_connection_task(
 
         if connected {
             backoff.reset();
+            ever_connected = true;
+            WIFI_ONLINE.sender().send(true);
             info!("[WIFI] Wi-Fi connection established and online");
             marker!("SMARTPOT-WIFI-UP ssid={}", ssid);
             match wifi.wait_for_disconnect_async().await {
@@ -86,8 +93,14 @@ pub async fn wifi_connection_task(
                 Err(e) => warn!("[WIFI] Error during disconnection: {:?}", e),
             }
             marker!("SMARTPOT-WIFI-DOWN");
+            WIFI_ONLINE.sender().send(false);
         }
 
+        // Mismo aviso que MicroPython si el primer intento no conecta en 30 s.
+        if !ever_connected && !offline_announced && started.elapsed() >= Duration::from_secs(30) {
+            marker!("No WiFi: device continues measuring and retries every 30 s");
+            offline_announced = true;
+        }
         let delay = backoff.next_delay_ms(rng.random());
         warn!(
             "[WIFI] Wi-Fi offline. Retrying in {} ms (attempt {})",

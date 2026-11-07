@@ -33,6 +33,10 @@ mqtt = ["wifi", "sensors"]
 # Nunca se incluye en `full`.
 sim = []
 
+# Registros internos [INFO ]/[WARN ]/[ERROR]/[DEBUG]. Sin ella, la consola es la
+# misma que la del firmware MicroPython.
+verbose-logs = []
+
 # Perfiles de conveniencia para no encadenar muchas features a mano.
 net = ["wifi"]
 full = ["sensors", "actuators", "wifi", "mqtt", "display"]

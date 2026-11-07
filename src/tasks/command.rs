@@ -115,6 +115,20 @@ fn publish_ack(ack_channel: &DynPublisher<'static, AckMessage>, ack: AckMessage)
     ack_channel.publish_immediate(ack);
 }
 
+/// Línea de consola de MicroPython: `Command FAN ACTIVATE -> Fan turned on`.
+fn print_command(cmd: &Command, ack: &AckMessage) {
+    let action = match cmd.action {
+        Action::Activate => "ACTIVATE",
+        Action::Deactivate => "DEACTIVATE",
+    };
+    marker!(
+        "Command {} {} -> {}",
+        cmd.actuator.key(),
+        action,
+        ack.message.as_str()
+    );
+}
+
 /// Ejecuta un comando validado y devuelve su confirmación.
 fn execute(channels: &mut [Channel], cmd: &Command, now: Instant) -> AckMessage {
     let Some(channel) = channels.iter_mut().find(|c| c.kind == cmd.actuator) else {
@@ -197,11 +211,13 @@ pub async fn catch_commands(
                         "[ACTUATOR] Duplicate command id {} received; re-publishing stored ACK",
                         cmd.id.as_str()
                     );
+                    print_command(&cmd, previous);
                     publish_ack(&ack_channel, previous.clone());
                     continue;
                 }
 
                 let ack = execute(&mut channels, &cmd, Instant::now());
+                print_command(&cmd, &ack);
                 history.push(ack.clone());
                 publish_ack(&ack_channel, ack);
             }
@@ -223,11 +239,8 @@ pub async fn catch_commands(
                     };
 
                     if channel.until.is_some_and(|until| now >= until) {
-                        info!(
-                            "[ACTUATOR] {} turned off after timer elapsed",
-                            channel.kind.name()
-                        );
                         channel.turn_off("timer");
+                        marker!("{} turned off after timer expired", channel.kind.name());
                         continue;
                     }
 

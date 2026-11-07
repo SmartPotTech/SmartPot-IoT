@@ -66,6 +66,12 @@ pub static BME_TEMPERATURE: Watch<CriticalSectionRawMutex, f32, 2> = Watch::new_
 /// tarea MQTT y lo leen el failsafe de actuadores y la pantalla.
 pub static BROKER_ONLINE: Watch<CriticalSectionRawMutex, bool, 4> = Watch::new_with(false);
 
+/// `true` mientras el Wi-Fi está asociado (pantalla «Connecting WiFi»).
+pub static WIFI_ONLINE: Watch<CriticalSectionRawMutex, bool, 2> = Watch::new_with(false);
+
+/// La CA del broker falta o está dañada (pantalla «Check CA in config.json»).
+pub static CA_REJECTED: Watch<CriticalSectionRawMutex, bool, 2> = Watch::new_with(false);
+
 /// Último estado de sensores (ya sin lecturas caducadas) para la pantalla.
 pub static DISPLAY_SENSORS: Watch<CriticalSectionRawMutex, SensorState, 1> = Watch::new();
 

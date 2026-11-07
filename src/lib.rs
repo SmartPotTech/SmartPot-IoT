@@ -12,36 +12,59 @@ macro_rules! marker {
     };
 }
 
+/// Registros internos de depuración: solo se imprimen con `--features verbose-logs`.
+/// Por defecto la consola muestra lo mismo que el firmware MicroPython.
+///
 /// Imprime un registro informativo en texto plano por la consola serie (UART0).
 #[macro_export]
 macro_rules! info {
-    ($($arg:tt)*) => {
-        ::esp_println::println!("[INFO ] {}", ::core::format_args!($($arg)*))
-    };
+    ($($arg:tt)*) => {{
+        #[cfg(feature = "verbose-logs")]
+        ::esp_println::println!("[INFO ] {}", ::core::format_args!($($arg)*));
+        #[cfg(not(feature = "verbose-logs"))]
+        {
+            let _ = ::core::format_args!($($arg)*);
+        }
+    }};
 }
 
 /// Imprime una advertencia en texto plano por la consola serie (UART0).
 #[macro_export]
 macro_rules! warn {
-    ($($arg:tt)*) => {
-        ::esp_println::println!("[WARN ] {}", ::core::format_args!($($arg)*))
-    };
+    ($($arg:tt)*) => {{
+        #[cfg(feature = "verbose-logs")]
+        ::esp_println::println!("[WARN ] {}", ::core::format_args!($($arg)*));
+        #[cfg(not(feature = "verbose-logs"))]
+        {
+            let _ = ::core::format_args!($($arg)*);
+        }
+    }};
 }
 
 /// Imprime un error en texto plano por la consola serie (UART0).
 #[macro_export]
 macro_rules! error {
-    ($($arg:tt)*) => {
-        ::esp_println::println!("[ERROR] {}", ::core::format_args!($($arg)*))
-    };
+    ($($arg:tt)*) => {{
+        #[cfg(feature = "verbose-logs")]
+        ::esp_println::println!("[ERROR] {}", ::core::format_args!($($arg)*));
+        #[cfg(not(feature = "verbose-logs"))]
+        {
+            let _ = ::core::format_args!($($arg)*);
+        }
+    }};
 }
 
 /// Imprime una traza de depuración en texto plano por la consola serie (UART0).
 #[macro_export]
 macro_rules! debug {
-    ($($arg:tt)*) => {
-        ::esp_println::println!("[DEBUG] {}", ::core::format_args!($($arg)*))
-    };
+    ($($arg:tt)*) => {{
+        #[cfg(feature = "verbose-logs")]
+        ::esp_println::println!("[DEBUG] {}", ::core::format_args!($($arg)*));
+        #[cfg(not(feature = "verbose-logs"))]
+        {
+            let _ = ::core::format_args!($($arg)*);
+        }
+    }};
 }
 
 pub mod backoff;

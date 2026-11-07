@@ -40,7 +40,7 @@ use crate::capabilities::CAPABILITIES_JSON;
 use crate::clock;
 use crate::config::{self, Config};
 use crate::events::telemetry::TelemetryMessage;
-use crate::events::{AckMessage, BROKER_ONLINE, Command};
+use crate::events::{AckMessage, BROKER_ONLINE, CA_REJECTED, Command};
 use crate::health::{Beat, beat};
 use crate::protocol::{TopicResolver, parse_command};
 use crate::tls::VerifyingProvider;
@@ -142,6 +142,9 @@ pub async fn mqtt_task(
     let mut ca_missing_logged = false;
 
     wait_for_network(stack).await;
+    if let Some(net_cfg) = stack.config_v4() {
+        marker!("WiFi connected: {}", net_cfg.address.address());
+    }
 
     loop {
         beat(Beat::Mqtt);
@@ -165,6 +168,17 @@ pub async fn mqtt_task(
                     Ok(der) => der,
                     Err(_) => {
                         if !ca_missing_logged {
+                            // Mismos textos que el firmware MicroPython.
+                            if config.ca_cert_pem.trim().is_empty() {
+                                marker!(
+                                    "Cannot connect securely: config.json is missing the broker CA: copy the BROKER block from the connection guide"
+                                );
+                            } else {
+                                marker!(
+                                    "Cannot connect securely: the CA in config.json is corrupted: copy the BROKER block again"
+                                );
+                            }
+                            CA_REJECTED.sender().send(true);
                             error!(
                                 "[MQTT] CA_CERT_PEM is missing or invalid; refusing to connect without certificate verification"
                             );
@@ -183,6 +197,10 @@ pub async fn mqtt_task(
             );
 
             let Some(broker_ip) = resolve_broker(stack, config.broker_host).await else {
+                marker!(
+                    "No connection to broker: could not resolve {}",
+                    config.broker_host
+                );
                 break 'attempt SessionOutcome::Refused;
             };
             let broker_addr = SocketAddrV4::new(broker_ip, config.broker_port);
@@ -192,6 +210,7 @@ pub async fn mqtt_task(
             socket.set_keep_alive(Some(SOCKET_KEEP_ALIVE));
             if let Err(e) = socket.connect(broker_addr).await {
                 error!("[MQTT] TCP connection failed: {:?}", e);
+                marker!("No connection to broker: {:?}", e);
                 break 'attempt SessionOutcome::Refused;
             }
             info!("[MQTT] TCP connection established");
@@ -206,6 +225,10 @@ pub async fn mqtt_task(
                 let mut tls = TlsConnection::new(socket, tls_rx, tls_tx);
                 if let Err(e) = tls.open(tls_context).await {
                     error!("[MQTT] TLS handshake failed: {:?}", e);
+                    marker!(
+                        "No connection to broker: could not verify the broker ({:?}): check the CA in config.json and the system clock",
+                        e
+                    );
                     break 'attempt SessionOutcome::Refused;
                 }
                 info!("[MQTT] TLS session established; broker certificate verified");
@@ -354,6 +377,10 @@ where
         .await
     {
         error!("[MQTT] CONNACK failed: {:?}", e);
+        marker!(
+            "No connection to broker: broker rejected the device key ({:?})",
+            e
+        );
         marker!("SMARTPOT-MQTT-REFUSED");
         return SessionOutcome::Refused;
     }
@@ -418,6 +445,7 @@ where
     }
 
     BROKER_ONLINE.sender().send(true);
+    marker!("MQTT connected as {}", config.crop_id);
     marker!("SMARTPOT-MQTT-UP crop={}", config.crop_id);
 
     let mut telemetry_seq: u16 = 0;
@@ -439,6 +467,7 @@ where
         {
             Either4::First(Err(e)) => {
                 error!("[MQTT] MQTT poll error: {:?}", e);
+                marker!("Connection lost: MQTT poll error");
                 break;
             }
             Either4::First(Ok(header)) => match client.poll_body(header).await {
@@ -452,6 +481,7 @@ where
                         Ok(cmd) => commands_channel.publish_immediate(cmd),
                         Err(reason) => {
                             warn!("[MQTT SUB] Invalid command discarded: {}", msg_str);
+                            marker!("Unreadable command discarded: {}", reason.message());
                             // Si es un JSON con id, emitir ACK de fallo con el motivo
                             if let Ok(id) =
                                 crate::protocol::command::extract_str_field(msg_str, "id")
@@ -475,6 +505,7 @@ where
                                     .await
                                 {
                                     error!("[MQTT] Error publishing failure ACK: {:?}", e);
+                                    marker!("Connection lost: Error publishing failure ACK");
                                     break;
                                 }
                             }
@@ -485,6 +516,7 @@ where
                 Ok(_) => {}
                 Err(e) => {
                     error!("[MQTT] MQTT poll error: {:?}", e);
+                    marker!("Connection lost: MQTT poll error");
                     break;
                 }
             },
@@ -504,6 +536,7 @@ where
                     .await
                 {
                     error!("[MQTT] Error publishing ACK confirmation: {:?}", e);
+                    marker!("Connection lost: Error publishing ACK confirmation");
                     break;
                 }
             }
@@ -541,6 +574,7 @@ where
                         .await
                     {
                         error!("[MQTT] Error publishing telemetry: {:?}", e);
+                        marker!("Connection lost: Error publishing telemetry");
                         break;
                     }
                 }
@@ -551,12 +585,16 @@ where
                 if let Some(sent_at) = ping_sent_at {
                     if Instant::now() - sent_at >= PING_DEADLINE {
                         error!("[MQTT] No PINGRESP from the broker; closing the session");
+                        marker!(
+                            "Connection lost: No PINGRESP from the broker; closing the session"
+                        );
                         break;
                     }
                     continue;
                 }
                 if let Err(e) = client.ping().await {
                     error!("[MQTT] Could not send PINGREQ: {:?}", e);
+                    marker!("Connection lost: Could not send PINGREQ");
                     break;
                 }
                 ping_sent_at = Some(Instant::now());

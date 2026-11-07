@@ -90,7 +90,7 @@ pub mod hooks {
     ) {
         let mut line: String<256> = String::new();
         let mut chunk = [0u8; 64];
-        info!("[SIM] Serial command injector ready");
+        marker!("Serial command injector ready");
         loop {
             let Ok(count) = rx.read_async(&mut chunk).await else {
                 line.clear();

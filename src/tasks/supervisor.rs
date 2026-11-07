@@ -94,13 +94,10 @@ fn report_memory() {
     let free = stats.size.saturating_sub(stats.current_usage);
     let min_free = stats.size.saturating_sub(stats.max_usage);
     let stack_unused = health::core1_stack_unused_bytes().unwrap_or(0);
-    marker!(
-        "SMARTPOT-HEAP free={} used={} min_free={} size={} core1_stack_unused={}",
-        free,
-        stats.current_usage,
-        min_free,
-        stats.size,
-        stack_unused
+    marker!("SMARTPOT-HEAP free={} used={}", free, stats.current_usage);
+    info!(
+        "[HEAP] min_free={} size={} core1_stack_unused={}",
+        min_free, stats.size, stack_unused
     );
     if let Some(threshold) = HEAP_LOW_THRESHOLD
         && (free as u64) < threshold

@@ -24,6 +24,7 @@ const RESPONSE_TIMEOUT: Duration = Duration::from_secs(5);
 pub async fn sntp_task(stack: Stack<'static>, server: &'static str) {
     stack.wait_config_up().await;
     let mut request_counter: u64 = 0;
+    let mut synchronized_once = false;
 
     loop {
         // Nonce que el servidor debe repetir: instante actual más un contador.
@@ -33,10 +34,20 @@ pub async fn sntp_task(stack: Stack<'static>, server: &'static str) {
         match sync_once(stack, server, nonce).await {
             Ok(epoch) => {
                 clock::set_epoch(epoch);
+                if !synchronized_once {
+                    marker!(
+                        "Clock synchronized: {}",
+                        crate::report::localtime_tuple(epoch).as_str()
+                    );
+                    synchronized_once = true;
+                }
                 info!("[SNTP] Clock synchronized from {}: epoch {}", server, epoch);
             }
             Err(reason) => {
                 warn!("[SNTP] Synchronization with {} failed: {}", server, reason);
+                if !synchronized_once {
+                    marker!("Could not synchronize clock: {}", reason);
+                }
             }
         }
 
