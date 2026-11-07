@@ -9,8 +9,6 @@ rustflags = [
 DEFMT_LOG = "off"
 ESP_HAL_CONFIG_STACK_GUARD_MONITORING = "false"
 ESP_HAL_CONFIG_STACK_GUARD_MONITORING_WITH_DEBUGGER_CONNECTED = "false"
-SSID = "Wokwi-GUEST"
-PASSWORD = ""
 
 [build]
 target = "xtensa-esp32-none-elf"

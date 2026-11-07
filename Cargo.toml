@@ -93,6 +93,10 @@ nb = "1.1.0"
 heapless = "0.9.2"
 rust-mqtt = { version = "0.5", features = ["defmt"] }
 
+[build-dependencies]
+# Solo el build script: lee config.json (formato común con el firmware MicroPython).
+serde_json = "1"
+
 [profile.dev]
 # La compilación de depuración estándar es demasiado lenta y excede la partición de 1 MB
 # Para depuración siempre se compila con optimización de tamaño
