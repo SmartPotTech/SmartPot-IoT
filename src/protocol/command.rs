@@ -55,6 +55,18 @@ impl Actuators {
         }
     }
 
+    /// Clave canónica del actuador en el contrato v1 (`WATER_PUMP`, ...).
+    pub fn key(&self) -> &'static str {
+        match self {
+            Self::WaterPump => "WATER_PUMP",
+            Self::UvLight => "UV_LIGHT",
+            Self::Fan => "FAN",
+            Self::Humidifier => "HUMIDIFIER",
+            Self::PhDoser => "PH_DOSER",
+            Self::NutrientDoser => "NUTRIENT_DOSER",
+        }
+    }
+
     /// Indica si el actuador es un dosificador no instalado en esta placa.
     pub fn is_doser(&self) -> bool {
         matches!(self, Self::PhDoser | Self::NutrientDoser)
@@ -135,8 +147,33 @@ pub fn extract_str_field(json: &str, field: &str) -> Result<String<64>, ()> {
     Err(())
 }
 
-/// Extrae el valor numérico entero de un campo JSON sin asignaciones.
-pub fn extract_u32_field(json: &str, field: &str) -> Option<u32> {
+/// Error de validación de un comando entrante.
+///
+/// Cada variante lleva el mensaje en inglés que viaja en el ACK `FAILED`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Format)]
+pub enum CommandError {
+    /// Falta `id`, `actuator` o `action`, o el `id` está vacío o es demasiado largo.
+    Malformed,
+    UnknownActuator,
+    UnknownAction,
+    /// `durationSeconds` presente pero no es un entero entre 1 y 3600.
+    InvalidDuration,
+}
+
+impl CommandError {
+    pub fn message(&self) -> &'static str {
+        match self {
+            Self::Malformed => "Invalid command: id, actuator and action are required",
+            Self::UnknownActuator => "Invalid command or unknown actuator",
+            Self::UnknownAction => "Invalid command: unknown action",
+            Self::InvalidDuration => "durationSeconds must be an integer between 1 and 3600",
+        }
+    }
+}
+
+/// Busca el valor crudo de un campo JSON de primer nivel y devuelve el texto
+/// que sigue a los dos puntos (sin espacios iniciales).
+fn find_raw_value<'a>(json: &'a str, field: &str) -> Option<&'a str> {
     let key = field.as_bytes();
     let bytes = json.as_bytes();
     let mut i = 0;
@@ -147,66 +184,76 @@ pub fn extract_u32_field(json: &str, field: &str) -> Option<u32> {
             && bytes[i + 1 + key.len()] == b'"'
         {
             let mut j = i + 1 + key.len() + 1;
-            while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b':' || bytes[j] == b'\t') {
+            while j < bytes.len() && matches!(bytes[j], b' ' | b'\t' | b'\r' | b'\n') {
                 j += 1;
             }
-            // Podría ser número directo o entre comillas
-            let in_quotes = if j < bytes.len() && bytes[j] == b'"' {
-                j += 1;
-                true
-            } else {
-                false
-            };
-
-            // Una duración negativa no es válida: no se recorta el signo y se
-            // deja el campo como ausente en vez de convertir -5 en 5.
-            if j < bytes.len() && bytes[j] == b'-' {
-                return None;
+            if j < bytes.len() && bytes[j] == b':' {
+                return Some(json[j + 1..].trim_start());
             }
-
-            let start = j;
-            while j < bytes.len() && bytes[j].is_ascii_digit() {
-                j += 1;
-            }
-            if start < j
-                && let Some(n) = core::str::from_utf8(&bytes[start..j])
-                    .ok()
-                    .and_then(|s| s.parse::<u32>().ok())
-            {
-                return Some(n);
-            }
-            let _ = in_quotes;
         }
         i += 1;
     }
     None
 }
 
+/// Extrae `durationSeconds` con tres resultados posibles: ausente (o `null`),
+/// entero válido entre 1 y 3600, o error. Se rechazan negativos, cero,
+/// decimales, exponentes, cadenas y valores fuera de rango: nunca se
+/// reinterpreta un valor inválido como «sin duración».
+pub fn extract_duration(json: &str) -> Result<Option<u32>, CommandError> {
+    let Some(raw) = find_raw_value(json, "durationSeconds") else {
+        return Ok(None);
+    };
+    if raw.starts_with("null") {
+        return Ok(None);
+    }
+
+    let digits = raw.bytes().take_while(u8::is_ascii_digit).count();
+    if digits == 0 || digits > 10 {
+        return Err(CommandError::InvalidDuration);
+    }
+    // Tras los dígitos solo puede venir el fin del valor: espacio, coma o llave.
+    match raw.as_bytes().get(digits) {
+        None | Some(b',' | b'}' | b' ' | b'\t' | b'\r' | b'\n') => {}
+        Some(_) => return Err(CommandError::InvalidDuration),
+    }
+
+    let seconds: u64 = raw[..digits]
+        .parse()
+        .map_err(|_| CommandError::InvalidDuration)?;
+    if seconds > u32::MAX as u64 || !crate::safety::is_valid_duration(seconds as u32) {
+        return Err(CommandError::InvalidDuration);
+    }
+    Ok(Some(seconds as u32))
+}
+
 /// Parsea un payload JSON entrante en un comando estructurado.
 ///
 /// Rechaza identificadores vacíos o de más de 36 caracteres, actuadores o
-/// acciones vacíos y cualquier valor desconocido. Los dosificadores son
+/// acciones vacíos o desconocidos y duraciones inválidas. Los dosificadores son
 /// válidos a nivel de contrato: la tarea de comandos los rechaza con un ACK
 /// descriptivo porque esta placa no los tiene instalados.
-#[allow(clippy::result_unit_err)]
-pub fn parse_command(payload: &str) -> Result<Command, ()> {
-    let id_str = extract_str_field(payload, "id")?;
-    let actuator_str = extract_str_field(payload, "actuator")?;
-    let action_str = extract_str_field(payload, "action")?;
-    let duration = extract_u32_field(payload, "durationSeconds");
+pub fn parse_command(payload: &str) -> Result<Command, CommandError> {
+    let id_str = extract_str_field(payload, "id").map_err(|_| CommandError::Malformed)?;
+    let actuator_str =
+        extract_str_field(payload, "actuator").map_err(|_| CommandError::Malformed)?;
+    let action_str = extract_str_field(payload, "action").map_err(|_| CommandError::Malformed)?;
 
     if id_str.trim().is_empty() || id_str.len() > MAX_COMMAND_ID_LEN {
-        return Err(());
+        return Err(CommandError::Malformed);
     }
     if actuator_str.trim().is_empty() || action_str.trim().is_empty() {
-        return Err(());
+        return Err(CommandError::Malformed);
     }
 
-    let actuator = Actuators::from_str(actuator_str.as_str())?;
-    let action = Action::from_str(action_str.as_str())?;
+    let actuator =
+        Actuators::from_str(actuator_str.as_str()).map_err(|_| CommandError::UnknownActuator)?;
+    let action = Action::from_str(action_str.as_str()).map_err(|_| CommandError::UnknownAction)?;
+    let duration = extract_duration(payload)?;
 
     let mut id = String::new();
-    id.push_str(id_str.as_str()).map_err(|_| ())?;
+    id.push_str(id_str.as_str())
+        .map_err(|_| CommandError::Malformed)?;
 
     Ok(Command {
         id,
@@ -221,7 +268,7 @@ mod tests {
     use super::*;
     use alloc::format;
 
-    fn parse(json: &str) -> Result<Command, ()> {
+    fn parse(json: &str) -> Result<Command, CommandError> {
         parse_command(json)
     }
 
@@ -305,11 +352,26 @@ mod tests {
     }
 
     #[test]
-    fn rejects_negative_duration_instead_of_truncating_the_sign() {
-        let cmd = parse(
-            r#"{"id":"cmd-7","actuator":"WATER_PUMP","action":"ACTIVATE","durationSeconds":-15}"#,
-        )
-        .unwrap();
-        assert_eq!(cmd.duration_seconds, None);
+    fn rejects_invalid_durations_instead_of_running_without_limit() {
+        for value in [
+            "-15",
+            "0",
+            "3601",
+            "1.5",
+            "1e3",
+            "\"30\"",
+            "true",
+            "99999999999",
+        ] {
+            let payload = format!(
+                r#"{{"id":"cmd-7","actuator":"WATER_PUMP","action":"ACTIVATE","durationSeconds":{}}}"#,
+                value
+            );
+            assert_eq!(
+                parse(&payload).unwrap_err(),
+                CommandError::InvalidDuration,
+                "{value}"
+            );
+        }
     }
 }

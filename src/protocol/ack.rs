@@ -77,13 +77,32 @@ impl AckMessage {
             AckStatus::Executed => "EXECUTED",
             AckStatus::Failed => "FAILED",
         };
-        let _ = write!(
-            buf,
-            "{{\"id\":\"{}\",\"status\":\"{}\",\"message\":\"{}\"}}",
-            self.id.as_str(),
-            status_str,
-            self.message.as_str()
-        );
+        let _ = buf.push_str("{\"id\":\"");
+        push_json_escaped(&mut buf, self.id.as_str());
+        let _ = write!(buf, "\",\"status\":\"{}\",\"message\":\"", status_str);
+        push_json_escaped(&mut buf, self.message.as_str());
+        let _ = buf.push_str("\"}");
         buf
+    }
+}
+
+/// Añade `text` escapando comillas, barras invertidas y caracteres de control,
+/// para que un `id` con caracteres especiales no rompa el JSON del ACK.
+fn push_json_escaped<const N: usize>(buf: &mut String<N>, text: &str) {
+    for ch in text.chars() {
+        match ch {
+            '"' => {
+                let _ = buf.push_str("\\\"");
+            }
+            '\\' => {
+                let _ = buf.push_str("\\\\");
+            }
+            c if (c as u32) < 0x20 => {
+                let _ = write!(buf, "\\u{:04x}", c as u32);
+            }
+            c => {
+                let _ = buf.push(c);
+            }
+        }
     }
 }

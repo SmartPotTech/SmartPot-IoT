@@ -1,10 +1,14 @@
 //! Pruebas del parser de comandos: nombres canónicos, alias heredado,
-//! dosificadores no instalados, límite de 36 caracteres y valores inválidos.
+//! dosificadores no instalados, límite de 36 caracteres, valores inválidos y
+//! política de seguridad de duraciones.
 
 use smartpot_iot_host::protocol::command::MAX_COMMAND_ID_LEN;
-use smartpot_iot_host::protocol::{Action, Actuators, format_readable_duration, parse_command};
+use smartpot_iot_host::protocol::{
+    AckMessage, Action, Actuators, CommandError, format_readable_duration, parse_command,
+};
+use smartpot_iot_host::safety;
 
-fn parse(payload: &str) -> Result<smartpot_iot_host::protocol::Command, ()> {
+fn parse(payload: &str) -> Result<smartpot_iot_host::protocol::Command, CommandError> {
     parse_command(payload)
 }
 
@@ -96,14 +100,99 @@ fn duration_is_optional_and_parsed_as_u32() {
             .unwrap();
     assert_eq!(command.duration_seconds, Some(90));
 
-    let quoted = parse(
-        r#"{"id":"cmd-7","actuator":"WATER_PUMP","action":"ACTIVATE","durationSeconds":"120"}"#,
-    )
-    .unwrap();
-    assert_eq!(quoted.duration_seconds, Some(120));
-
     let absent = parse(r#"{"id":"cmd-8","actuator":"FAN","action":"DEACTIVATE"}"#).unwrap();
     assert_eq!(absent.duration_seconds, None);
+
+    // `null` equivale a omitir el campo, como hace la API con `omitempty`.
+    let null = parse(r#"{"id":"cmd-9","actuator":"FAN","action":"ACTIVATE","durationSeconds":null}"#)
+        .unwrap();
+    assert_eq!(null.duration_seconds, None);
+
+    let bounds = parse(
+        r#"{"id":"cmd-10","actuator":"FAN","action":"ACTIVATE","durationSeconds" : 3600 }"#,
+    )
+    .unwrap();
+    assert_eq!(bounds.duration_seconds, Some(3600));
+}
+
+#[test]
+fn invalid_durations_are_rejected_with_a_reason() {
+    // Antes, un valor negativo se tomaba como «sin duración» y el actuador
+    // quedaba encendido indefinidamente.
+    for value in ["-15", "0", "3601", "120.5", "1e2", "\"120\"", "false", "[]"] {
+        let payload = format!(
+            r#"{{"id":"cmd-11","actuator":"WATER_PUMP","action":"ACTIVATE","durationSeconds":{value}}}"#
+        );
+        let error = parse(&payload).unwrap_err();
+        assert_eq!(error, CommandError::InvalidDuration, "durationSeconds={value}");
+        assert_eq!(
+            error.message(),
+            "durationSeconds must be an integer between 1 and 3600"
+        );
+    }
+}
+
+#[test]
+fn errors_carry_the_ack_reason() {
+    assert_eq!(
+        parse(r#"{"id":"x","actuator":"LASER","action":"ACTIVATE"}"#).unwrap_err(),
+        CommandError::UnknownActuator
+    );
+    assert_eq!(
+        parse(r#"{"id":"x","actuator":"FAN","action":"START"}"#).unwrap_err(),
+        CommandError::UnknownAction
+    );
+    assert_eq!(
+        parse(r#"{"actuator":"FAN","action":"ACTIVATE"}"#).unwrap_err(),
+        CommandError::Malformed
+    );
+}
+
+#[test]
+fn critical_actuators_never_run_without_a_limit() {
+    assert_eq!(
+        safety::effective_duration(Actuators::WaterPump, None),
+        Some(safety::MAX_DURATION_SECONDS)
+    );
+    assert_eq!(
+        safety::effective_duration(Actuators::Humidifier, None),
+        Some(safety::MAX_DURATION_SECONDS)
+    );
+    assert_eq!(safety::effective_duration(Actuators::WaterPump, Some(30)), Some(30));
+    assert_eq!(safety::effective_duration(Actuators::UvLight, None), None);
+    assert_eq!(safety::effective_duration(Actuators::Fan, None), None);
+}
+
+#[test]
+fn failsafe_waits_for_the_full_offline_window() {
+    let cutoff_ms = safety::OFFLINE_CUTOFF_SECONDS * 1000;
+    // Con broker no hay failsafe, por mucho que lleve encendida.
+    assert!(!safety::failsafe_due(Actuators::WaterPump, None, cutoff_ms * 10));
+    // Sin broker cuenta el plazo más reciente entre el corte y el encendido.
+    assert!(!safety::failsafe_due(Actuators::WaterPump, Some(cutoff_ms), cutoff_ms - 1));
+    assert!(!safety::failsafe_due(Actuators::WaterPump, Some(cutoff_ms - 1), cutoff_ms));
+    assert!(safety::failsafe_due(Actuators::WaterPump, Some(cutoff_ms), cutoff_ms));
+    assert!(safety::failsafe_due(Actuators::Humidifier, Some(cutoff_ms * 2), cutoff_ms));
+    // La luz UV y el ventilador nunca se apagan por el failsafe.
+    assert!(!safety::failsafe_due(Actuators::UvLight, Some(cutoff_ms * 2), cutoff_ms * 2));
+    assert!(!safety::failsafe_due(Actuators::Fan, Some(cutoff_ms * 2), cutoff_ms * 2));
+}
+
+#[test]
+fn ack_json_escapes_special_characters() {
+    let ack = AckMessage::failure("a\"b\\c", "bad");
+    let json: heapless::String<160> = ack.to_json();
+    let parsed: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
+    assert_eq!(parsed["id"], "a\"b\\c");
+    assert_eq!(parsed["status"], "FAILED");
+}
+
+#[test]
+fn actuators_expose_their_contract_keys() {
+    assert_eq!(Actuators::WaterPump.key(), "WATER_PUMP");
+    assert_eq!(Actuators::UvLight.key(), "UV_LIGHT");
+    assert_eq!(Actuators::Humidifier.key(), "HUMIDIFIER");
+    assert_eq!(Actuators::NutrientDoser.key(), "NUTRIENT_DOSER");
 }
 
 #[test]

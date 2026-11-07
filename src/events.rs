@@ -3,7 +3,6 @@
 use defmt::Format;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::pubsub::PubSubChannel;
-#[cfg(feature = "sensors")]
 use embassy_sync::watch::Watch;
 
 pub use crate::protocol::{
@@ -59,6 +58,10 @@ pub static I2C_SCAN_DONE: Watch<CriticalSectionRawMutex, bool, 4> = Watch::new_w
 /// es el respaldo de compensación mientras no exista una lectura real.
 #[cfg(feature = "sensors")]
 pub static BME_TEMPERATURE: Watch<CriticalSectionRawMutex, f32, 2> = Watch::new_with(25.0);
+
+/// Estado de la sesión MQTT: `true` mientras el broker responde. Lo publica la
+/// tarea MQTT y lo leen el failsafe de actuadores y la pantalla.
+pub static BROKER_ONLINE: Watch<CriticalSectionRawMutex, bool, 4> = Watch::new_with(false);
 
 pub const COMMAND_CH_CAP: usize = 8;
 pub const COMMAND_CH_PUB: usize = 2;

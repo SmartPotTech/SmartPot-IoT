@@ -1,4 +1,5 @@
-//! Manejador de actuadores y banco de salidas con temporización asíncrona y confirmación ACK.
+//! Manejador de actuadores con temporización asíncrona, confirmación ACK y
+//! política de seguridad (tope de duración y failsafe sin broker).
 
 use defmt::{info, warn};
 use embassy_executor::task;
@@ -7,21 +8,53 @@ use embassy_sync::pubsub::{DynPublisher, DynSubscriber};
 use embassy_time::{Duration, Instant, Timer};
 use esp_hal::gpio::Output;
 
-use crate::events::{AckMessage, Action, Actuators, Command};
+use crate::events::{AckMessage, AckStatus, Action, Actuators, BROKER_ONLINE, Command};
+use crate::safety;
 
 /// Número de ACK recientes que se conservan para detectar comandos duplicados.
 const ACK_HISTORY_LEN: usize = 16;
 
-struct ActuatorRuntime {
-    active: bool,
+/// Periodo con el que se revisan temporizadores y failsafe.
+const TICK: Duration = Duration::from_millis(250);
+
+/// Salida física de un actuador con su estado de temporización.
+struct Channel {
+    kind: Actuators,
+    pin: Output<'static>,
+    /// Instante en que se encendió; `None` si está apagado.
+    on_since: Option<Instant>,
+    /// Instante de apagado automático; `None` si no tiene temporizador.
     until: Option<Instant>,
 }
 
-impl ActuatorRuntime {
-    const fn new() -> Self {
+impl Channel {
+    fn new(kind: Actuators, mut pin: Output<'static>) -> Self {
+        pin.set_low();
         Self {
-            active: false,
+            kind,
+            pin,
+            on_since: None,
             until: None,
+        }
+    }
+
+    fn turn_on(&mut self, now: Instant, duration: Option<u32>) {
+        self.pin.set_high();
+        self.on_since = Some(now);
+        self.until = duration.map(|s| now + Duration::from_secs(s as u64));
+        match duration {
+            Some(seconds) => marker!("SMARTPOT-ACT {} ON {}s", self.kind.key(), seconds),
+            None => marker!("SMARTPOT-ACT {} ON", self.kind.key()),
+        }
+    }
+
+    fn turn_off(&mut self, reason: &str) {
+        let was_on = self.on_since.is_some();
+        self.pin.set_low();
+        self.on_since = None;
+        self.until = None;
+        if was_on {
+            marker!("SMARTPOT-ACT {} OFF {}", self.kind.key(), reason);
         }
     }
 }
@@ -56,34 +89,80 @@ impl AckHistory {
     }
 }
 
+/// Publica el ACK hacia la tarea MQTT y deja constancia en la consola serie.
+fn publish_ack(ack_channel: &DynPublisher<'static, AckMessage>, ack: AckMessage) {
+    let status = match ack.status {
+        AckStatus::Executed => "EXECUTED",
+        AckStatus::Failed => "FAILED",
+    };
+    marker!(
+        "SMARTPOT-ACK {} {} {}",
+        ack.id.as_str(),
+        status,
+        ack.message.as_str()
+    );
+    ack_channel.publish_immediate(ack);
+}
+
+/// Ejecuta un comando validado y devuelve su confirmación.
+fn execute(channels: &mut [Channel], cmd: &Command, now: Instant) -> AckMessage {
+    let Some(channel) = channels.iter_mut().find(|c| c.kind == cmd.actuator) else {
+        // Los dosificadores existen en el contrato, pero esta placa no tiene
+        // salida GPIO para ellos: se rechazan sin accionar ningún pin.
+        let message = cmd
+            .actuator
+            .unavailable_message()
+            .unwrap_or("This device does not have this actuator installed");
+        warn!(
+            "[ACTUATOR] Rejected command {}: {}",
+            cmd.id.as_str(),
+            message
+        );
+        return AckMessage::failure(cmd.id.as_str(), message);
+    };
+
+    match cmd.action {
+        Action::Activate => {
+            let duration = safety::effective_duration(cmd.actuator, cmd.duration_seconds);
+            channel.turn_on(now, duration);
+            let mut ack = AckMessage::success(cmd.id.as_str(), cmd.actuator, cmd.action, duration);
+            if cmd.duration_seconds.is_none() && duration.is_some() {
+                // El tope de seguridad se aplicó en lugar de un encendido indefinido.
+                let _ = ack.message.push_str(" (safety limit)");
+            }
+            ack
+        }
+        Action::Deactivate => {
+            channel.turn_off("command");
+            AckMessage::success(cmd.id.as_str(), cmd.actuator, cmd.action, None)
+        }
+    }
+}
+
 #[task]
 pub async fn catch_commands(
     mut command_channel: DynSubscriber<'static, Command>,
     ack_channel: DynPublisher<'static, AckMessage>,
-    mut water: Output<'static>,
-    mut uv_light: Output<'static>,
-    mut fan: Output<'static>,
-    mut humidifier: Output<'static>,
+    water: Output<'static>,
+    uv_light: Output<'static>,
+    fan: Output<'static>,
+    humidifier: Output<'static>,
 ) {
-    let mut water_state = ActuatorRuntime::new();
-    let mut uv_light_state = ActuatorRuntime::new();
-    let mut fan_state = ActuatorRuntime::new();
-    let mut humidifier_state = ActuatorRuntime::new();
+    // Todas las salidas arrancan en bajo (apagadas) al construir cada canal.
+    let mut channels = [
+        Channel::new(Actuators::WaterPump, water),
+        Channel::new(Actuators::UvLight, uv_light),
+        Channel::new(Actuators::Fan, fan),
+        Channel::new(Actuators::Humidifier, humidifier),
+    ];
     let mut history = AckHistory::new();
 
-    // Asegurar que todos los pines arranquen en bajo (apagados)
-    water.set_low();
-    uv_light.set_low();
-    fan.set_low();
-    humidifier.set_low();
+    let mut broker = BROKER_ONLINE.receiver();
+    // Al arrancar no hay broker: el failsafe cuenta desde el inicio.
+    let mut offline_since: Option<Instant> = Some(Instant::now());
 
     loop {
-        match select(
-            command_channel.next_message_pure(),
-            Timer::after(Duration::from_millis(250)),
-        )
-        .await
-        {
+        match select(command_channel.next_message_pure(), Timer::after(TICK)).await {
             Either::First(cmd) => {
                 info!("[ACTUATOR] Received command: {:?}", cmd);
 
@@ -95,151 +174,50 @@ pub async fn catch_commands(
                         "[ACTUATOR] Duplicate command id {} received; re-publishing stored ACK",
                         cmd.id.as_str()
                     );
-                    ack_channel.publish_immediate(previous.clone());
+                    publish_ack(&ack_channel, previous.clone());
                     continue;
                 }
 
-                let now = Instant::now();
-                let ack = match cmd.actuator {
-                    Actuators::WaterPump => {
-                        match cmd.action {
-                            Action::Activate => {
-                                water.set_high();
-                                water_state.active = true;
-                                water_state.until = cmd
-                                    .duration_seconds
-                                    .map(|s| now + Duration::from_secs(s as u64));
-                            }
-                            Action::Deactivate => {
-                                water.set_low();
-                                water_state.active = false;
-                                water_state.until = None;
-                            }
-                        }
-                        AckMessage::success(
-                            cmd.id.as_str(),
-                            cmd.actuator,
-                            cmd.action,
-                            cmd.duration_seconds,
-                        )
-                    }
-                    Actuators::UvLight => {
-                        match cmd.action {
-                            Action::Activate => {
-                                uv_light.set_high();
-                                uv_light_state.active = true;
-                                uv_light_state.until = cmd
-                                    .duration_seconds
-                                    .map(|s| now + Duration::from_secs(s as u64));
-                            }
-                            Action::Deactivate => {
-                                uv_light.set_low();
-                                uv_light_state.active = false;
-                                uv_light_state.until = None;
-                            }
-                        }
-                        AckMessage::success(
-                            cmd.id.as_str(),
-                            cmd.actuator,
-                            cmd.action,
-                            cmd.duration_seconds,
-                        )
-                    }
-                    Actuators::Fan => {
-                        match cmd.action {
-                            Action::Activate => {
-                                fan.set_high();
-                                fan_state.active = true;
-                                fan_state.until = cmd
-                                    .duration_seconds
-                                    .map(|s| now + Duration::from_secs(s as u64));
-                            }
-                            Action::Deactivate => {
-                                fan.set_low();
-                                fan_state.active = false;
-                                fan_state.until = None;
-                            }
-                        }
-                        AckMessage::success(
-                            cmd.id.as_str(),
-                            cmd.actuator,
-                            cmd.action,
-                            cmd.duration_seconds,
-                        )
-                    }
-                    Actuators::Humidifier => {
-                        match cmd.action {
-                            Action::Activate => {
-                                humidifier.set_high();
-                                humidifier_state.active = true;
-                                humidifier_state.until = cmd
-                                    .duration_seconds
-                                    .map(|s| now + Duration::from_secs(s as u64));
-                            }
-                            Action::Deactivate => {
-                                humidifier.set_low();
-                                humidifier_state.active = false;
-                                humidifier_state.until = None;
-                            }
-                        }
-                        AckMessage::success(
-                            cmd.id.as_str(),
-                            cmd.actuator,
-                            cmd.action,
-                            cmd.duration_seconds,
-                        )
-                    }
-                    // Los dosificadores existen en el contrato, pero esta placa
-                    // no tiene salida GPIO para ellos: se rechazan sin accionar
-                    // ningún pin ni arrancar temporizadores.
-                    Actuators::PhDoser | Actuators::NutrientDoser => {
-                        let message = cmd
-                            .actuator
-                            .unavailable_message()
-                            .unwrap_or("This device does not have this doser installed");
-                        warn!(
-                            "[ACTUATOR] Rejected command {}: {}",
-                            cmd.id.as_str(),
-                            message
-                        );
-                        AckMessage::failure(cmd.id.as_str(), message)
-                    }
-                };
-
+                let ack = execute(&mut channels, &cmd, Instant::now());
                 history.push(ack.clone());
-                ack_channel.publish_immediate(ack);
+                publish_ack(&ack_channel, ack);
             }
 
             Either::Second(_) => {
-                // Tick periódico para verificar expiración de actuadores temporizados
                 let now = Instant::now();
 
-                if water_state.active && water_state.until.is_some_and(|u| now >= u) {
-                    water.set_low();
-                    water_state.active = false;
-                    water_state.until = None;
-                    info!("[ACTUATOR] Water pump turned off after timer elapsed");
+                if let Some(online) = broker.as_mut().and_then(|r| r.try_get()) {
+                    match (online, offline_since) {
+                        (true, _) => offline_since = None,
+                        (false, None) => offline_since = Some(now),
+                        (false, Some(_)) => {}
+                    }
                 }
 
-                if uv_light_state.active && uv_light_state.until.is_some_and(|u| now >= u) {
-                    uv_light.set_low();
-                    uv_light_state.active = false;
-                    uv_light_state.until = None;
-                    info!("[ACTUATOR] UV light turned off after timer elapsed");
-                }
+                for channel in channels.iter_mut() {
+                    let Some(on_since) = channel.on_since else {
+                        continue;
+                    };
 
-                if fan_state.active && fan_state.until.is_some_and(|u| now >= u) {
-                    fan.set_low();
-                    fan_state.active = false;
-                    fan_state.until = None;
-                    info!("[ACTUATOR] Fan turned off after timer elapsed");
-                }
+                    if channel.until.is_some_and(|until| now >= until) {
+                        info!(
+                            "[ACTUATOR] {} turned off after timer elapsed",
+                            channel.kind.name()
+                        );
+                        channel.turn_off("timer");
+                        continue;
+                    }
 
-                if humidifier_state.active && humidifier_state.until.is_some_and(|u| now >= u) {
-                    humidifier.set_low();
-                    humidifier_state.active = false;
-                    humidifier_state.until = None;
-                    info!("[ACTUATOR] Humidifier turned off after timer elapsed");
+                    let offline_for = offline_since.map(|since| (now - since).as_millis());
+                    if safety::failsafe_due(channel.kind, offline_for, (now - on_since).as_millis())
+                    {
+                        warn!(
+                            "[ACTUATOR] {} turned off: broker unreachable for {} s",
+                            channel.kind.name(),
+                            safety::OFFLINE_CUTOFF_SECONDS
+                        );
+                        channel.turn_off("failsafe");
+                    }
                 }
             }
         }

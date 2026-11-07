@@ -1,6 +1,18 @@
 #![no_std]
 extern crate alloc;
 
+/// Imprime un marcador de texto plano (`SMARTPOT-...`) por la consola serie.
+///
+/// Los registros normales viajan en `defmt` binario; estos marcadores son
+/// texto legible para el monitor de `espflash`, el simulador Wokwi y sus
+/// escenarios automatizados (`wait-serial`).
+#[macro_export]
+macro_rules! marker {
+    ($($arg:tt)*) => {
+        ::esp_println::println!($($arg)*)
+    };
+}
+
 pub mod capabilities;
 pub mod clock;
 pub mod codec;
@@ -10,6 +22,7 @@ pub mod events;
 pub mod filter;
 pub mod limits;
 pub mod protocol;
+pub mod safety;
 pub mod tasks;
 #[cfg(feature = "mqtt")]
 pub mod tls;

@@ -26,3 +26,6 @@ pub mod capabilities;
 
 #[path = "../../../src/config.rs"]
 pub mod config;
+
+#[path = "../../../src/safety.rs"]
+pub mod safety;

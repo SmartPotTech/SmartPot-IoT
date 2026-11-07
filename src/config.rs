@@ -66,8 +66,45 @@ pub const DEFAULT_CONFIG: Config = Config {
         None => "pool.ntp.org",
     },
     compact_telemetry: option_env!("COMPACT_TELEMETRY").is_some(),
-    telemetry_interval_secs: 15,
+    telemetry_interval_secs: match option_env!("TELEMETRY_INTERVAL_SECS") {
+        Some(v) => parse_u64_or(v, 15),
+        None => 15,
+    },
 };
+
+/// Periodo de muestreo de los sensores; la simulación lo acorta al compilar.
+pub const SENSOR_INTERVAL_SECS: u64 = match option_env!("SENSOR_INTERVAL_SECS") {
+    Some(v) => parse_u64_or(v, 10),
+    None => 10,
+};
+
+/// Convierte un entero decimal positivo; cualquier valor vacío, nulo o inválido
+/// devuelve `default`.
+pub const fn parse_u64_or(value: &str, default: u64) -> u64 {
+    let bytes = value.as_bytes();
+    if bytes.is_empty() {
+        return default;
+    }
+
+    let mut result: u64 = 0;
+    let mut i = 0;
+    while i < bytes.len() {
+        let byte = bytes[i];
+        if !byte.is_ascii_digit() {
+            return default;
+        }
+        result = match result.checked_mul(10) {
+            Some(v) => match v.checked_add((byte - b'0') as u64) {
+                Some(v) => v,
+                None => return default,
+            },
+            None => return default,
+        };
+        i += 1;
+    }
+
+    if result == 0 { default } else { result }
+}
 
 /// Decodifica la CA configurada en `CA_CERT_PEM` (PEM) a DER.
 ///

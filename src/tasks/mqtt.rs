@@ -35,7 +35,7 @@ use crate::capabilities::CAPABILITIES_JSON;
 use crate::clock;
 use crate::config::{self, Config};
 use crate::events::telemetry::TelemetryMessage;
-use crate::events::{AckMessage, Command};
+use crate::events::{AckMessage, BROKER_ONLINE, Command};
 use crate::protocol::{TopicResolver, parse_command};
 use crate::tls::VerifyingProvider;
 
@@ -284,6 +284,7 @@ async fn run_mqtt_client<T>(
         return;
     }
     info!("[MQTT] Active subscription to {}", topic_commands_str);
+    BROKER_ONLINE.sender().send(true);
 
     let ack_topic_name = TopicName::new(MqttString::from_str(topic_ack_str).unwrap()).unwrap();
     let telemetry_topic_name =
@@ -308,16 +309,14 @@ async fn run_mqtt_client<T>(
                             Ok(cmd) => {
                                 commands_channel.publish_immediate(cmd);
                             }
-                            Err(_) => {
+                            Err(reason) => {
                                 warn!("[MQTT SUB] Invalid command discarded: {}", msg_str);
-                                // Si es un JSON con id, emitir ACK de fallo
+                                // Si es un JSON con id, emitir ACK de fallo con el motivo
                                 if let Ok(id) =
                                     crate::protocol::command::extract_str_field(msg_str, "id")
                                 {
-                                    let fail_ack = AckMessage::failure(
-                                        id.as_str(),
-                                        "Invalid command or unknown actuator",
-                                    );
+                                    let fail_ack =
+                                        AckMessage::failure(id.as_str(), reason.message());
                                     let ack_json: String<160> = fail_ack.to_json();
                                     let pub_opts = PublicationOptions::new(TopicReference::Name(
                                         ack_topic_name.clone(),
@@ -423,6 +422,8 @@ async fn run_mqtt_client<T>(
             }
         }
     }
+
+    BROKER_ONLINE.sender().send(false);
 
     // Publicar estado offline antes de desconectar
     let pub_offline = PublicationOptions::new(TopicReference::Name(status_topic_name))
