@@ -57,6 +57,7 @@ pub mod filter;
 pub mod health;
 pub mod limits;
 pub mod protocol;
+pub mod report;
 pub mod safety;
 pub mod sim;
 pub mod sntp;

@@ -50,3 +50,6 @@ pub mod display_layout;
 
 #[path = "../../../src/drivers/dht22_frame.rs"]
 pub mod dht22_frame;
+
+#[path = "../../../src/report.rs"]
+pub mod report;
