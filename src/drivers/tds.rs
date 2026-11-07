@@ -1,52 +1,108 @@
-//! Drivers y utilidades de conversión para sensores analógicos (TDS, pH, humedad de suelo).
+//! Conversión de las lecturas analógicas (TDS, pH, humedad de suelo).
+//!
+//! Una sonda desconectada o en cortocircuito deja el ADC en uno de sus rieles.
+//! Antes ese valor se recortaba al rango válido y se publicaba como pH 0 o 14
+//! o TDS 3000; ahora la lectura se descarta (`None`). La calibración se puede
+//! ajustar al compilar sin tocar el código.
 
-/// Calcula el valor de TDS (Total Dissolved Solids en ppm) a partir de la lectura ADC del ESP32.
+use crate::config::parse_u64_or;
+
+const VREF: f32 = 3.3;
+const ADC_MAX: u16 = 4095;
+
+/// Lecturas a menos de esta distancia de un riel se consideran sonda desconectada.
+const RAIL_MARGIN: u16 = 16;
+
+/// Tensión de la sonda de pH en pH 7, en milivoltios (`PH_NEUTRAL_MV`).
+const PH_NEUTRAL_MV: u64 = match option_env!("PH_NEUTRAL_MV") {
+    Some(v) => parse_u64_or(v, 2500),
+    None => 2500,
+};
+
+/// Pendiente del módulo de pH a 25 °C, en milivoltios por unidad (`PH_SLOPE_MV`).
+const PH_SLOPE_MV: u64 = match option_env!("PH_SLOPE_MV") {
+    Some(v) => parse_u64_or(v, 180),
+    None => 180,
+};
+
+/// Lecturas crudas del sensor de suelo en seco y empapado (`SOIL_DRY_RAW`,
+/// `SOIL_WET_RAW`). Un sensor capacitivo suele dar más tensión en seco: basta
+/// con invertir los valores.
+const SOIL_DRY_RAW: u64 = match option_env!("SOIL_DRY_RAW") {
+    Some(v) => parse_u64_or(v, 0),
+    None => 0,
+};
+const SOIL_WET_RAW: u64 = match option_env!("SOIL_WET_RAW") {
+    Some(v) => parse_u64_or(v, ADC_MAX as u64),
+    None => ADC_MAX as u64,
+};
+
+fn at_low_rail(adc_raw: u16) -> bool {
+    adc_raw <= RAIL_MARGIN
+}
+
+fn at_high_rail(adc_raw: u16) -> bool {
+    adc_raw >= ADC_MAX - RAIL_MARGIN
+}
+
+fn volts(adc_raw: u16) -> f32 {
+    adc_raw as f32 * VREF / ADC_MAX as f32
+}
+
+/// Calcula el TDS (ppm) a partir de la lectura cruda del ADC de 12 bits.
 ///
-/// * `adc_raw`: valor crudo del ADC de 12 bits (0..=4095).
-/// * `temperature_c`: temperatura del agua en grados Celsius (para compensación térmica).
-#[inline]
-pub fn tds_from_adc(adc_raw: u16, temperature_c: f32) -> f32 {
-    const VREF: f32 = 3.3;
+/// El riel bajo es válido (agua destilada da 0 V); el alto indica una sonda
+/// en cortocircuito o fuera de rango.
+pub fn tds_from_adc(adc_raw: u16, temperature_c: f32) -> Option<f32> {
+    if at_high_rail(adc_raw) {
+        return None;
+    }
 
-    // Conversión a voltaje en escala de 12 bits
-    let voltage = (adc_raw as f32) * VREF / 4095.0;
+    // Compensación de temperatura estándar del TDS: 2 % por °C respecto a 25 °C.
+    let compensation = (1.0 + 0.02 * (temperature_c - 25.0)).max(0.1);
+    let voltage = volts(adc_raw) / compensation;
 
-    // Coeficiente de compensación de temperatura estándar (2 % por °C respecto a 25 °C)
-    let compensation_coefficient = 1.0 + 0.02 * (temperature_c - 25.0);
-    let comp_voltage = voltage / compensation_coefficient.max(0.1);
-
-    // Curva cúbica para sensor TDS analógico estándar
-    let tds = (133.42 * comp_voltage * comp_voltage * comp_voltage
-        - 255.86 * comp_voltage * comp_voltage
-        + 857.39 * comp_voltage)
+    // Curva cúbica del sensor TDS analógico estándar.
+    let tds = (133.42 * voltage * voltage * voltage - 255.86 * voltage * voltage
+        + 857.39 * voltage)
         * 0.5;
-
-    tds.clamp(0.0, 3000.0)
+    Some(tds.clamp(0.0, 3000.0))
 }
 
-/// Calcula el valor de pH a partir de la lectura ADC del ESP32.
+/// Calcula el pH a partir de la lectura cruda del ADC de 12 bits.
 ///
-/// * `adc_raw`: valor crudo del ADC de 12 bits (0..=4095).
-/// * `temperature_c`: temperatura de la solución en grados Celsius.
-#[inline]
-pub fn ph_from_adc(adc_raw: u16, temperature_c: f32) -> f32 {
-    const VREF: f32 = 3.3;
+/// La temperatura corrige la pendiente de Nernst (proporcional a la
+/// temperatura absoluta), no la tensión: aplicar la compensación del TDS al pH
+/// era físicamente incorrecto. Ambos rieles indican sonda desconectada.
+pub fn ph_from_adc(adc_raw: u16, temperature_c: f32) -> Option<f32> {
+    if at_low_rail(adc_raw) || at_high_rail(adc_raw) {
+        return None;
+    }
 
-    let voltage = (adc_raw as f32) * VREF / 4095.0;
-    let compensation_coefficient = 1.0 + 0.02 * (temperature_c - 25.0);
-    let comp_voltage = voltage / compensation_coefficient.max(0.1);
-
-    // Ecuación lineal típica para sonda de pH con punto neutro en 2.5 V
-    let ph = 7.0 + ((2.5 - comp_voltage) / 0.18);
-    ph.clamp(0.0, 14.0)
+    let slope = (PH_SLOPE_MV as f32 / 1000.0) * (temperature_c + 273.15) / 298.15;
+    let neutral = PH_NEUTRAL_MV as f32 / 1000.0;
+    let ph = 7.0 + (neutral - volts(adc_raw)) / slope.max(0.01);
+    if !(0.0..=14.0).contains(&ph) {
+        return None;
+    }
+    Some(ph)
 }
 
-/// Calcula el porcentaje de humedad del sustrato (0.0..=100.0 %) a partir del ADC.
-///
-/// * `adc_raw`: valor crudo del ADC de 12 bits (0..=4095).
-#[inline]
+/// Calcula el porcentaje de humedad del sustrato (0.0..=100.0 %).
 pub fn soil_moisture_from_adc(adc_raw: u16) -> f32 {
-    // Sensor resistivo/capacitivo: 0 = seco (máximo voltaje) a 4095 = sumergido (o viceversa según montaje)
-    let percent = (adc_raw as f32 / 4095.0) * 100.0;
-    percent.clamp(0.0, 100.0)
+    let dry = SOIL_DRY_RAW as f32;
+    let wet = SOIL_WET_RAW as f32;
+    if (wet - dry).abs() < 1.0 {
+        return 0.0;
+    }
+    ((adc_raw as f32 - dry) / (wet - dry) * 100.0).clamp(0.0, 100.0)
+}
+
+/// Promedia un conjunto de lecturas crudas del ADC.
+pub fn average(samples: &[u16]) -> Option<u16> {
+    if samples.is_empty() {
+        return None;
+    }
+    let sum: u32 = samples.iter().map(|&s| s as u32).sum();
+    Some((sum / samples.len() as u32) as u16)
 }

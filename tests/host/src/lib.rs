@@ -38,3 +38,6 @@ pub mod backoff;
 
 #[path = "../../../src/sntp.rs"]
 pub mod sntp;
+
+#[path = "../../../src/drivers/tds.rs"]
+pub mod tds;

@@ -238,36 +238,57 @@ pub async fn analog_sensors_task(
             .and_then(|receiver| receiver.try_get())
             .unwrap_or(25.0);
 
-        let mut logged_tds = None;
-        let mut logged_ph = None;
-        let mut logged_soil = None;
+        // Se promedian 16 lecturas por canal para reducir el ruido del ADC.
+        let tds_raw = oversample(&mut adc, &mut tds);
+        let ph_raw = oversample(&mut adc, &mut ph);
+        let soil_raw = oversample(&mut adc, &mut soil);
 
-        if let Ok(val) = nb::block!(adc.read_oneshot(&mut tds)) {
-            let tds_val = tds_filter.update(tds_from_adc(val, current_temp));
-            sensor_channel.publish_immediate(Measurements::TDS(tds_val));
-            logged_tds = Some(tds_val);
+        let tds_val = tds_raw
+            .and_then(|raw| tds_from_adc(raw, current_temp))
+            .map(|value| tds_filter.update(value));
+        let ph_val = ph_raw
+            .and_then(|raw| ph_from_adc(raw, current_temp))
+            .map(|value| ph_filter.update(value));
+        let soil_val = soil_raw.map(|raw| soil_filter.update(soil_moisture_from_adc(raw)));
+
+        if let Some(value) = tds_val {
+            sensor_channel.publish_immediate(Measurements::TDS(value));
+        }
+        if let Some(value) = ph_val {
+            sensor_channel.publish_immediate(Measurements::PH(value));
+        }
+        if let Some(value) = soil_val {
+            sensor_channel.publish_immediate(Measurements::SoilMoisture(value));
         }
 
-        if let Ok(val) = nb::block!(adc.read_oneshot(&mut ph)) {
-            let ph_val = ph_filter.update(ph_from_adc(val, current_temp));
-            sensor_channel.publish_immediate(Measurements::PH(ph_val));
-            logged_ph = Some(ph_val);
-        }
-
-        if let Ok(val) = nb::block!(adc.read_oneshot(&mut soil)) {
-            let soil_val = soil_filter.update(soil_moisture_from_adc(val));
-            sensor_channel.publish_immediate(Measurements::SoilMoisture(soil_val));
-            logged_soil = Some(soil_val);
-        }
-
-        if let (Some(tds_val), Some(ph_val), Some(soil_val)) = (logged_tds, logged_ph, logged_soil)
-        {
-            info!(
-                "[ADC] TDS: {:.1} ppm, pH: {:.2}, Soil moisture: {:.1}%",
-                tds_val, ph_val, soil_val
-            );
-        }
+        info!(
+            "[ADC] TDS: {:?} ppm, pH: {:?}, Soil moisture: {:?}% (raw {:?}/{:?}/{:?})",
+            tds_val, ph_val, soil_val, tds_raw, ph_raw, soil_raw
+        );
 
         Timer::after(Duration::from_secs(SENSOR_INTERVAL_SECS)).await;
     }
+}
+
+/// Lecturas por canal que se promedian en cada ciclo.
+const ADC_OVERSAMPLING: usize = 16;
+
+/// Lee `ADC_OVERSAMPLING` veces un canal y devuelve el promedio, o `None` si
+/// ninguna lectura fue válida.
+fn oversample<PIN>(
+    adc: &mut Adc<'static, ADC1<'static>, Blocking>,
+    pin: &mut AdcPin<PIN, ADC1<'static>>,
+) -> Option<u16>
+where
+    PIN: esp_hal::analog::adc::AdcChannel,
+{
+    let mut samples = [0u16; ADC_OVERSAMPLING];
+    let mut count = 0;
+    for slot in samples.iter_mut() {
+        if let Ok(value) = nb::block!(adc.read_oneshot(pin)) {
+            *slot = value;
+            count += 1;
+        }
+    }
+    crate::drivers::tds::average(&samples[..count])
 }
