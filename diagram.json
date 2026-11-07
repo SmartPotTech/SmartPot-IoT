@@ -7,392 +7,164 @@
       "type": "board-esp32-devkit-c-v4",
       "id": "esp",
       "top": 0,
-      "left": -62.36,
+      "left": 0,
       "attrs": {}
     },
     {
       "type": "wokwi-potentiometer",
-      "id": "pot1",
-      "top": -164.5,
-      "left": 566.2,
+      "id": "pot_tds",
+      "top": -180,
+      "left": 470,
       "attrs": {}
     },
     {
       "type": "wokwi-potentiometer",
-      "id": "pot2",
-      "top": -164.5,
-      "left": 479.8,
+      "id": "pot_ph",
+      "top": -180,
+      "left": 610,
       "attrs": {}
     },
     {
       "type": "wokwi-potentiometer",
-      "id": "pot3",
-      "top": -164.5,
-      "left": 393.4,
+      "id": "pot_soil",
+      "top": -180,
+      "left": 750,
       "attrs": {}
     },
     {
-      "type": "wokwi-potentiometer",
-      "id": "pot4",
-      "top": -164.5,
-      "left": 307,
-      "attrs": {}
-    },
-    {
-      "type": "wokwi-dht22",
-      "id": "dht1",
-      "top": -182.1,
-      "left": 205.8,
-      "attrs": {}
+      "type": "wokwi-resistor",
+      "id": "r_pump",
+      "top": 150,
+      "left": 470,
+      "rotate": 90,
+      "attrs": {
+        "value": "220"
+      }
     },
     {
       "type": "wokwi-led",
-      "id": "led1",
-      "top": -186,
-      "left": 42.6,
+      "id": "led_pump",
+      "top": 220,
+      "left": 485,
       "attrs": {
         "color": "blue",
-        "flip": "1",
-        "label": "Bomba"
+        "label": "Water pump GPIO25"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_uv",
+      "top": 150,
+      "left": 610,
+      "rotate": 90,
+      "attrs": {
+        "value": "220"
       }
     },
     {
       "type": "wokwi-led",
-      "id": "led2",
-      "top": -186,
-      "left": 90.6,
+      "id": "led_uv",
+      "top": 220,
+      "left": 625,
       "attrs": {
         "color": "purple",
-        "flip": "1",
-        "label": "Luz UV"
+        "label": "UV light GPIO26"
       }
     },
     {
       "type": "wokwi-resistor",
-      "id": "r1",
-      "top": -110.4,
-      "left": 28.25,
+      "id": "r_fan",
+      "top": 150,
+      "left": 750,
       "rotate": 90,
       "attrs": {
-        "value": "1000"
-      }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "r3",
-      "top": -110.4,
-      "left": 76.25,
-      "rotate": 90,
-      "attrs": {
-        "value": "1000"
-      }
-    },
-    {
-      "type": "wokwi-lcd2004",
-      "id": "lcd1",
-      "top": 294.4,
-      "left": 101.6,
-      "attrs": {
-        "pins": "i2c"
+        "value": "220"
       }
     },
     {
       "type": "wokwi-led",
-      "id": "led3",
-      "top": -186,
-      "left": 138.6,
+      "id": "led_fan",
+      "top": 220,
+      "left": 765,
       "attrs": {
         "color": "orange",
-        "flip": "1",
-        "label": "Ventilador"
+        "label": "Fan GPIO27"
       }
     },
     {
       "type": "wokwi-resistor",
-      "id": "r4",
-      "top": -110.4,
-      "left": 124.25,
+      "id": "r_humidifier",
+      "top": 150,
+      "left": 890,
       "rotate": 90,
       "attrs": {
-        "value": "1000"
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_humidifier",
+      "top": 220,
+      "left": 905,
+      "attrs": {
+        "color": "cyan",
+        "label": "Humidifier GPIO5"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "adc_note",
+      "top": -260,
+      "left": 470,
+      "attrs": {
+        "text": "ADC pots: TDS GPIO34 / pH GPIO35 / Soil GPIO32",
+        "fontSize": "16",
+        "color": "#eeeeee"
+      }
+    },
+    {
+      "type": "wokwi-text",
+      "id": "i2c_note",
+      "top": 360,
+      "left": 20,
+      "attrs": {
+        "text": "I2C bus: SDA GPIO21 / SCL GPIO22\nPhysical hardware: BME280 at 0x76 and BH1750 at 0x23\n(3x BME280 behind TCA9548A 0x70 on channels 2-4 in the real device)\nWokwi has no built-in BME280/BH1750 model, so only the ADC and actuator fixtures are simulated.",
+        "fontSize": "16",
+        "color": "#eeeeee"
       }
     }
   ],
   "connections": [
-    [
-      "esp:TX",
-      "$serialMonitor:RX",
-      "",
-      []
-    ],
-    [
-      "esp:RX",
-      "$serialMonitor:TX",
-      "",
-      []
-    ],
-    [
-      "pot1:SIG",
-      "esp:34",
-      "green",
-      [
-        "h-0.4",
-        "v364.8",
-        "h-720",
-        "v-201.6"
-      ]
-    ],
-    [
-      "pot2:SIG",
-      "esp:35",
-      "green",
-      [
-        "h-0.4",
-        "v355.2",
-        "h-624",
-        "v-182.4"
-      ]
-    ],
-    [
-      "pot3:SIG",
-      "esp:32",
-      "green",
-      [
-        "h-0.4",
-        "v345.6",
-        "h-528",
-        "v-163.2"
-      ]
-    ],
-    [
-      "pot4:SIG",
-      "esp:33",
-      "green",
-      [
-        "h-0.4",
-        "v336",
-        "h-432",
-        "v-144"
-      ]
-    ],
-    [
-      "esp:GND.2",
-      "pot4:GND",
-      "black",
-      [
-        "h297.6",
-        "v-124.8"
-      ]
-    ],
-    [
-      "esp:GND.2",
-      "pot3:GND",
-      "black",
-      [
-        "v0",
-        "h374.4"
-      ]
-    ],
-    [
-      "esp:GND.2",
-      "pot2:GND",
-      "black",
-      [
-        "v0",
-        "h460.8"
-      ]
-    ],
-    [
-      "esp:GND.2",
-      "pot1:GND",
-      "black",
-      [
-        "v0",
-        "h556.8"
-      ]
-    ],
-    [
-      "esp:3V3",
-      "pot4:VCC",
-      "red",
-      [
-        "h-67.05",
-        "v-76.8",
-        "h480"
-      ]
-    ],
-    [
-      "esp:3V3",
-      "pot3:VCC",
-      "red",
-      [
-        "h-57.45",
-        "v-67.2",
-        "h566.4"
-      ]
-    ],
-    [
-      "esp:3V3",
-      "pot2:VCC",
-      "red",
-      [
-        "h-47.85",
-        "v-57.6",
-        "h633.6"
-      ]
-    ],
-    [
-      "esp:3V3",
-      "pot1:VCC",
-      "red",
-      [
-        "h-38.25",
-        "v-48",
-        "h720"
-      ]
-    ],
-    [
-      "esp:3V3",
-      "dht1:VCC",
-      "red",
-      [
-        "h-76.65",
-        "v-86.4",
-        "h355.2"
-      ]
-    ],
-    [
-      "esp:15",
-      "dht1:SDA",
-      "green",
-      [
-        "v0",
-        "h192",
-        "v-182.4"
-      ]
-    ],
-    [
-      "esp:GND.2",
-      "dht1:GND",
-      "black",
-      [
-        "v0",
-        "h211.2"
-      ]
-    ],
-    [
-      "esp:GND.2",
-      "led2:C",
-      "black",
-      [
-        "v0",
-        "h86.4"
-      ]
-    ],
-    [
-      "esp:GND.2",
-      "led1:C",
-      "black",
-      [
-        "v0",
-        "h28.8"
-      ]
-    ],
-    [
-      "r1:1",
-      "led1:A",
-      "green",
-      [
-        "h0"
-      ]
-    ],
-    [
-      "r3:1",
-      "led2:A",
-      "green",
-      [
-        "h0"
-      ]
-    ],
-    [
-      "esp:18",
-      "r3:2",
-      "green",
-      [
-        "h67.2"
-      ]
-    ],
-    [
-      "esp:19",
-      "r1:2",
-      "green",
-      [
-        "h19.2"
-      ]
-    ],
-    [
-      "esp:16",
-      "lcd1:SCL",
-      "gray",
-      [
-        "h28.8",
-        "v220.8"
-      ]
-    ],
-    [
-      "esp:17",
-      "lcd1:SDA",
-      "white",
-      [
-        "h38.4",
-        "v220.8"
-      ]
-    ],
-    [
-      "esp:GND.2",
-      "lcd1:GND",
-      "black",
-      [
-        "v0",
-        "h57.6",
-        "v297.6"
-      ]
-    ],
-    [
-      "esp:3V3",
-      "lcd1:VCC",
-      "red",
-      [
-        "h-76.65",
-        "v307.2",
-        "h9.6"
-      ]
-    ],
-    [
-      "esp:5",
-      "r4:2",
-      "green",
-      [
-        "h115.2"
-      ]
-    ],
-    [
-      "r4:1",
-      "led3:A",
-      "green",
-      [
-        "h0"
-      ]
-    ],
-    [
-      "esp:GND.2",
-      "led3:C",
-      "black",
-      [
-        "v0",
-        "h134.4"
-      ]
-    ]
+    ["esp:TX", "$serialMonitor:RX", "", []],
+    ["esp:RX", "$serialMonitor:TX", "", []],
+
+    ["pot_tds:SIG", "esp:34", "green", []],
+    ["pot_tds:VCC", "esp:3V3", "red", []],
+    ["pot_tds:GND", "esp:GND.2", "black", []],
+
+    ["pot_ph:SIG", "esp:35", "green", []],
+    ["pot_ph:VCC", "esp:3V3", "red", []],
+    ["pot_ph:GND", "esp:GND.2", "black", []],
+
+    ["pot_soil:SIG", "esp:32", "green", []],
+    ["pot_soil:VCC", "esp:3V3", "red", []],
+    ["pot_soil:GND", "esp:GND.2", "black", []],
+
+    ["esp:25", "r_pump:1", "green", []],
+    ["r_pump:2", "led_pump:A", "green", []],
+    ["led_pump:C", "esp:GND.2", "black", []],
+
+    ["esp:26", "r_uv:1", "green", []],
+    ["r_uv:2", "led_uv:A", "green", []],
+    ["led_uv:C", "esp:GND.2", "black", []],
+
+    ["esp:27", "r_fan:1", "green", []],
+    ["r_fan:2", "led_fan:A", "green", []],
+    ["led_fan:C", "esp:GND.2", "black", []],
+
+    ["esp:5", "r_humidifier:1", "green", []],
+    ["r_humidifier:2", "led_humidifier:A", "green", []],
+    ["led_humidifier:C", "esp:GND.2", "black", []]
   ],
   "dependencies": {},
   "networkInspector": true
