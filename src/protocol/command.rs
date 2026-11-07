@@ -75,8 +75,8 @@ impl Actuators {
     /// Mensaje de rechazo para un dosificador que no está cableado a GPIO.
     pub fn unavailable_message(&self) -> Option<&'static str> {
         match self {
-            Self::PhDoser => Some("This device does not have PH_DOSER installed"),
-            Self::NutrientDoser => Some("This device does not have NUTRIENT_DOSER installed"),
+            Self::PhDoser => Some("This device does not have PH_DOSER"),
+            Self::NutrientDoser => Some("This device does not have NUTRIENT_DOSER"),
             _ => None,
         }
     }
@@ -302,7 +302,7 @@ mod tests {
         assert!(ph.actuator.is_doser());
         assert_eq!(
             ph.actuator.unavailable_message(),
-            Some("This device does not have PH_DOSER installed")
+            Some("This device does not have PH_DOSER")
         );
 
         let nutrients =
@@ -311,7 +311,7 @@ mod tests {
         assert!(nutrients.actuator.is_doser());
         assert_eq!(
             nutrients.actuator.unavailable_message(),
-            Some("This device does not have NUTRIENT_DOSER installed")
+            Some("This device does not have NUTRIENT_DOSER")
         );
     }
 

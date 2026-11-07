@@ -1,18 +1,18 @@
 //! Pruebas del documento de capacidades publicado en el broker: JSON válido,
-//! esquema 1, siete sensores con rango y los cuatro actuadores instalados.
+//! esquema 1 y, en la placa compartida con MicroPython, los mismos seis
+//! sensores, rangos y tres actuadores que declara `smartpot_client.py`.
 
 use serde_json::Value;
 use smartpot_iot_host::capabilities::CAPABILITIES_JSON;
 use smartpot_iot_host::limits;
 
 /// (clave, unidad, resolución, mínimo, máximo) esperados de cada sensor.
-const SENSORS: [(&str, &str, f64, f64, f64); 7] = [
+const SENSORS: [(&str, &str, f64, f64, f64); 6] = [
     ("temperature", "C", 0.01, -20.0, 60.0),
     ("humidity", "%", 0.01, 0.0, 100.0),
-    ("brightness", "lux", 1.0, 0.0, 200_000.0),
+    ("brightness", "lux", 1.0, 0.0, 2_000.0),
     ("ph", "pH", 0.01, 0.0, 14.0),
-    ("tds", "ppm", 1.0, 0.0, 10_000.0),
-    ("atmosphere", "hPa", 0.1, 300.0, 1_100.0),
+    ("tds", "ppm", 1.0, 0.0, 3_000.0),
     ("soilMoisture", "%", 0.01, 0.0, 100.0),
 ];
 
@@ -41,10 +41,10 @@ fn capabilities_json_parses_with_the_expected_shape() {
 }
 
 #[test]
-fn seven_sensors_declare_unit_resolution_and_range() {
+fn shared_board_sensors_match_the_micropython_firmware() {
     let document: Value = serde_json::from_str(CAPABILITIES_JSON).unwrap();
     let sensors = document["sensors"].as_array().expect("sensors array");
-    assert_eq!(sensors.len(), 7);
+    assert_eq!(sensors.len(), SENSORS.len());
 
     for (sensor, expected) in sensors.iter().zip(SENSORS) {
         let (key, unit, resolution, min, max) = expected;
@@ -65,24 +65,27 @@ fn sensor_ranges_match_the_shared_api_limits() {
     let document: Value = serde_json::from_str(CAPABILITIES_JSON).unwrap();
     let sensors = document["sensors"].as_array().unwrap();
 
-    let expected_ranges = [
-        limits::TEMPERATURE,
-        limits::HUMIDITY,
-        limits::BRIGHTNESS,
-        limits::PH,
-        limits::TDS,
-        limits::ATMOSPHERE,
-        limits::SOIL_MOISTURE,
-    ];
+    let api_range = |key: &str| match key {
+        "temperature" => limits::TEMPERATURE,
+        "humidity" => limits::HUMIDITY,
+        "brightness" => limits::BRIGHTNESS,
+        "ph" => limits::PH,
+        "tds" => limits::TDS,
+        "atmosphere" => limits::ATMOSPHERE,
+        "soilMoisture" => limits::SOIL_MOISTURE,
+        other => panic!("unexpected sensor {other}"),
+    };
 
-    for (sensor, range) in sensors.iter().zip(expected_ranges) {
-        assert_eq!(sensor["range"][0].as_f64(), Some(range.min as f64));
-        assert_eq!(sensor["range"][1].as_f64(), Some(range.max as f64));
+    // Cada rango declarado cabe dentro del que acepta la API.
+    for sensor in sensors {
+        let range = api_range(sensor["key"].as_str().unwrap());
+        assert!(sensor["range"][0].as_f64().unwrap() >= range.min as f64);
+        assert!(sensor["range"][1].as_f64().unwrap() <= range.max as f64);
     }
 }
 
 #[test]
-fn only_the_four_installed_actuators_are_declared() {
+fn only_the_installed_actuators_are_declared() {
     let document: Value = serde_json::from_str(CAPABILITIES_JSON).unwrap();
     let actuators: Vec<&str> = document["actuators"]
         .as_array()
@@ -93,7 +96,7 @@ fn only_the_four_installed_actuators_are_declared() {
 
     assert_eq!(
         actuators,
-        ["WATER_PUMP", "UV_LIGHT", "FAN", "HUMIDIFIER"],
+        ["WATER_PUMP", "UV_LIGHT", "FAN"],
         "doser actuators are not wired on this board"
     );
     assert!(!actuators.contains(&"PH_DOSER"));

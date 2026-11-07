@@ -54,7 +54,11 @@ pub async fn display_task(i2c: I2c<'static, Async>) {
                 .unwrap_or_default();
             let online = broker.as_mut().and_then(|r| r.try_get()).unwrap_or(false);
 
-            let rows = render(&state, actuator_states, online);
+            let rows = render(
+                &state,
+                &actuator_states[..crate::board::ACTUATOR_COUNT],
+                online,
+            );
             let mut changed = false;
             for (index, row) in rows.iter().enumerate() {
                 if shown[index].as_ref() == Some(row) {

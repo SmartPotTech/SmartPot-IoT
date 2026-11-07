@@ -74,8 +74,8 @@ pub const DEFAULT_CONFIG: Config = Config {
 
 /// Periodo de muestreo de los sensores; la simulación lo acorta al compilar.
 pub const SENSOR_INTERVAL_SECS: u64 = match option_env!("SENSOR_INTERVAL_SECS") {
-    Some(v) => parse_u64_or(v, 10),
-    None => 10,
+    Some(v) => parse_u64_or(v, crate::board::DEFAULT_SENSOR_INTERVAL_SECS),
+    None => crate::board::DEFAULT_SENSOR_INTERVAL_SECS,
 };
 
 /// Convierte un entero decimal positivo; cualquier valor vacío, nulo o inválido

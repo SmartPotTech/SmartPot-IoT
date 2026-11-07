@@ -106,3 +106,9 @@ pub fn average(samples: &[u16]) -> Option<u16> {
     let sum: u32 = samples.iter().map(|&s| s as u32).sum();
     Some((sum / samples.len() as u32) as u16)
 }
+
+/// Escala lineal de un potenciómetro, igual que `ADCSensor` del firmware
+/// MicroPython: `low` con el cursor al mínimo y `high` al máximo.
+pub fn linear_scale(adc_raw: u16, low: f32, high: f32) -> f32 {
+    low + adc_raw.min(ADC_MAX) as f32 * (high - low) / ADC_MAX as f32
+}

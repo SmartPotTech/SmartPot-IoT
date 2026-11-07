@@ -38,7 +38,7 @@ fn dosers_parse_but_report_they_are_not_installed() {
     assert!(ph.actuator.is_doser());
     assert_eq!(
         ph.actuator.unavailable_message(),
-        Some("This device does not have PH_DOSER installed")
+        Some("This device does not have PH_DOSER")
     );
 
     let nutrients =
@@ -47,7 +47,7 @@ fn dosers_parse_but_report_they_are_not_installed() {
     assert!(nutrients.actuator.is_doser());
     assert_eq!(
         nutrients.actuator.unavailable_message(),
-        Some("This device does not have NUTRIENT_DOSER installed")
+        Some("This device does not have NUTRIENT_DOSER")
     );
 }
 

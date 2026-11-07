@@ -39,6 +39,10 @@ pub async fn telemetry_task(
                         sensors.set(Field::Humidity, h, now);
                         sensors.set(Field::Atmosphere, p, now);
                     }
+                    Measurements::Air((t, h)) => {
+                        sensors.set(Field::Temperature, t, now);
+                        sensors.set(Field::Humidity, h, now);
+                    }
                     Measurements::BH1750(lux) => sensors.set(Field::Brightness, lux, now),
                     Measurements::PH(ph) => sensors.set(Field::Ph, ph, now),
                     Measurements::TDS(tds) => sensors.set(Field::Tds, tds, now),

@@ -66,7 +66,7 @@ fn fit(text: &str, columns: usize) -> Row {
 
 /// Genera las cuatro filas a partir del estado de sensores, de los actuadores
 /// (bomba, luz UV, ventilador, humidificador) y de la conexión con el broker.
-pub fn render(state: &SensorState, actuators: [bool; 4], online: bool) -> [Row; ROWS] {
+pub fn render(state: &SensorState, actuators: &[bool], online: bool) -> [Row; ROWS] {
     let mut header: String<32> = String::new();
     let _ = header.push_str("T ");
     number(&mut header, state.temperature, 4, 1);

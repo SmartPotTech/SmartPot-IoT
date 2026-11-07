@@ -275,6 +275,10 @@ fn telemetry_state(message: TelemetryMessage) -> crate::protocol::SensorState {
             let mut state = crate::protocol::SensorState::default();
             match measurement {
                 crate::events::Measurements::BME280((t, h, p)) => state.update_bme280(t, h, p),
+                crate::events::Measurements::Air((t, h)) => {
+                    state.temperature = Some(t);
+                    state.humidity = Some(h);
+                }
                 crate::events::Measurements::BH1750(l) => state.update_lux(l),
                 crate::events::Measurements::PH(p) => state.update_ph(p),
                 crate::events::Measurements::TDS(t) => state.update_tds(t),

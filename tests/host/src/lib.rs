@@ -7,6 +7,9 @@
 
 extern crate alloc;
 
+#[path = "../../../src/board.rs"]
+pub mod board;
+
 #[path = "../../../src/limits.rs"]
 pub mod limits;
 
@@ -44,3 +47,6 @@ pub mod tds;
 
 #[path = "../../../src/display_layout.rs"]
 pub mod display_layout;
+
+#[path = "../../../src/drivers/dht22_frame.rs"]
+pub mod dht22_frame;

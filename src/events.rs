@@ -13,6 +13,8 @@ pub use crate::protocol::{
 #[derive(Clone, Copy, Debug, Format)]
 pub enum Measurements {
     BME280((f32, f32, f32)),
+    /// Temperatura y humedad del DHT22 (placa del firmware MicroPython).
+    Air((f32, f32)),
     BH1750(f32),
     PH(f32),
     TDS(f32),
@@ -26,6 +28,7 @@ impl Measurements {
     pub fn get_topic(&self) -> &str {
         match self {
             Measurements::BME280(_) => "atmosphere",
+            Measurements::Air(_) => "temperature",
             Measurements::BH1750(_) => "brightness",
             Measurements::PH(_) => "ph",
             Measurements::TDS(_) => "tds",

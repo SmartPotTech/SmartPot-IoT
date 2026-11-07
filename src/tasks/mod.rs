@@ -9,8 +9,13 @@ pub mod time;
 #[cfg(feature = "wifi")]
 pub mod wifi;
 
-#[cfg(feature = "sensors")]
+// Prototipo físico (BME280, BH1750, curvas reales).
+#[cfg(feature = "board-physical")]
 pub mod sensors;
+
+// Placa compartida con el firmware MicroPython (por defecto).
+#[cfg(all(feature = "sensors", not(feature = "board-physical")))]
+pub mod board_sensors;
 
 #[cfg(feature = "actuators")]
 pub mod command;

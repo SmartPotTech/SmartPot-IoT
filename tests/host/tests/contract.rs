@@ -11,7 +11,7 @@ use smartpot_iot_host::protocol::Actuators;
 const CONTRACT: &str = include_str!("fixtures/mqtt_v1_contract.json");
 
 /// Actuadores cableados en esta placa; el firmware no debe declarar los dosificadores.
-const INSTALLED_ACTUATORS: [&str; 4] = ["WATER_PUMP", "UV_LIGHT", "FAN", "HUMIDIFIER"];
+const INSTALLED_ACTUATORS: [&str; 3] = ["WATER_PUMP", "UV_LIGHT", "FAN"];
 
 fn contract() -> Value {
     serde_json::from_str(CONTRACT).expect("contract fixture is valid JSON")
@@ -29,7 +29,8 @@ fn capabilities_use_only_contract_sensor_names_and_units() {
     let sensors = capabilities["sensors"].as_array().unwrap();
 
     assert_eq!(capabilities["schema"], contract["schema"]);
-    assert_eq!(sensors.len(), expected_sensors.len());
+    // Cada firmware declara solo los sensores que tiene; todos deben ser del contrato.
+    assert!(sensors.len() <= expected_sensors.len());
 
     for sensor in sensors {
         let key = sensor["key"].as_str().unwrap();

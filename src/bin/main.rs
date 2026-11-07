@@ -8,11 +8,11 @@
 #![allow(clippy::large_stack_frames)]
 
 use esp_backtrace as _;
-#[cfg(feature = "sensors")]
+#[cfg(feature = "board-physical")]
 use esp_hal::Async;
 use esp_hal::analog::adc::{Adc, AdcConfig, Attenuation};
 use esp_hal::clock::CpuClock;
-#[cfg(any(feature = "sensors", feature = "display"))]
+#[cfg(any(feature = "board-physical", feature = "display"))]
 use esp_hal::i2c::master::{Config, I2c};
 use esp_hal::interrupt::software::SoftwareInterruptControl;
 use esp_hal::timer::timg::TimerGroup;
@@ -22,13 +22,13 @@ use esp_rtos::start_second_core;
 use smartpot_iot::{debug, info};
 use static_cell::StaticCell;
 
-#[cfg(feature = "sensors")]
+#[cfg(feature = "board-physical")]
 use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
-#[cfg(feature = "sensors")]
+#[cfg(feature = "board-physical")]
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex};
 #[cfg(feature = "wifi")]
 use smartpot_iot::config::DEFAULT_CONFIG;
-#[cfg(feature = "sensors")]
+#[cfg(feature = "board-physical")]
 use smartpot_iot::drivers::tca9548a::Tca9548a;
 
 #[cfg(feature = "sensors")]
@@ -78,29 +78,61 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
     // CORE 1: ADQUISICIÓN DE SENSORES Y CONTROL DE ACTUADORES
     // =========================================================================
 
-    // Sensores analógicos (ADC1)
+    // Sensores analógicos (ADC1). Placa compartida con MicroPython: luz en
+    // GPIO34, pH en GPIO35, TDS en GPIO32 y humedad de suelo en GPIO33.
     let mut adc1_config = AdcConfig::default();
-    let tds_pin = peripherals.GPIO34;
-    let tds = adc1_config.enable_pin(tds_pin, Attenuation::_11dB);
-
-    let ph_pin = peripherals.GPIO35;
-    let ph = adc1_config.enable_pin(ph_pin, Attenuation::_11dB);
-
-    let soil_pin = peripherals.GPIO32;
-    let soil = adc1_config.enable_pin(soil_pin, Attenuation::_11dB);
-
+    #[cfg(not(feature = "board-physical"))]
+    let (light, ph, tds, soil) = (
+        adc1_config.enable_pin(peripherals.GPIO34, Attenuation::_11dB),
+        adc1_config.enable_pin(peripherals.GPIO35, Attenuation::_11dB),
+        adc1_config.enable_pin(peripherals.GPIO32, Attenuation::_11dB),
+        adc1_config.enable_pin(peripherals.GPIO33, Attenuation::_11dB),
+    );
+    // Prototipo físico: TDS en GPIO34, pH en GPIO35 y suelo en GPIO32.
+    #[cfg(feature = "board-physical")]
+    let (tds, ph, soil) = (
+        adc1_config.enable_pin(peripherals.GPIO34, Attenuation::_11dB),
+        adc1_config.enable_pin(peripherals.GPIO35, Attenuation::_11dB),
+        adc1_config.enable_pin(peripherals.GPIO32, Attenuation::_11dB),
+    );
     let adc1 = Adc::new(peripherals.ADC1, adc1_config);
 
-    // Pines de actuadores (Relés / Transistores)
-    let water_pin = peripherals.GPIO25;
-    let uv_light_pin = peripherals.GPIO26;
-    let fan_pin = peripherals.GPIO27;
-    let humidifier_pin = peripherals.GPIO5;
+    // Pines de actuadores (relés o transistores), según la placa.
+    #[cfg(not(feature = "board-physical"))]
+    let (water_pin, uv_light_pin, fan_pin) =
+        (peripherals.GPIO19, peripherals.GPIO18, peripherals.GPIO5);
+    #[cfg(feature = "board-physical")]
+    let (water_pin, uv_light_pin, fan_pin, humidifier_pin) = (
+        peripherals.GPIO25,
+        peripherals.GPIO26,
+        peripherals.GPIO27,
+        peripherals.GPIO5,
+    );
 
     let cpu1_main = move |_spawner: embassy_executor::Spawner| {
         debug!("Starting sensor and actuator tasks on CORE 1");
 
-        #[cfg(feature = "sensors")]
+        // Placa compartida con MicroPython: DHT22 en GPIO15 y potenciómetros.
+        #[cfg(all(feature = "sensors", not(feature = "board-physical")))]
+        {
+            let dht = smartpot_iot::drivers::dht22::Dht22::new(esp_hal::gpio::Flex::new(
+                peripherals.GPIO15,
+            ));
+            _spawner.spawn(
+                smartpot_iot::tasks::board_sensors::board_sensors_task(
+                    adc1,
+                    light,
+                    ph,
+                    tds,
+                    soil,
+                    dht,
+                    SENSOR_CH.dyn_publisher().unwrap(),
+                )
+                .expect("Failed to spawn board_sensors_task"),
+            );
+        }
+
+        #[cfg(feature = "board-physical")]
         {
             // Pines de protocolo I2C del bus principal.
             let i2c0 = peripherals.I2C0;
@@ -190,7 +222,14 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
             let water = Output::new(water_pin, off_level, OutputConfig::default());
             let uv_light = Output::new(uv_light_pin, off_level, OutputConfig::default());
             let fan = Output::new(fan_pin, off_level, OutputConfig::default());
-            let humidifier = Output::new(humidifier_pin, off_level, OutputConfig::default());
+            #[cfg(feature = "board-physical")]
+            let humidifier = Some(Output::new(
+                humidifier_pin,
+                off_level,
+                OutputConfig::default(),
+            ));
+            #[cfg(not(feature = "board-physical"))]
+            let humidifier = None;
 
             _spawner.spawn(
                 smartpot_iot::tasks::command::catch_commands(

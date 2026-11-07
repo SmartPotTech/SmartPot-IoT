@@ -45,6 +45,7 @@ macro_rules! debug {
 }
 
 pub mod backoff;
+pub mod board;
 pub mod capabilities;
 pub mod clock;
 pub mod codec;
@@ -63,7 +64,7 @@ pub mod tasks;
 #[cfg(feature = "mqtt")]
 pub mod tls;
 
-#[cfg(feature = "sensors")]
+#[cfg(feature = "board-physical")]
 pub mod i2c_scanner {
     use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
     use embassy_sync::blocking_mutex::raw::NoopRawMutex;

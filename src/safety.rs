@@ -39,14 +39,16 @@ pub const fn on_level_is_high() -> bool {
 /// GPIO5 es un pin de *strapping*: emite una señal PWM durante el arranque y
 /// puede hacer vibrar el relé del humidificador. En hardware conviene una
 /// resistencia de *pull-down* (o una red RC) en la entrada del driver del relé.
-pub const WATER_PUMP_GPIO: u8 = 25;
-pub const UV_LIGHT_GPIO: u8 = 26;
-pub const FAN_GPIO: u8 = 27;
-pub const HUMIDIFIER_GPIO: u8 = 5;
+pub use crate::board::{FAN_GPIO, HUMIDIFIER_GPIO, UV_LIGHT_GPIO, WATER_PUMP_GPIO};
 
 /// Máscara del registro `GPIO_OUT` (GPIO0..31) con todas las salidas de actuador.
-pub const ACTUATOR_GPIO_MASK: u32 =
-    (1 << WATER_PUMP_GPIO) | (1 << UV_LIGHT_GPIO) | (1 << FAN_GPIO) | (1 << HUMIDIFIER_GPIO);
+pub const ACTUATOR_GPIO_MASK: u32 = (1 << WATER_PUMP_GPIO)
+    | (1 << UV_LIGHT_GPIO)
+    | (1 << FAN_GPIO)
+    | match HUMIDIFIER_GPIO {
+        Some(pin) => 1 << pin,
+        None => 0,
+    };
 
 /// Indica si el actuador tiene riesgo físico al quedar encendido sin control.
 pub const fn is_critical(actuator: Actuators) -> bool {
@@ -117,9 +119,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn mask_covers_the_four_actuator_pins() {
-        assert_eq!(ACTUATOR_GPIO_MASK.count_ones(), 4);
-        assert_ne!(ACTUATOR_GPIO_MASK & (1 << 25), 0);
-        assert_ne!(ACTUATOR_GPIO_MASK & (1 << 5), 0);
+    fn mask_covers_every_actuator_pin() {
+        assert_eq!(
+            ACTUATOR_GPIO_MASK.count_ones() as usize,
+            crate::board::ACTUATOR_COUNT
+        );
+        assert_ne!(ACTUATOR_GPIO_MASK & (1 << WATER_PUMP_GPIO), 0);
     }
 }

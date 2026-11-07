@@ -87,8 +87,11 @@ fn load_shared_config() {
 
     let text_of = |value: &serde_json::Value| value.as_str().map(str::to_owned);
     let number_of = |value: &serde_json::Value| value.as_u64().map(|n| n.to_string());
-    let flag_of =
-        |value: &serde_json::Value| value.as_bool().map(|b| if b { "1" } else { "0" }.to_owned());
+    let flag_of = |value: &serde_json::Value| {
+        value
+            .as_bool()
+            .map(|b| if b { "1" } else { "0" }.to_owned())
+    };
 
     emit("SSID", text_of(&wifi["ssid"]));
     emit("PASSWORD", text_of(&wifi["password"]));
@@ -97,8 +100,14 @@ fn load_shared_config() {
     emit("BROKER_HOST", text_of(&smartpot["host"]));
     emit("BROKER_PORT", number_of(&smartpot["port"]));
     emit("USE_TLS", flag_of(&smartpot["tls"]));
-    emit("TELEMETRY_INTERVAL_SECS", number_of(&smartpot["interval_seconds"]));
-    emit("WATCHDOG_TIMEOUT_SECS", number_of(&smartpot["watchdog_seconds"]));
+    emit(
+        "TELEMETRY_INTERVAL_SECS",
+        number_of(&smartpot["interval_seconds"]),
+    );
+    emit(
+        "WATCHDOG_TIMEOUT_SECS",
+        number_of(&smartpot["watchdog_seconds"]),
+    );
     emit("ACTUATOR_ACTIVE_LOW", flag_of(&smartpot["active_low"]));
     emit("HEAP_MIN_FREE", number_of(&smartpot["heap_min_free"]));
     emit("SNTP_SERVER", text_of(&smartpot["ntp_server"]));
@@ -108,7 +117,8 @@ fn load_shared_config() {
     }
     // Una directiva de cargo no admite saltos de línea: el PEM se pasa en una
     // sola línea, y el decodificador ignora los espacios entre las cabeceras.
-    let ca = text_of(&config["BROKER"]["CA_CRT"]).map(|pem| pem.split_whitespace().collect::<Vec<_>>().join(""));
+    let ca = text_of(&config["BROKER"]["CA_CRT"])
+        .map(|pem| pem.split_whitespace().collect::<Vec<_>>().join(""));
     emit(
         "CA_CERT_PEM",
         ca.map(|pem| {

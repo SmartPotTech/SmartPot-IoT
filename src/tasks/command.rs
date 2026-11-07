@@ -118,18 +118,20 @@ fn publish_ack(ack_channel: &DynPublisher<'static, AckMessage>, ack: AckMessage)
 /// Ejecuta un comando validado y devuelve su confirmación.
 fn execute(channels: &mut [Channel], cmd: &Command, now: Instant) -> AckMessage {
     let Some(channel) = channels.iter_mut().find(|c| c.kind == cmd.actuator) else {
-        // Los dosificadores existen en el contrato, pero esta placa no tiene
-        // salida GPIO para ellos: se rechazan sin accionar ningún pin.
-        let message = cmd
-            .actuator
-            .unavailable_message()
-            .unwrap_or("This device does not have this actuator installed");
+        // Actuador sin salida en esta placa (dosificadores y, en la placa
+        // compartida con MicroPython, el humidificador): mismo mensaje que el
+        // firmware MicroPython y ningún pin accionado.
+        let mut message: heapless::String<64> = heapless::String::new();
+        let _ = core::fmt::Write::write_fmt(
+            &mut message,
+            format_args!("This device does not have {}", cmd.actuator.key()),
+        );
         warn!(
             "[ACTUATOR] Rejected command {}: {}",
             cmd.id.as_str(),
-            message
+            message.as_str()
         );
-        return AckMessage::failure(cmd.id.as_str(), message);
+        return AckMessage::failure(cmd.id.as_str(), message.as_str());
     };
 
     match cmd.action {
@@ -157,15 +159,16 @@ pub async fn catch_commands(
     water: Output<'static>,
     uv_light: Output<'static>,
     fan: Output<'static>,
-    humidifier: Output<'static>,
+    humidifier: Option<Output<'static>>,
 ) {
     // Todas las salidas arrancan en bajo (apagadas) al construir cada canal.
-    let mut channels = [
-        Channel::new(Actuators::WaterPump, water),
-        Channel::new(Actuators::UvLight, uv_light),
-        Channel::new(Actuators::Fan, fan),
-        Channel::new(Actuators::Humidifier, humidifier),
-    ];
+    let mut channels: heapless::Vec<Channel, 4> = heapless::Vec::new();
+    let _ = channels.push(Channel::new(Actuators::WaterPump, water));
+    let _ = channels.push(Channel::new(Actuators::UvLight, uv_light));
+    let _ = channels.push(Channel::new(Actuators::Fan, fan));
+    if let Some(humidifier) = humidifier {
+        let _ = channels.push(Channel::new(Actuators::Humidifier, humidifier));
+    }
     let mut history = AckHistory::new();
 
     let mut broker = BROKER_ONLINE.receiver();
@@ -176,7 +179,7 @@ pub async fn catch_commands(
         beat(Beat::Command);
         // La pantalla muestra qué salidas están activas.
         ACTUATOR_STATES.sender().send(core::array::from_fn(|index| {
-            channels[index].on_since.is_some()
+            channels.get(index).is_some_and(|c| c.on_since.is_some())
         }));
         #[cfg(feature = "sim")]
         while crate::sim::hooks::core1_should_hang() {
