@@ -133,3 +133,25 @@ fn update_helpers_set_and_clean_the_state() {
     assert!(state.is_empty());
     assert_eq!(render(&state).as_str(), "{}");
 }
+
+#[test]
+fn stale_fields_are_dropped_from_the_snapshot() {
+    use smartpot_iot_host::protocol::telemetry::{Field, FreshState};
+
+    let mut state = FreshState::default();
+    state.set(Field::Temperature, 22.0, 0);
+    state.set(Field::SoilMoisture, 41.0, 20_000);
+
+    // Dentro del plazo se publican ambos campos.
+    let fresh = state.snapshot(25_000, 30_000);
+    assert_eq!(fresh.temperature, Some(22.0));
+    assert_eq!(fresh.soil_moisture, Some(41.0));
+
+    // Un sensor que dejó de responder ya no repite su último valor.
+    let later = state.snapshot(35_000, 30_000);
+    assert_eq!(later.temperature, None);
+    assert_eq!(later.soil_moisture, Some(41.0));
+
+    // Sin ninguna lectura reciente la instantánea queda vacía y no se publica.
+    assert!(state.snapshot(100_000, 30_000).is_empty());
+}

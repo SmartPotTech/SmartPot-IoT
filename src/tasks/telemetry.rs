@@ -1,12 +1,18 @@
-use crate::protocol::SensorState;
+//! Agrega las mediciones de sensores y publica una instantánea por intervalo.
+
 use embassy_executor::task;
 use embassy_futures::select::{Either, select};
 use embassy_sync::pubsub::{DynPublisher, DynSubscriber};
-use embassy_time::{Duration, Timer};
+use embassy_time::{Duration, Instant, Timer};
 
+use crate::config::SENSOR_INTERVAL_SECS;
 use crate::events::Measurements;
 use crate::events::telemetry::TelemetryMessage;
 use crate::health::{Beat, beat};
+use crate::protocol::telemetry::{Field, FreshState};
+
+/// Una lectura caduca si su sensor no respondió en tres periodos de muestreo.
+const FRESHNESS_TTL_MS: u64 = SENSOR_INTERVAL_SECS * 3 * 1000;
 
 #[task]
 pub async fn telemetry_task(
@@ -19,26 +25,34 @@ pub async fn telemetry_task(
         interval_seconds
     );
 
-    let mut sensor_state = SensorState::default();
+    let mut sensors = FreshState::default();
     let mut snapshot_timer = Timer::after(Duration::from_secs(interval_seconds));
 
     loop {
         beat(Beat::Telemetry);
         match select(sensors_channel.next_message_pure(), &mut snapshot_timer).await {
-            Either::First(m) => match m {
-                Measurements::BME280((t, h, p)) => sensor_state.update_bme280(t, h, p),
-                Measurements::BH1750(l) => sensor_state.update_lux(l),
-                Measurements::PH(p) => sensor_state.update_ph(p),
-                Measurements::TDS(t) => sensor_state.update_tds(t),
-                Measurements::SoilMoisture(sm) => sensor_state.update_soil_moisture(sm),
-            },
+            Either::First(measurement) => {
+                let now = Instant::now().as_millis();
+                match measurement {
+                    Measurements::BME280((t, h, p)) => {
+                        sensors.set(Field::Temperature, t, now);
+                        sensors.set(Field::Humidity, h, now);
+                        sensors.set(Field::Atmosphere, p, now);
+                    }
+                    Measurements::BH1750(lux) => sensors.set(Field::Brightness, lux, now),
+                    Measurements::PH(ph) => sensors.set(Field::Ph, ph, now),
+                    Measurements::TDS(tds) => sensors.set(Field::Tds, tds, now),
+                    Measurements::SoilMoisture(sm) => sensors.set(Field::SoilMoisture, sm, now),
+                }
+            }
 
             Either::Second(_) => {
-                if !sensor_state.is_empty() {
+                let state = sensors.snapshot(Instant::now().as_millis(), FRESHNESS_TTL_MS);
+                if !state.is_empty() {
                     let mut payload: heapless::String<255> = heapless::String::new();
-                    sensor_state.to_json(&mut payload);
+                    state.to_json(&mut payload);
                     info!("[TELEMETRY] Snapshot ready: {}", payload.as_str());
-                    telemetry_channel.publish_immediate(TelemetryMessage::SendAll(sensor_state));
+                    telemetry_channel.publish_immediate(TelemetryMessage::SendAll(state));
                 }
                 snapshot_timer = Timer::after(Duration::from_secs(interval_seconds));
             }

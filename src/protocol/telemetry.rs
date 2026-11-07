@@ -123,6 +123,65 @@ impl SensorState {
     }
 }
 
+/// Campos del estado de sensores, en el orden de `FreshState::updated_ms`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Field {
+    Temperature,
+    Humidity,
+    Brightness,
+    Ph,
+    Tds,
+    Atmosphere,
+    SoilMoisture,
+}
+
+/// Estado de sensores con la hora de la última lectura de cada campo.
+///
+/// Un sensor que deja de responder ya no repite su último valor para siempre:
+/// al tomar la instantánea, los campos sin lectura reciente se omiten.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct FreshState {
+    state: SensorState,
+    updated_ms: [Option<u64>; 7],
+}
+
+impl FreshState {
+    pub fn set(&mut self, field: Field, value: f32, now_ms: u64) {
+        let slot = match field {
+            Field::Temperature => &mut self.state.temperature,
+            Field::Humidity => &mut self.state.humidity,
+            Field::Brightness => &mut self.state.brightness,
+            Field::Ph => &mut self.state.ph,
+            Field::Tds => &mut self.state.tds,
+            Field::Atmosphere => &mut self.state.atmosphere,
+            Field::SoilMoisture => &mut self.state.soil_moisture,
+        };
+        *slot = Some(value);
+        self.updated_ms[field as usize] = Some(now_ms);
+    }
+
+    /// Estado con solo los campos leídos en los últimos `ttl_ms` milisegundos.
+    pub fn snapshot(&self, now_ms: u64, ttl_ms: u64) -> SensorState {
+        let fresh = |field: Field, value: Option<f32>| {
+            let updated = self.updated_ms[field as usize]?;
+            if now_ms.saturating_sub(updated) > ttl_ms {
+                None
+            } else {
+                value
+            }
+        };
+        SensorState {
+            temperature: fresh(Field::Temperature, self.state.temperature),
+            humidity: fresh(Field::Humidity, self.state.humidity),
+            brightness: fresh(Field::Brightness, self.state.brightness),
+            ph: fresh(Field::Ph, self.state.ph),
+            tds: fresh(Field::Tds, self.state.tds),
+            atmosphere: fresh(Field::Atmosphere, self.state.atmosphere),
+            soil_moisture: fresh(Field::SoilMoisture, self.state.soil_moisture),
+        }
+    }
+}
+
 fn valid(value: Option<f32>, range: limits::ApiRange) -> Option<f32> {
     value.filter(|v| range.contains(*v))
 }
