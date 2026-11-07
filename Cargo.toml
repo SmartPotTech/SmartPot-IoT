@@ -77,20 +77,20 @@ nb = "1.1.0"
 heapless = "0.9.2"
 rust-mqtt = { version = "0.5", features = ["defmt"] }
 
-# Sensores
-bh1750-embedded = { version = "0.1.0", features = ["async"] } # lux
-
 [profile.dev]
-# La compilación de depuración estándar es demasiado lenta
-# Para depuración siempre se compila con optimización base
-opt-level = 0
+# La compilación de depuración estándar es demasiado lenta y excede la partición de 1 MB
+# Para depuración siempre se compila con optimización de tamaño
+codegen-units = 1
 debug = 2
+debug-assertions = false
+opt-level = "z"
+overflow-checks = false
 
 [profile.release]
 codegen-units = 1     # LLVM optimiza mejor utilizando un único hilo de generación de código
 debug = 2
 debug-assertions = false
 incremental = false
-lto = 'fat'
-opt-level = 's'
+lto = false
+opt-level = 'z'
 overflow-checks = false

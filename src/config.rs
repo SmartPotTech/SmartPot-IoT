@@ -65,10 +65,7 @@ pub const DEFAULT_CONFIG: Config = Config {
         Some(v) => v,
         None => "pool.ntp.org",
     },
-    compact_telemetry: match option_env!("COMPACT_TELEMETRY") {
-        Some(_) => true,
-        None => false,
-    },
+    compact_telemetry: option_env!("COMPACT_TELEMETRY").is_some(),
     telemetry_interval_secs: 15,
 };
 
@@ -77,6 +74,7 @@ pub const DEFAULT_CONFIG: Config = Config {
 /// Solo se admite PEM con las cabeceras `BEGIN/END CERTIFICATE`. Si la variable
 /// no está definida o el contenido es inválido se devuelve `Err(())`; el cliente
 /// MQTT lo trata como un fallo cerrado y nunca cae a una conexión sin verificar.
+#[allow(clippy::result_unit_err)]
 pub fn ca_cert_der<const N: usize>(pem: &str) -> Result<Vec<u8, N>, ()> {
     if pem.trim().is_empty() {
         return Err(());

@@ -19,6 +19,7 @@ pub enum Actuators {
 }
 
 impl Actuators {
+    #[allow(clippy::should_implement_trait, clippy::result_unit_err)]
     pub fn from_str(s: &str) -> Result<Self, ()> {
         let s = s.trim();
         if s.is_empty() {
@@ -76,6 +77,7 @@ pub enum Action {
 }
 
 impl Action {
+    #[allow(clippy::should_implement_trait, clippy::result_unit_err)]
     pub fn from_str(s: &str) -> Result<Self, ()> {
         let s = s.trim();
         if s.is_empty() {
@@ -101,6 +103,7 @@ pub struct Command {
 }
 
 /// Extrae el valor de un campo tipo cadena de un JSON simple sin asignaciones en memoria dinámica.
+#[allow(clippy::result_unit_err)]
 pub fn extract_str_field(json: &str, field: &str) -> Result<String<64>, ()> {
     let key = field.as_bytes();
     let bytes = json.as_bytes();
@@ -165,12 +168,12 @@ pub fn extract_u32_field(json: &str, field: &str) -> Option<u32> {
             while j < bytes.len() && bytes[j].is_ascii_digit() {
                 j += 1;
             }
-            if start < j {
-                if let Ok(s) = core::str::from_utf8(&bytes[start..j]) {
-                    if let Ok(n) = s.parse::<u32>() {
-                        return Some(n);
-                    }
-                }
+            if start < j
+                && let Some(n) = core::str::from_utf8(&bytes[start..j])
+                    .ok()
+                    .and_then(|s| s.parse::<u32>().ok())
+            {
+                return Some(n);
             }
             let _ = in_quotes;
         }
@@ -185,6 +188,7 @@ pub fn extract_u32_field(json: &str, field: &str) -> Option<u32> {
 /// acciones vacíos y cualquier valor desconocido. Los dosificadores son
 /// válidos a nivel de contrato: la tarea de comandos los rechaza con un ACK
 /// descriptivo porque esta placa no los tiene instalados.
+#[allow(clippy::result_unit_err)]
 pub fn parse_command(payload: &str) -> Result<Command, ()> {
     let id_str = extract_str_field(payload, "id")?;
     let actuator_str = extract_str_field(payload, "actuator")?;

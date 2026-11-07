@@ -18,6 +18,7 @@ pub struct AckMessage {
     pub message: String<96>,
 }
 
+#[allow(clippy::manual_is_multiple_of)]
 pub fn format_readable_duration<const N: usize>(seconds: u32, buf: &mut String<N>) {
     if seconds >= 3600 && seconds % 3600 == 0 {
         let _ = write!(buf, "{} h", seconds / 3600);

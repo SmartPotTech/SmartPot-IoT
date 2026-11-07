@@ -1,3 +1,4 @@
+pub mod bh1750;
 pub mod bme280;
 pub mod tca9548a;
 pub mod tds;

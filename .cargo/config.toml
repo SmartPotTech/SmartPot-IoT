@@ -7,8 +7,8 @@ rustflags = [
 
 [env]
 DEFMT_LOG = "info"
-SSID = "SSID"
-PASSWORD = "PASSWORD"
+SSID = "Wokwi-GUEST"
+PASSWORD = ""
 
 [build]
 target = "xtensa-esp32-none-elf"

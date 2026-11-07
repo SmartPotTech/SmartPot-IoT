@@ -214,28 +214,28 @@ pub async fn catch_commands(
                 // Tick periódico para verificar expiración de actuadores temporizados
                 let now = Instant::now();
 
-                if water_state.active && water_state.until.map_or(false, |u| now >= u) {
+                if water_state.active && water_state.until.is_some_and(|u| now >= u) {
                     water.set_low();
                     water_state.active = false;
                     water_state.until = None;
                     info!("[ACTUATOR] Water pump turned off after timer elapsed");
                 }
 
-                if uv_light_state.active && uv_light_state.until.map_or(false, |u| now >= u) {
+                if uv_light_state.active && uv_light_state.until.is_some_and(|u| now >= u) {
                     uv_light.set_low();
                     uv_light_state.active = false;
                     uv_light_state.until = None;
                     info!("[ACTUATOR] UV light turned off after timer elapsed");
                 }
 
-                if fan_state.active && fan_state.until.map_or(false, |u| now >= u) {
+                if fan_state.active && fan_state.until.is_some_and(|u| now >= u) {
                     fan.set_low();
                     fan_state.active = false;
                     fan_state.until = None;
                     info!("[ACTUATOR] Fan turned off after timer elapsed");
                 }
 
-                if humidifier_state.active && humidifier_state.until.map_or(false, |u| now >= u) {
+                if humidifier_state.active && humidifier_state.until.is_some_and(|u| now >= u) {
                     humidifier.set_low();
                     humidifier_state.active = false;
                     humidifier_state.until = None;

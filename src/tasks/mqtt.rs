@@ -187,6 +187,7 @@ async fn resolve_broker(stack: Stack<'static>, host: &str) -> Option<Ipv4Addr> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_mqtt_client<T>(
     transport: &mut T,
     config: &Config,

@@ -6,8 +6,7 @@
 //! `sensors`. Si el escáner no llegara a publicar, un tiempo límite de 5 s
 //! desbloquea las tareas para no detener la adquisición.
 
-use bh1750_embedded::Resolution;
-use bh1750_embedded::r#async::Bh1750Async;
+use crate::drivers::bh1750::{BH1750_DEFAULT_ADDRESS, Bh1750};
 use defmt::{debug, error, info, warn};
 use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
 use embassy_executor::task;
@@ -237,12 +236,11 @@ pub async fn bh1750_task(
     wait_for_i2c_scan().await;
 
     info!("Starting BH1750 light sensor...");
-    let delay = embassy_time::Delay;
-    let mut sensor = Bh1750Async::new(i2c_bus, delay, bh1750_embedded::Address::Low);
+    let mut sensor = Bh1750::new(i2c_bus, BH1750_DEFAULT_ADDRESS);
     let mut lux_filter = SensorCascade::new(0.5, 2.0);
 
     loop {
-        match sensor.one_time_measurement(Resolution::High).await {
+        match sensor.measure().await {
             Ok(measure) => {
                 let lux = lux_filter.update(measure);
                 sensor_channel.publish_immediate(Measurements::BH1750(lux));
