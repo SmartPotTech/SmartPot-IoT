@@ -1,6 +1,8 @@
-//! Utilidades del build de simulación (`--features sim`) para Wokwi.
+//! Utilidades de compatibilidad con el simulador Wokwi para ESP32.
 //!
-//! Nada de este módulo entra en el firmware de producción.
+//! Se compila siempre para que el binario por defecto (`cargo build`) funcione
+//! directamente en Wokwi sin requerir flags adicionales y sin afectar al
+//! comportamiento en silicio real.
 
 /// Habilita la interrupción del temporizador 0 de TIMG0 en `INT_ENA_TIMERS`.
 ///

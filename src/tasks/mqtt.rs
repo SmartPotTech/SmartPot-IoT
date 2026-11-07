@@ -35,8 +35,10 @@ use crate::clock;
 use crate::config::{self, Config};
 use crate::events::telemetry::TelemetryMessage;
 use crate::events::{AckMessage, BROKER_ONLINE, Command};
+use crate::health::{Beat, beat};
 use crate::protocol::{TopicResolver, parse_command};
 use crate::tls::VerifyingProvider;
+use static_cell::ConstStaticCell;
 
 /// Tamaño del búfer para la cadena de certificados del servidor durante el handshake.
 const TLS_CERT_BUFFER_SIZE: usize = 2048;
@@ -52,11 +54,15 @@ pub async fn mqtt_task(
 ) {
     stack.wait_config_up().await;
 
-    let mut rx_buffer = [0u8; 4096];
-    let mut tx_buffer = [0u8; 4096];
+    static RX_BUFFER: ConstStaticCell<[u8; 4096]> = ConstStaticCell::new([0u8; 4096]);
+    static TX_BUFFER: ConstStaticCell<[u8; 4096]> = ConstStaticCell::new([0u8; 4096]);
+    static TLS_RX: ConstStaticCell<[u8; 16640]> = ConstStaticCell::new([0u8; 16640]);
+    static TLS_TX: ConstStaticCell<[u8; 16640]> = ConstStaticCell::new([0u8; 16640]);
 
-    let mut tls_rx = [0u8; 16640];
-    let mut tls_tx = [0u8; 16640];
+    let rx_buffer = RX_BUFFER.take();
+    let tx_buffer = TX_BUFFER.take();
+    let tls_rx = TLS_RX.take();
+    let tls_tx = TLS_TX.take();
 
     let resolver = TopicResolver::new(config.crop_id);
     let topic_telemetry_str: String<64> = resolver.telemetry();
@@ -64,8 +70,10 @@ pub async fn mqtt_task(
     let topic_ack_str: String<64> = resolver.ack();
     let topic_status_str: String<64> = resolver.status();
     let topic_capabilities_str: String<64> = resolver.capabilities();
+    let mut ca_missing_logged = false;
 
     loop {
+        beat(Beat::Mqtt);
         if let Some(net_cfg) = stack.config_v4() {
             info!(
                 "[MQTT] Local IP: {}, Gateway: {:?}",
@@ -77,6 +85,7 @@ pub async fn mqtt_task(
         // de abrir el socket para no mantener conexiones TCP sin verificar.
         let ca_der = if config.use_tls {
             while !clock::is_synced() {
+                beat(Beat::Mqtt);
                 warn!("[MQTT] Waiting for SNTP time synchronization before TLS");
                 Timer::after(Duration::from_secs(2)).await;
             }
@@ -84,9 +93,12 @@ pub async fn mqtt_task(
             match config::ca_cert_der::<TLS_CERT_BUFFER_SIZE>(config.ca_cert_pem) {
                 Ok(der) => der,
                 Err(_) => {
-                    error!(
-                        "[MQTT] CA_CERT_PEM is missing or invalid; refusing to connect without certificate verification"
-                    );
+                    if !ca_missing_logged {
+                        error!(
+                            "[MQTT] CA_CERT_PEM is missing or invalid; refusing to connect without certificate verification"
+                        );
+                        ca_missing_logged = true;
+                    }
                     Timer::after(Duration::from_secs(5)).await;
                     continue;
                 }
@@ -109,7 +121,7 @@ pub async fn mqtt_task(
         };
         let broker_addr = SocketAddrV4::new(broker_ip, config.broker_port);
 
-        let mut socket = NetTcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
+        let mut socket = NetTcpSocket::new(stack, rx_buffer, tx_buffer);
         if let Err(e) = socket.connect(broker_addr).await {
             error!("[MQTT] TCP connection failed: {:?}", e);
             Timer::after(Duration::from_secs(5)).await;
@@ -123,7 +135,7 @@ pub async fn mqtt_task(
                 .enable_rsa_signatures();
             let provider = VerifyingProvider::new(rng.clone(), ca_der.as_slice());
             let tls_context = TlsContext::new(&tls_config, provider);
-            let mut tls = TlsConnection::new(socket, &mut tls_rx, &mut tls_tx);
+            let mut tls = TlsConnection::new(socket, tls_rx, tls_tx);
             if let Err(e) = tls.open(tls_context).await {
                 error!("[MQTT] TLS handshake failed: {:?}", e);
                 Timer::after(Duration::from_secs(5)).await;
@@ -291,6 +303,7 @@ async fn run_mqtt_client<T>(
     let mut telemetry_seq: u16 = 0;
 
     loop {
+        beat(Beat::Mqtt);
         match select3(
             client.poll(),
             ack_channel.next_message_pure(),

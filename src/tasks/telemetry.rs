@@ -35,6 +35,9 @@ pub async fn telemetry_task(
 
             Either::Second(_) => {
                 if !sensor_state.is_empty() {
+                    let mut payload: heapless::String<255> = heapless::String::new();
+                    sensor_state.to_json(&mut payload);
+                    info!("[TELEMETRY] Snapshot ready: {}", payload.as_str());
                     telemetry_channel.publish_immediate(TelemetryMessage::SendAll(sensor_state));
                 }
                 snapshot_timer = Timer::after(Duration::from_secs(interval_seconds));

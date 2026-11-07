@@ -17,6 +17,7 @@ use esp_hal::analog::adc::{Adc, AdcPin};
 use esp_hal::peripherals::{ADC1, GPIO32, GPIO34, GPIO35};
 use esp_hal::{Async, i2c::master::I2c};
 
+use crate::config::SENSOR_INTERVAL_SECS;
 use crate::drivers::bme280::{Bme280, MeasurementsBME280};
 use crate::drivers::tca9548a::{Tca9548a, TcaChannel};
 use crate::drivers::tds::{ph_from_adc, soil_moisture_from_adc, tds_from_adc};
@@ -161,7 +162,7 @@ pub async fn bme280_sequential_task(
             BME_TEMPERATURE.sender().send(temperature);
         }
 
-        Timer::after(Duration::from_secs(10)).await;
+        Timer::after(Duration::from_secs(SENSOR_INTERVAL_SECS)).await;
     }
 }
 
@@ -263,7 +264,7 @@ pub async fn bh1750_task(
             }
         }
 
-        Timer::after(Duration::from_secs(10)).await;
+        Timer::after(Duration::from_secs(SENSOR_INTERVAL_SECS)).await;
     }
 }
 
@@ -290,21 +291,36 @@ pub async fn analog_sensors_task(
             .and_then(|receiver| receiver.try_get())
             .unwrap_or(25.0);
 
+        let mut logged_tds = None;
+        let mut logged_ph = None;
+        let mut logged_soil = None;
+
         if let Ok(val) = nb::block!(adc.read_oneshot(&mut tds)) {
             let tds_val = tds_filter.update(tds_from_adc(val, current_temp));
             sensor_channel.publish_immediate(Measurements::TDS(tds_val));
+            logged_tds = Some(tds_val);
         }
 
         if let Ok(val) = nb::block!(adc.read_oneshot(&mut ph)) {
             let ph_val = ph_filter.update(ph_from_adc(val, current_temp));
             sensor_channel.publish_immediate(Measurements::PH(ph_val));
+            logged_ph = Some(ph_val);
         }
 
         if let Ok(val) = nb::block!(adc.read_oneshot(&mut soil)) {
             let soil_val = soil_filter.update(soil_moisture_from_adc(val));
             sensor_channel.publish_immediate(Measurements::SoilMoisture(soil_val));
+            logged_soil = Some(soil_val);
         }
 
-        Timer::after(Duration::from_secs(10)).await;
+        if let (Some(tds_val), Some(ph_val), Some(soil_val)) = (logged_tds, logged_ph, logged_soil)
+        {
+            info!(
+                "[ADC] TDS: {:.1} ppm, pH: {:.2}, Soil moisture: {:.1}%",
+                tds_val, ph_val, soil_val
+            );
+        }
+
+        Timer::after(Duration::from_secs(SENSOR_INTERVAL_SECS)).await;
     }
 }

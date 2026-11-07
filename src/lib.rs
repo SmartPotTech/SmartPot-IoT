@@ -55,7 +55,6 @@ pub mod health;
 pub mod limits;
 pub mod protocol;
 pub mod safety;
-#[cfg(feature = "sim")]
 pub mod sim;
 pub mod tasks;
 #[cfg(feature = "mqtt")]
