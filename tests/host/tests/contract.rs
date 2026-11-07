@@ -106,3 +106,56 @@ fn every_contract_alias_resolves_to_its_canonical_actuator() {
         );
     }
 }
+
+#[test]
+fn command_durations_follow_the_shared_contract() {
+    use smartpot_iot_host::protocol::{CommandError, parse_command};
+
+    let contract = contract();
+    let commands = &contract["commands"];
+    let message = commands["invalidDurationMessage"].as_str().unwrap();
+
+    for valid in commands["validDurations"].as_array().unwrap() {
+        let payload = format!(
+            r#"{{"id":"d","actuator":"FAN","action":"ACTIVATE","durationSeconds":{valid}}}"#
+        );
+        let command = parse_command(&payload).unwrap_or_else(|_| panic!("{valid} must be valid"));
+        assert_eq!(command.duration_seconds, valid.as_u64().map(|v| v as u32));
+    }
+
+    for invalid in commands["invalidDurations"].as_array().unwrap() {
+        let payload = format!(
+            r#"{{"id":"d","actuator":"FAN","action":"ACTIVATE","durationSeconds":{invalid}}}"#
+        );
+        let error = parse_command(&payload).unwrap_err();
+        assert_eq!(error, CommandError::InvalidDuration, "{invalid}");
+        assert_eq!(error.message(), message);
+    }
+}
+
+#[test]
+fn actuator_safety_policy_follows_the_shared_contract() {
+    use smartpot_iot_host::safety;
+
+    let contract = contract();
+    let policy = &contract["commands"]["safety"];
+    assert_eq!(
+        policy["maxOnSeconds"].as_u64(),
+        Some(safety::MAX_DURATION_SECONDS as u64)
+    );
+    assert_eq!(
+        policy["offlineCutoffSeconds"].as_u64(),
+        Some(safety::OFFLINE_CUTOFF_SECONDS)
+    );
+    let critical: Vec<&str> = policy["criticalActuators"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| value.as_str().unwrap())
+        .collect();
+    for name in contract["actuators"].as_array().unwrap() {
+        let name = name.as_str().unwrap();
+        let actuator = Actuators::from_str(name).unwrap();
+        assert_eq!(safety::is_critical(actuator), critical.contains(&name), "{name}");
+    }
+}
