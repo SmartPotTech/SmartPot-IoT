@@ -31,8 +31,8 @@ flowchart LR
     end
     subgraph core1["Core 1 · Hardware"]
       direction TB
-      i2c["I2C: BME280 & BH1750"]
-      adc["ADC: TDS, pH, Substrate"]
+      i2c["DHT22 · LCD2004 on I2C1"]
+      adc["ADC: Light, pH, TDS, Substrate"]
       act["Timed Actuator Bank"]
     end
     core1 -->|"Embassy Channels"| core0
@@ -92,7 +92,7 @@ Canonical prefix: `smartpot/v1/{cropId}/`
 | Topic              | Direction       | QoS | Retained | Purpose                                                                                             | Payload / JSON Example                                                                                                                                                                                                             |
 |--------------------|-----------------|-----|----------|-----------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `.../status`       | Device → Broker | 1   | Yes      | Crop status (LWT & connection)                                                                      | `"online"` / `"offline"`                                                                                                                                                                                                           |
-| `.../capabilities` | Device → Broker | 1   | Yes      | Hardware declaration, published after `online` and before `commands`; 7 sensors, 4 actuators, <2 KB | `{"schema":1,"device":{"firmware":"smartpot-iot/0.1.0","hardware":"esp32-devkit-c-v4","telemetry":{"formats":["json-v1","compact-v2"],"compactBytes":27}},"sensors":[…],"actuators":["WATER_PUMP","UV_LIGHT","FAN","HUMIDIFIER"]}` |
+| `.../capabilities` | Device → Broker | 1   | Yes      | Hardware declaration, published after `online` and before `commands`; 6 sensors and 3 actuators (7 and 4 with `board-physical`), <2 KB | `{"schema":1,"device":{"firmware":"smartpot-iot/0.1.0","hardware":"esp32-devkit-c-v4","telemetry":{"formats":["json-v1","compact-v2"],"compactBytes":27}},"sensors":[…],"actuators":["WATER_PUMP","UV_LIGHT","FAN"]}` |
 | `.../telemetry`    | Device → Broker | 0   | No       | Aggregated sample of physical variables                                                             | `{"temperature":23.4,"humidity":64.8,"brightness":1850,"ph":6.85,"tds":620,"atmosphere":1012.8,"soilMoisture":48.2}`                                                                                                               |
 | `.../commands`     | API → Device    | 1   | No       | Actuation command with optional duration                                                            | `{"id":"cmd-1","actuator":"WATER_PUMP","action":"ACTIVATE","durationSeconds":15}`                                                                                                                                                  |
 | `.../commands/ack` | Device → Broker | 1   | No       | Execution confirmation in English                                                                   | `{"id":"cmd-1","status":"EXECUTED","message":"Water pump turned on for 15 s"}`                                                                                                                                                     |
@@ -108,9 +108,9 @@ Canonical prefix: `smartpot/v1/{cropId}/`
 * **Edge filtering**: each channel runs a median-of-5 window followed by a 1D Kalman filter in Q16.16 with a 3σ
   innovation gate. Spikes keep the estimate and expand the covariance, so a real step is accepted after a few samples
   instead of being locked out.
-* **Atomic I2C multiplexing and sensor timing**: the TCA9548A driver selects the channel inside the same bus lock as
-  `write`, `write_read` and `transaction`, so concurrent BME280 reads cannot cross channels. The BME280 driver waits 2
-  ms after reset and polls the measuring bit with a 20 ms cap.
+* **Atomic I2C multiplexing and sensor timing** (`board-physical`): the TCA9548A driver selects the channel inside the
+  same bus lock as `write`, `write_read` and `transaction`, so concurrent BME280 reads cannot cross channels. The BME280
+  driver waits 2 ms after reset and polls the measuring bit with a 20 ms cap.
 * **CA-verified TLS 1.3**: `embedded-tls` verifies the broker chain against `CA_CERT_PEM` using the SNTP epoch. A
   missing or invalid CA, or an unsynchronized clock, fails closed: the firmware retries instead of falling back to an
   unverified connection.
@@ -177,17 +177,20 @@ messages as the MicroPython firmware. Internal `[INFO ]`/`[WARN ]` logs are only
   (server certificate plus RSA 4096 CA).
 * **Sensors**: the median + Kalman cascade reseeds after three consecutive rejections, so real steps (watering, lamps)
   show up within a minute, and light is filtered in tens of lux to avoid Q16.16 clipping. Readings older than three
-  sampling periods are omitted, the three BME280 units are averaged, probes stuck at an ADC rail are dropped, and I2C
-  transactions and measurements have timeouts with BME280 hot-plug recovery.
+  sampling periods are omitted, probes stuck at an ADC rail are dropped and the ADC is oversampled 16 times. With
+  `board-physical`, the three BME280 units are averaged and I2C transactions and measurements have timeouts with
+  BME280 hot-plug recovery.
 * **Local display**: an LCD2004 on its own I2C bus (I2C1, SCL GPIO16 / SDA GPIO17) shows the same four rows as the
-  MicroPython firmware, plus the humidifier flag. A missing or failing LCD never affects sensors or telemetry.
+  MicroPython firmware (plus the humidifier flag with `board-physical`). A missing or failing LCD never affects sensors
+  or telemetry.
 * **Plain-text markers** for monitors and automated tests: `SMARTPOT-READY`, `WIFI-UP`, `TLS-OK`, `MQTT-UP`,
   `MQTT-REFUSED`, `MQTT-DOWN`, `ACT`, `ACK`, `LCD`, `HEAP` and `FATAL`.
 
 Additional build-time variables: `TELEMETRY_INTERVAL_SECS`, `SENSOR_INTERVAL_SECS`, `OFFLINE_CUTOFF_SECS`,
-`WATCHDOG_TIMEOUT_SECS`, `LIVENESS_TIMEOUT_SECS`, `HEAP_LOG_SECS`, `HEAP_MIN_FREE`, `ACTUATOR_ACTIVE_LOW=1` (relay boards
-that switch on with a low input), `PH_NEUTRAL_MV`, `PH_SLOPE_MV`, `SOIL_DRY_RAW` and `SOIL_WET_RAW`. GPIO5 (humidifier)
-is a strapping pin that toggles at boot: add a pull-down on the relay input.
+`WATCHDOG_TIMEOUT_SECS`, `LIVENESS_TIMEOUT_SECS`, `HEAP_LOG_SECS`, `HEAP_MIN_FREE`, `ACTUATOR_ACTIVE_LOW=1` (relay
+boards that switch on with a low input), `PH_NEUTRAL_MV`, `PH_SLOPE_MV`, `SOIL_DRY_RAW` and `SOIL_WET_RAW` (the last
+four only with `board-physical`). GPIO5 (fan, or humidifier with `board-physical`) is a strapping pin that toggles at
+boot: add a pull-down on the relay input.
 
 ### Automated Simulation Tests
 
@@ -268,7 +271,7 @@ Prefijo canónico: `smartpot/v1/{cropId}/`
 | Tópico             | Sentido              | QoS | Retenido | Propósito                                                                                               | Carga / Ejemplo JSON                                                                                                                                                                                                               |
 |--------------------|----------------------|-----|----------|---------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `.../status`       | Dispositivo → Broker | 1   | Sí       | Estado del cultivo (LWT y conexión)                                                                     | `"online"` / `"offline"`                                                                                                                                                                                                           |
-| `.../capabilities` | Dispositivo → Broker | 1   | Sí       | Declaración de hardware, publicada tras `online` y antes de `commands`; 7 sensores, 4 actuadores, <2 KB | `{"schema":1,"device":{"firmware":"smartpot-iot/0.1.0","hardware":"esp32-devkit-c-v4","telemetry":{"formats":["json-v1","compact-v2"],"compactBytes":27}},"sensors":[…],"actuators":["WATER_PUMP","UV_LIGHT","FAN","HUMIDIFIER"]}` |
+| `.../capabilities` | Dispositivo → Broker | 1   | Sí       | Declaración de hardware, publicada tras `online` y antes de `commands`; 6 sensores y 3 actuadores (7 y 4 con `board-physical`), <2 KB | `{"schema":1,"device":{"firmware":"smartpot-iot/0.1.0","hardware":"esp32-devkit-c-v4","telemetry":{"formats":["json-v1","compact-v2"],"compactBytes":27}},"sensors":[…],"actuators":["WATER_PUMP","UV_LIGHT","FAN"]}` |
 | `.../telemetry`    | Dispositivo → Broker | 0   | No       | Muestra agregada de variables físicas                                                                   | `{"temperature":23.4,"humidity":64.8,"brightness":1850,"ph":6.85,"tds":620,"atmosphere":1012.8,"soilMoisture":48.2}`                                                                                                               |
 | `.../commands`     | API → Dispositivo    | 1   | No       | Orden de actuación con duración opcional                                                                | `{"id":"cmd-1","actuator":"WATER_PUMP","action":"ACTIVATE","durationSeconds":15}`                                                                                                                                                  |
 | `.../commands/ack` | Dispositivo → Broker | 1   | No       | Confirmación de ejecución en inglés                                                                     | `{"id":"cmd-1","status":"EXECUTED","message":"Water pump turned on for 15 s"}`                                                                                                                                                     |
@@ -284,9 +287,9 @@ Prefijo canónico: `smartpot/v1/{cropId}/`
 * **Filtrado en el borde**: cada canal pasa por una ventana de mediana de 5 muestras y luego por un filtro de Kalman 1D
   en Q16.16 con puerta de innovación de 3σ. Un pico conserva la estimación y expande la covarianza, de modo que un
   cambio real se acepta tras unas pocas muestras en vez de quedar bloqueado.
-* **Multiplexación I2C atómica y tiempos del sensor**: el driver TCA9548A selecciona el canal dentro del mismo bloqueo
-  de bus que `write`, `write_read` y `transaction`, así dos lecturas concurrentes de BME280 no cruzan canales. El driver
-  BME280 espera 2 ms tras el reset y sondea el bit de medición con un tope de 20 ms.
+* **Multiplexación I2C atómica y tiempos del sensor** (`board-physical`): el driver TCA9548A selecciona el canal dentro
+  del mismo bloqueo de bus que `write`, `write_read` y `transaction`, así dos lecturas concurrentes de BME280 no cruzan
+  canales. El driver BME280 espera 2 ms tras el reset y sondea el bit de medición con un tope de 20 ms.
 * **TLS 1.3 con CA verificada**: `embedded-tls` verifica la cadena del broker contra `CA_CERT_PEM` usando la época SNTP.
   Si falta la CA, es inválida o el reloj no está sincronizado, el cliente falla cerrado: reintenta y nunca cae a una
   conexión sin verificar.
@@ -355,19 +358,20 @@ mensajes que el firmware MicroPython. Los registros internos `[INFO ]`/`[WARN ]`
   broker (certificado del servidor y CA RSA 4096).
 * **Sensores**: la cascada mediana + Kalman se vuelve a sembrar tras tres rechazos seguidos, de modo que los cambios
   reales (un riego, una lámpara) aparecen en menos de un minuto, y la luz se filtra en decenas de lux para no saturar
-  Q16.16. Las lecturas con más de tres periodos de muestreo se omiten, los tres BME280 se promedian, las sondas pegadas
-  a un riel del ADC se descartan y las transacciones I2C y las mediciones tienen tiempo límite, con reconexión en
-  caliente del BME280.
-* **Pantalla local**: un LCD2004 en su propio bus I2C (I2C1, SCL GPIO16 / SDA GPIO17) muestra las mismas cuatro filas que
-  el firmware MicroPython, más el indicador del humidificador. Un LCD ausente o averiado no afecta a los sensores ni a la
-  telemetría.
+  Q16.16. Las lecturas con más de tres periodos de muestreo se omiten, las sondas pegadas a un riel del ADC se
+  descartan y el ADC se sobremuestrea 16 veces. Con `board-physical`, los tres BME280 se promedian y las transacciones
+  I2C y las mediciones tienen tiempo límite, con reconexión en caliente del BME280.
+* **Pantalla local**: un LCD2004 en su propio bus I2C (I2C1, SCL GPIO16 / SDA GPIO17) muestra las mismas cuatro filas
+  que el firmware MicroPython (más el indicador del humidificador con `board-physical`). Un LCD ausente o averiado no
+  afecta a los sensores ni a la telemetría.
 * **Marcadores de texto** para monitores y pruebas automáticas: `SMARTPOT-READY`, `WIFI-UP`, `TLS-OK`, `MQTT-UP`,
   `MQTT-REFUSED`, `MQTT-DOWN`, `ACT`, `ACK`, `LCD`, `HEAP` y `FATAL`.
 
 Variables de compilación adicionales: `TELEMETRY_INTERVAL_SECS`, `SENSOR_INTERVAL_SECS`, `OFFLINE_CUTOFF_SECS`,
 `WATCHDOG_TIMEOUT_SECS`, `LIVENESS_TIMEOUT_SECS`, `HEAP_LOG_SECS`, `HEAP_MIN_FREE`, `ACTUATOR_ACTIVE_LOW=1` (módulos de
-relé que se activan con nivel bajo), `PH_NEUTRAL_MV`, `PH_SLOPE_MV`, `SOIL_DRY_RAW` y `SOIL_WET_RAW`. GPIO5
-(humidificador) es un pin de *strapping* que conmuta al arrancar: conviene un *pull-down* en la entrada del relé.
+relé que se activan con nivel bajo), `PH_NEUTRAL_MV`, `PH_SLOPE_MV`, `SOIL_DRY_RAW` y `SOIL_WET_RAW` (las cuatro últimas
+solo con `board-physical`). GPIO5 (ventilador, o humidificador con `board-physical`) es un pin de *strapping* que
+conmuta al arrancar: conviene un *pull-down* en la entrada del relé.
 
 ### Pruebas automáticas en simulación
 
