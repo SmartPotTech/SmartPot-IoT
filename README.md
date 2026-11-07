@@ -159,6 +159,7 @@ at 0x23. That 3×BME topology is physical-hardware-only and cannot be modeled in
 ### Full Documentation
 
 * [Complete SmartPot-IoT-Rust Documentation](docs/SmartPot_IoT_Rust_Documentation.md)
+* [Interactive diagrams](docs/diagrams/interactive/README.md#english): sensor filtering pipeline and command lifecycle, in English and Spanish, with links to the exact source lines
 
 ---
 
@@ -294,3 +295,4 @@ BH1750 en 0x23. Esa topología de 3×BME280 es exclusiva del hardware físico y 
 ### Documentación Completa
 
 * [Documentación Completa de SmartPot-IoT-Rust](docs/SmartPot_IoT_Rust_Documentation.md)
+* [Diagramas interactivos](docs/diagrams/interactive/README.md#español): la cadena de filtrado de los sensores y el ciclo de vida de un comando, en español e inglés, con enlaces a las líneas exactas del código
