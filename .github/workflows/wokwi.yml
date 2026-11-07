@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Xtensa Rust toolchain
-        uses: esp-rs/xtensa-toolchain@v1.5
+        uses: esp-rs/xtensa-toolchain@v1.7
         with:
           default: true
           buildtargets: esp32
