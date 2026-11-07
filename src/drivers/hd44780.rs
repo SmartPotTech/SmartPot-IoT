@@ -79,9 +79,13 @@ where
     }
 
     /// Envía los 4 bits altos de `nibble` con un pulso en la línea E.
+    ///
+    /// Cada flanco va en su propia transacción I2C, igual que el driver del
+    /// firmware MicroPython y LiquidCrystal_I2C.
     async fn write_nibble(&mut self, nibble: u8, mode: u8) -> Result<(), I2C::Error> {
         let data = (nibble & 0xF0) | mode | BACKLIGHT;
-        self.i2c.write(self.address, &[data | ENABLE, data]).await?;
+        self.i2c.write(self.address, &[data | ENABLE]).await?;
+        self.i2c.write(self.address, &[data]).await?;
         Timer::after_micros(50).await;
         Ok(())
     }

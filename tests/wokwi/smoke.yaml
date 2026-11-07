@@ -1,9 +1,13 @@
-# Arranque en frío: el firmware llega a operar, conecta el Wi-Fi y publica su
-# primer informe de memoria sin ningún error fatal.
+# Arranque en frío: la pantalla dibuja su primera imagen, el Wi-Fi conecta y el
+# supervisor publica su informe de memoria, sin ningún error fatal. La captura
+# del LCD queda en out/ para revisarla (no se compara con una referencia).
 name: Boot smoke test
 version: 1
 author: SmartPot
 steps:
-  - wait-serial: 'SMARTPOT-READY'
+  - wait-serial: 'SMARTPOT-LCD n='
   - wait-serial: 'SMARTPOT-WIFI-UP'
   - wait-serial: 'SMARTPOT-HEAP'
+  - take-screenshot:
+      part-id: lcd1
+      save-to: out/lcd-boot.png
