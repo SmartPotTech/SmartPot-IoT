@@ -6,7 +6,7 @@
 
 use libm::{floorf, roundf};
 use smartpot_iot_host::codec::{
-    calc_crc8, encode_state, COMPACT_BINARY_MAGIC, COMPACT_BINARY_VERSION, PACKET_SIZE,
+    COMPACT_BINARY_MAGIC, COMPACT_BINARY_VERSION, PACKET_SIZE, calc_crc8, encode_state,
 };
 use smartpot_iot_host::limits::{self, ApiRange};
 use smartpot_iot_host::protocol::SensorState;

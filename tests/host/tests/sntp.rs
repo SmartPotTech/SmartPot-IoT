@@ -30,7 +30,10 @@ fn request_carries_the_nonce_in_the_transmit_timestamp() {
 
 #[test]
 fn accepts_a_matching_response() {
-    assert_eq!(parse_response(&response(ntp(EPOCH), NONCE), NONCE), Ok(EPOCH));
+    assert_eq!(
+        parse_response(&response(ntp(EPOCH), NONCE), NONCE),
+        Ok(EPOCH)
+    );
 }
 
 #[test]

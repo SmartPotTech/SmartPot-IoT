@@ -1,6 +1,6 @@
 //! Pruebas del seguimiento de latidos que decide si se alimenta el watchdog.
 
-use smartpot_iot_host::health::{Beat, Liveness, BEAT_COUNT};
+use smartpot_iot_host::health::{BEAT_COUNT, Beat, Liveness};
 
 const TIMEOUT_MS: u64 = 120_000;
 

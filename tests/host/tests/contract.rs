@@ -156,6 +156,10 @@ fn actuator_safety_policy_follows_the_shared_contract() {
     for name in contract["actuators"].as_array().unwrap() {
         let name = name.as_str().unwrap();
         let actuator = Actuators::from_str(name).unwrap();
-        assert_eq!(safety::is_critical(actuator), critical.contains(&name), "{name}");
+        assert_eq!(
+            safety::is_critical(actuator),
+            critical.contains(&name),
+            "{name}"
+        );
     }
 }

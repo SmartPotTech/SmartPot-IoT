@@ -206,7 +206,10 @@ fn soil_moisture_follows_a_watering_step_within_a_minute() {
 #[test]
 fn light_follows_lamps_switching_on() {
     let samples = samples_to_follow_step(SensorCascade::new(0.5, 2.0), 0.0, 20_000.0, 50.0);
-    assert!(samples.is_some_and(|n| n <= 8), "light took {samples:?} samples");
+    assert!(
+        samples.is_some_and(|n| n <= 8),
+        "light took {samples:?} samples"
+    );
 }
 
 #[test]
@@ -214,7 +217,10 @@ fn light_above_the_q16_range_is_not_clipped() {
     // Q16.16 satura en 32 767; la luz solar directa supera los 50 000 lx.
     let cascade = SensorCascade::with_scale(0.5, 2.0, 10.0);
     let samples = samples_to_follow_step(cascade, 1_000.0, 54_000.0, 100.0);
-    assert!(samples.is_some_and(|n| n <= 8), "54 000 lx took {samples:?} samples");
+    assert!(
+        samples.is_some_and(|n| n <= 8),
+        "54 000 lx took {samples:?} samples"
+    );
 }
 
 #[test]

@@ -17,7 +17,10 @@ fn jitter_stays_inside_the_upper_half_of_the_window() {
         let random = attempt.wrapping_mul(2_654_435_761);
         let delay = backoff.next_delay_ms(random);
         let ceiling = (2_000u32 << attempt.min(16)).min(60_000);
-        assert!(delay >= ceiling / 2 && delay <= ceiling, "attempt {attempt}: {delay}");
+        assert!(
+            delay >= ceiling / 2 && delay <= ceiling,
+            "attempt {attempt}: {delay}"
+        );
     }
 }
 

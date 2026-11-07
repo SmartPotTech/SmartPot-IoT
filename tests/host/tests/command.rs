@@ -104,14 +104,14 @@ fn duration_is_optional_and_parsed_as_u32() {
     assert_eq!(absent.duration_seconds, None);
 
     // `null` equivale a omitir el campo, como hace la API con `omitempty`.
-    let null = parse(r#"{"id":"cmd-9","actuator":"FAN","action":"ACTIVATE","durationSeconds":null}"#)
-        .unwrap();
+    let null =
+        parse(r#"{"id":"cmd-9","actuator":"FAN","action":"ACTIVATE","durationSeconds":null}"#)
+            .unwrap();
     assert_eq!(null.duration_seconds, None);
 
-    let bounds = parse(
-        r#"{"id":"cmd-10","actuator":"FAN","action":"ACTIVATE","durationSeconds" : 3600 }"#,
-    )
-    .unwrap();
+    let bounds =
+        parse(r#"{"id":"cmd-10","actuator":"FAN","action":"ACTIVATE","durationSeconds" : 3600 }"#)
+            .unwrap();
     assert_eq!(bounds.duration_seconds, Some(3600));
 }
 
@@ -124,7 +124,11 @@ fn invalid_durations_are_rejected_with_a_reason() {
             r#"{{"id":"cmd-11","actuator":"WATER_PUMP","action":"ACTIVATE","durationSeconds":{value}}}"#
         );
         let error = parse(&payload).unwrap_err();
-        assert_eq!(error, CommandError::InvalidDuration, "durationSeconds={value}");
+        assert_eq!(
+            error,
+            CommandError::InvalidDuration,
+            "durationSeconds={value}"
+        );
         assert_eq!(
             error.message(),
             "durationSeconds must be an integer between 1 and 3600"
@@ -158,7 +162,10 @@ fn critical_actuators_never_run_without_a_limit() {
         safety::effective_duration(Actuators::Humidifier, None),
         Some(safety::MAX_DURATION_SECONDS)
     );
-    assert_eq!(safety::effective_duration(Actuators::WaterPump, Some(30)), Some(30));
+    assert_eq!(
+        safety::effective_duration(Actuators::WaterPump, Some(30)),
+        Some(30)
+    );
     assert_eq!(safety::effective_duration(Actuators::UvLight, None), None);
     assert_eq!(safety::effective_duration(Actuators::Fan, None), None);
 }
@@ -167,15 +174,43 @@ fn critical_actuators_never_run_without_a_limit() {
 fn failsafe_waits_for_the_full_offline_window() {
     let cutoff_ms = safety::OFFLINE_CUTOFF_SECONDS * 1000;
     // Con broker no hay failsafe, por mucho que lleve encendida.
-    assert!(!safety::failsafe_due(Actuators::WaterPump, None, cutoff_ms * 10));
+    assert!(!safety::failsafe_due(
+        Actuators::WaterPump,
+        None,
+        cutoff_ms * 10
+    ));
     // Sin broker cuenta el plazo más reciente entre el corte y el encendido.
-    assert!(!safety::failsafe_due(Actuators::WaterPump, Some(cutoff_ms), cutoff_ms - 1));
-    assert!(!safety::failsafe_due(Actuators::WaterPump, Some(cutoff_ms - 1), cutoff_ms));
-    assert!(safety::failsafe_due(Actuators::WaterPump, Some(cutoff_ms), cutoff_ms));
-    assert!(safety::failsafe_due(Actuators::Humidifier, Some(cutoff_ms * 2), cutoff_ms));
+    assert!(!safety::failsafe_due(
+        Actuators::WaterPump,
+        Some(cutoff_ms),
+        cutoff_ms - 1
+    ));
+    assert!(!safety::failsafe_due(
+        Actuators::WaterPump,
+        Some(cutoff_ms - 1),
+        cutoff_ms
+    ));
+    assert!(safety::failsafe_due(
+        Actuators::WaterPump,
+        Some(cutoff_ms),
+        cutoff_ms
+    ));
+    assert!(safety::failsafe_due(
+        Actuators::Humidifier,
+        Some(cutoff_ms * 2),
+        cutoff_ms
+    ));
     // La luz UV y el ventilador nunca se apagan por el failsafe.
-    assert!(!safety::failsafe_due(Actuators::UvLight, Some(cutoff_ms * 2), cutoff_ms * 2));
-    assert!(!safety::failsafe_due(Actuators::Fan, Some(cutoff_ms * 2), cutoff_ms * 2));
+    assert!(!safety::failsafe_due(
+        Actuators::UvLight,
+        Some(cutoff_ms * 2),
+        cutoff_ms * 2
+    ));
+    assert!(!safety::failsafe_due(
+        Actuators::Fan,
+        Some(cutoff_ms * 2),
+        cutoff_ms * 2
+    ));
 }
 
 #[test]
