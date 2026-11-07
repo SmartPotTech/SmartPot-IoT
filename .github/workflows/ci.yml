@@ -54,6 +54,19 @@ jobs:
       - name: Check firmware
         run: cargo +esp check
 
+      - name: Lint firmware
+        run: cargo +esp clippy -- -D warnings
+
+      - name: Lint simulation build
+        run: cargo +esp clippy --features sim -- -D warnings
+
+      - name: Build firmware image
+        run: cargo +esp build
+
+      # Wokwi y la partición factory por defecto rechazan imágenes de más de 1 MiB.
+      - name: Check flash budget
+        run: python3 tools/flash_budget.py target/xtensa-esp32-none-elf/debug/smartpot-iot
+
       - name: Check firmware formatting
         run: cargo +esp fmt --check
 
