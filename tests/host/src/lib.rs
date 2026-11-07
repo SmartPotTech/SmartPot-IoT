@@ -32,3 +32,6 @@ pub mod safety;
 
 #[path = "../../../src/health.rs"]
 pub mod health;
+
+#[path = "../../../src/backoff.rs"]
+pub mod backoff;

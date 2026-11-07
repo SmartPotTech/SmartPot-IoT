@@ -247,6 +247,7 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
         spawner.spawn(
             wifi_connection_task(
                 wifi_controller,
+                trng.clone(),
                 DEFAULT_CONFIG.wifi_ssid,
                 DEFAULT_CONFIG.wifi_password,
             )

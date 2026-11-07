@@ -44,6 +44,7 @@ macro_rules! debug {
     };
 }
 
+pub mod backoff;
 pub mod capabilities;
 pub mod clock;
 pub mod codec;
