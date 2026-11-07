@@ -135,6 +135,12 @@ impl Q16KalmanFilter {
 
     /// Actualiza la estimación con una nueva medición en Q16.16.
     pub fn update(&mut self, measurement_q16: i32) -> i32 {
+        self.update_checked(measurement_q16).unwrap_or(self.x)
+    }
+
+    /// Igual que [`Self::update`], pero devuelve `None` si la puerta de
+    /// innovación rechazó la medición.
+    pub fn update_checked(&mut self, measurement_q16: i32) -> Option<i32> {
         // 1. Predicción: x_pred = x, p_pred = p + q.
         let p_pred = self.p.saturating_add(self.q).max(0);
 
@@ -147,14 +153,14 @@ impl Q16KalmanFilter {
         let sigma = sqrtf(variance as f32 / Self::SCALE as f32) * Self::SCALE as f32;
         if (innovation as f32).abs() > 3.0 * sigma {
             self.p = p_pred;
-            return self.x;
+            return None;
         }
 
         // 3. Ganancia de Kalman: K = p_pred / (p_pred + r)
         let denom = (p_pred as i64) + (self.r as i64);
         if denom <= 0 {
             self.p = p_pred;
-            return self.x;
+            return Some(self.x);
         }
         let k = clamp_i64_to_i32(((p_pred as i64) * Self::SCALE) / denom);
 
@@ -166,7 +172,7 @@ impl Q16KalmanFilter {
         let one_minus_k = (Self::SCALE as i32).saturating_sub(k);
         self.p = clamp_i64_to_i32(((one_minus_k as i64) * (p_pred as i64)) / Self::SCALE).max(0);
 
-        self.x
+        Some(self.x)
     }
 
     /// Devuelve el valor estimado actual convertido a f32.
@@ -230,59 +236,108 @@ impl FloatKalmanFilter {
     }
 }
 
+/// Rechazos seguidos del mismo signo tras los que se acepta un cambio real.
+///
+/// La mediana ya absorbe hasta dos espurias; si la puerta de 3 sigma sigue
+/// rechazando el valor de la mediana durante tres muestras más, el nivel cambió
+/// de verdad (un riego, una lámpara que se enciende) y el Kalman se vuelve a
+/// sembrar. Antes la puerta solo se ensanchaba sumando `q` por muestra y el
+/// filtro tardaba horas en seguir un escalón.
+const RESEED_AFTER: u8 = 3;
+
 /// Cascada de filtrado por canal físico: mediana de 5 muestras seguida de Kalman Q16.16.
 ///
 /// El primer valor inicializa ambos filtros, de modo que no hace falta conocer
 /// la escala del sensor de antemano. `q` y `r` permiten ajustar cada canal.
+/// `scale` divide los valores antes del Kalman para que canales con magnitudes
+/// grandes (la luz llega a 65 535 lx) no saturen el rango de Q16.16 (±32 767).
 #[derive(Debug, Clone, Copy)]
 pub struct SensorCascade {
     median: MedianFilter5,
     kalman: Option<Q16KalmanFilter>,
     q: f32,
     r: f32,
+    scale: f32,
+    rejections: u8,
+    rejection_sign: i8,
 }
 
 impl SensorCascade {
     /// Crea una cascada con el ruido de proceso (`q`) y de medición (`r`) indicados.
     pub const fn new(q: f32, r: f32) -> Self {
+        Self::with_scale(q, r, 1.0)
+    }
+
+    /// Crea una cascada que trabaja internamente en unidades de `scale`.
+    ///
+    /// `q` y `r` siguen expresándose en las unidades del sensor.
+    pub const fn with_scale(q: f32, r: f32, scale: f32) -> Self {
         Self {
             median: MedianFilter5::new(),
             kalman: None,
             q,
             r,
+            scale,
+            rejections: 0,
+            rejection_sign: 0,
         }
+    }
+
+    fn seeded_kalman(&self, scaled: f32) -> Q16KalmanFilter {
+        let variance_scale = self.scale * self.scale;
+        Q16KalmanFilter::from_f32(
+            scaled,
+            1.0,
+            self.q / variance_scale,
+            self.r / variance_scale,
+        )
     }
 
     /// Añade una muestra y devuelve el valor filtrado.
     pub fn update(&mut self, sample: f32) -> f32 {
         let median_sample = self.median.update(sample);
+        let scaled = median_sample / self.scale;
+        let seeded = self.seeded_kalman(scaled);
 
-        match self.kalman.as_mut() {
-            Some(filter) => {
-                filter.update(f32_to_q16(median_sample));
-                filter.value_f32()
-            }
+        let Some(filter) = self.kalman.as_mut() else {
+            // Inicialización perezosa con la primera muestra disponible.
+            self.kalman = Some(seeded);
+            return median_sample;
+        };
+
+        let measurement = f32_to_q16(scaled);
+        let sign = if measurement > filter.value_q16() {
+            1
+        } else {
+            -1
+        };
+        match filter.update_checked(measurement) {
+            Some(_) => self.rejections = 0,
             None => {
-                // Inicialización perezosa con la primera muestra disponible.
-                self.kalman = Some(Q16KalmanFilter::from_f32(
-                    median_sample,
-                    1.0,
-                    self.q,
-                    self.r,
-                ));
-                median_sample
+                if sign == self.rejection_sign {
+                    self.rejections = self.rejections.saturating_add(1);
+                } else {
+                    self.rejection_sign = sign;
+                    self.rejections = 1;
+                }
+                if self.rejections >= RESEED_AFTER {
+                    *filter = seeded;
+                    self.rejections = 0;
+                }
             }
         }
+        filter.value_f32() * self.scale
     }
 
     /// Devuelve la última estimación, o 0.0 si aún no se ha recibido ninguna muestra.
     pub fn value(&self) -> f32 {
-        self.kalman.map_or(0.0, |filter| filter.value_f32())
+        self.kalman
+            .map_or(0.0, |filter| filter.value_f32() * self.scale)
     }
 
     /// Reinicia la cascada para un nuevo arranque del canal.
     pub fn reset(&mut self) {
-        *self = Self::new(self.q, self.r);
+        *self = Self::with_scale(self.q, self.r, self.scale);
     }
 }
 

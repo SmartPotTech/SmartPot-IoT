@@ -177,3 +177,57 @@ fn reset_clears_the_state() {
     median.reset();
     assert_eq!(median.update(7.0), 7.0);
 }
+
+/// Muestras necesarias para que la cascada llegue a menos de `tolerance` del
+/// nuevo nivel tras un escalón sostenido, o `None` si no lo alcanza.
+fn samples_to_follow_step(
+    mut cascade: SensorCascade,
+    from: f32,
+    to: f32,
+    tolerance: f32,
+) -> Option<usize> {
+    for _ in 0..20 {
+        cascade.update(from);
+    }
+    (1..=200).find(|_| (cascade.update(to) - to).abs() < tolerance)
+}
+
+#[test]
+fn soil_moisture_follows_a_watering_step_within_a_minute() {
+    // Parámetros reales del canal de humedad de suelo (sensors.rs). Antes la
+    // puerta de 3 sigma rechazaba el nuevo nivel durante unas 1000 muestras.
+    let samples = samples_to_follow_step(SensorCascade::new(0.1, 0.5), 30.0, 60.0, 1.0);
+    assert!(
+        samples.is_some_and(|n| n <= 8),
+        "soil moisture took {samples:?} samples"
+    );
+}
+
+#[test]
+fn light_follows_lamps_switching_on() {
+    let samples = samples_to_follow_step(SensorCascade::new(0.5, 2.0), 0.0, 20_000.0, 50.0);
+    assert!(samples.is_some_and(|n| n <= 8), "light took {samples:?} samples");
+}
+
+#[test]
+fn light_above_the_q16_range_is_not_clipped() {
+    // Q16.16 satura en 32 767; la luz solar directa supera los 50 000 lx.
+    let cascade = SensorCascade::with_scale(0.5, 2.0, 10.0);
+    let samples = samples_to_follow_step(cascade, 1_000.0, 54_000.0, 100.0);
+    assert!(samples.is_some_and(|n| n <= 8), "54 000 lx took {samples:?} samples");
+}
+
+#[test]
+fn isolated_spikes_are_still_rejected_after_a_step() {
+    let mut cascade = SensorCascade::new(0.1, 0.5);
+    for _ in 0..20 {
+        cascade.update(30.0);
+    }
+    for _ in 0..2 {
+        assert!((cascade.update(90.0) - 30.0).abs() < 1.0);
+    }
+    for _ in 0..10 {
+        cascade.update(30.0);
+    }
+    assert!((cascade.value() - 30.0).abs() < 1.0);
+}

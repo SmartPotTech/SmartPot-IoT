@@ -239,7 +239,8 @@ pub async fn bh1750_task(
 
     info!("Starting BH1750 light sensor...");
     let mut sensor = Bh1750::new(i2c_bus, BH1750_DEFAULT_ADDRESS);
-    let mut lux_filter = SensorCascade::new(0.5, 2.0);
+    // El BH1750 llega a 65 535 lx: se filtra en decenas de lux para no saturar Q16.16.
+    let mut lux_filter = SensorCascade::with_scale(0.5, 2.0, 10.0);
     let mut available = true;
 
     loop {
