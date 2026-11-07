@@ -7,7 +7,9 @@ use embassy_sync::pubsub::{DynPublisher, DynSubscriber};
 use embassy_time::{Duration, Instant, Timer};
 use esp_hal::gpio::Output;
 
-use crate::events::{AckMessage, AckStatus, Action, Actuators, BROKER_ONLINE, Command};
+use crate::events::{
+    ACTUATOR_STATES, AckMessage, AckStatus, Action, Actuators, BROKER_ONLINE, Command,
+};
 use crate::health::{Beat, beat};
 use crate::safety;
 
@@ -163,6 +165,10 @@ pub async fn catch_commands(
 
     loop {
         beat(Beat::Command);
+        // La pantalla muestra qué salidas están activas.
+        ACTUATOR_STATES.sender().send(core::array::from_fn(|index| {
+            channels[index].on_since.is_some()
+        }));
         #[cfg(feature = "sim")]
         while crate::sim::hooks::core1_should_hang() {
             core::hint::spin_loop();

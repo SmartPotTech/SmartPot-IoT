@@ -8,15 +8,14 @@
 #![allow(clippy::large_stack_frames)]
 
 use esp_backtrace as _;
+#[cfg(feature = "sensors")]
+use esp_hal::Async;
 use esp_hal::analog::adc::{Adc, AdcConfig, Attenuation};
 use esp_hal::clock::CpuClock;
+#[cfg(any(feature = "sensors", feature = "display"))]
+use esp_hal::i2c::master::{Config, I2c};
 use esp_hal::interrupt::software::SoftwareInterruptControl;
 use esp_hal::timer::timg::TimerGroup;
-#[cfg(feature = "sensors")]
-use esp_hal::{
-    Async,
-    i2c::master::{Config, I2c},
-};
 use esp_println::{self as _, println};
 use esp_rtos::embassy::Executor;
 use esp_rtos::start_second_core;
@@ -155,6 +154,25 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
                     SENSOR_CH.dyn_publisher().unwrap(),
                 )
                 .expect("Failed to spawn analog_sensors_task"),
+            );
+        }
+
+        // Pantalla LCD2004 en su propio bus I2C: si falla, no afecta a los sensores.
+        #[cfg(feature = "display")]
+        {
+            let lcd_config = Config::default().with_software_timeout(
+                esp_hal::i2c::master::SoftwareTimeout::Transaction(
+                    esp_hal::time::Duration::from_millis(25),
+                ),
+            );
+            let lcd_i2c = I2c::new(peripherals.I2C1, lcd_config)
+                .unwrap()
+                .with_scl(peripherals.GPIO16)
+                .with_sda(peripherals.GPIO17)
+                .into_async();
+            _spawner.spawn(
+                smartpot_iot::tasks::display::display_task(lcd_i2c)
+                    .expect("Failed to spawn display_task"),
             );
         }
 

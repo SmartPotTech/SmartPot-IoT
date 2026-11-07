@@ -63,6 +63,12 @@ pub static BME_TEMPERATURE: Watch<CriticalSectionRawMutex, f32, 2> = Watch::new_
 /// tarea MQTT y lo leen el failsafe de actuadores y la pantalla.
 pub static BROKER_ONLINE: Watch<CriticalSectionRawMutex, bool, 4> = Watch::new_with(false);
 
+/// Último estado de sensores (ya sin lecturas caducadas) para la pantalla.
+pub static DISPLAY_SENSORS: Watch<CriticalSectionRawMutex, SensorState, 1> = Watch::new();
+
+/// Estado de las salidas: bomba, luz UV, ventilador y humidificador.
+pub static ACTUATOR_STATES: Watch<CriticalSectionRawMutex, [bool; 4], 1> = Watch::new();
+
 pub const COMMAND_CH_CAP: usize = 8;
 pub const COMMAND_CH_PUB: usize = 2;
 pub const COMMAND_CH_SUB: usize = 1;

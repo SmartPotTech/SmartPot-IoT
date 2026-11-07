@@ -1,5 +1,8 @@
 pub mod supervisor;
 
+#[cfg(feature = "display")]
+pub mod display;
+
 #[cfg(feature = "wifi")]
 pub mod time;
 

@@ -11,6 +11,8 @@ default-run = "smartpot-iot"
 default = ["full"]
 
 sensors = []
+# Pantalla LCD2004 I2C en un bus propio (I2C1, GPIO16/17).
+display = []
 actuators = []
 
 wifi = []
@@ -30,7 +32,7 @@ sim = []
 
 # Perfiles de conveniencia para no encadenar muchas features a mano.
 net = ["wifi"]
-full = ["sensors", "actuators", "wifi", "mqtt"]
+full = ["sensors", "actuators", "wifi", "mqtt", "display"]
 
 [[bin]]
 name = "smartpot-iot"

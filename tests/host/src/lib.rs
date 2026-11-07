@@ -41,3 +41,6 @@ pub mod sntp;
 
 #[path = "../../../src/drivers/tds.rs"]
 pub mod tds;
+
+#[path = "../../../src/display_layout.rs"]
+pub mod display_layout;

@@ -6,8 +6,8 @@ use embassy_sync::pubsub::{DynPublisher, DynSubscriber};
 use embassy_time::{Duration, Instant, Timer};
 
 use crate::config::SENSOR_INTERVAL_SECS;
-use crate::events::Measurements;
 use crate::events::telemetry::TelemetryMessage;
+use crate::events::{DISPLAY_SENSORS, Measurements};
 use crate::health::{Beat, beat};
 use crate::protocol::telemetry::{Field, FreshState};
 
@@ -44,6 +44,9 @@ pub async fn telemetry_task(
                     Measurements::TDS(tds) => sensors.set(Field::Tds, tds, now),
                     Measurements::SoilMoisture(sm) => sensors.set(Field::SoilMoisture, sm, now),
                 }
+                DISPLAY_SENSORS
+                    .sender()
+                    .send(sensors.snapshot(now, FRESHNESS_TTL_MS));
             }
 
             Either::Second(_) => {
