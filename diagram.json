@@ -136,6 +136,15 @@
         "fontSize": "16",
         "color": "#eeeeee"
       }
+    },
+    {
+      "type": "wokwi-lcd2004",
+      "id": "lcd1",
+      "top": 294.4,
+      "left": 101.6,
+      "attrs": {
+        "pins": "i2c"
+      }
     }
   ],
   "connections": [
@@ -345,6 +354,44 @@
       "green",
       [
         "h163.2"
+      ]
+    ],
+    [
+      "esp:16",
+      "lcd1:SCL",
+      "gray",
+      [
+        "h28.8",
+        "v220.8"
+      ]
+    ],
+    [
+      "esp:17",
+      "lcd1:SDA",
+      "white",
+      [
+        "h38.4",
+        "v220.8"
+      ]
+    ],
+    [
+      "esp:GND.2",
+      "lcd1:GND",
+      "black",
+      [
+        "v0",
+        "h57.6",
+        "v297.6"
+      ]
+    ],
+    [
+      "esp:3V3",
+      "lcd1:VCC",
+      "red",
+      [
+        "h-76.65",
+        "v307.2",
+        "h9.6"
       ]
     ]
   ],
