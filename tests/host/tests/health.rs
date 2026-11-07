@@ -71,3 +71,17 @@ fn counter_wraparound_still_counts_as_progress() {
         None
     );
 }
+
+#[test]
+fn stack_gap_skips_the_entry_closure_copied_near_the_bottom() {
+    use smartpot_iot_host::health::{STACK_PAINT as P, unused_gap_words};
+    // 2 palabras intactas bajo el cierre, 3 del cierre, 5 libres y el resto usadas.
+    let stack = [P, P, 1, 2, 3, P, P, P, P, P, 9, 9];
+    assert_eq!(unused_gap_words(stack.len(), |i| stack[i]), 5);
+    // Sin cierre copiado, el hueco empieza en el fondo.
+    let plain = [P, P, P, 9, 9];
+    assert_eq!(unused_gap_words(plain.len(), |i| plain[i]), 3);
+    // Una pila que llegó hasta el cierre solo deja el tramo inferior.
+    let full = [P, 1, 2, 9, 9, 9];
+    assert_eq!(unused_gap_words(full.len(), |i| full[i]), 1);
+}

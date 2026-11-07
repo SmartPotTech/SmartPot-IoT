@@ -112,19 +112,52 @@ pub unsafe fn paint_core1_stack(bottom: *mut u32, words: usize) {
 }
 
 /// Bytes de la pila del núcleo 1 que nunca se han usado (marca de agua).
+///
+/// `esp-hal` copia el cierre de arranque del núcleo 1 cerca del fondo de su
+/// pila, de modo que debajo de él queda un pequeño tramo intacto que no forma
+/// parte del hueco libre. Se toma el tramo intacto más largo que no empieza en
+/// el fondo: el que queda entre el cierre y la zona más profunda que alcanzó
+/// la pila.
 pub fn core1_stack_unused_bytes() -> Option<usize> {
     let bottom = CORE1_STACK_BOTTOM.load(Ordering::Relaxed) as *const u32;
     let words = CORE1_STACK_WORDS.load(Ordering::Relaxed);
     if bottom.is_null() {
         return None;
     }
-    // La pila crece hacia abajo: se cuentan las palabras intactas desde el fondo.
-    let untouched = (0..words)
-        // SAFETY: rango registrado por `paint_core1_stack`; lectura de solo
-        // palabras alineadas, aunque el núcleo 1 siga usando la parte alta.
-        .take_while(|&index| unsafe { core::ptr::read_volatile(bottom.add(index)) } == STACK_PAINT)
-        .count();
-    Some(untouched * 4)
+    // SAFETY: rango registrado por `paint_core1_stack`; solo se leen palabras
+    // alineadas, aunque el núcleo 1 siga usando la parte alta.
+    let read = |index: usize| unsafe { core::ptr::read_volatile(bottom.add(index)) };
+    Some(unused_gap_words(words, read) * 4)
+}
+
+/// Longitud del tramo de palabras con el patrón que representa el hueco libre.
+/// Es pura para poder probarla en el host.
+pub fn unused_gap_words(words: usize, read: impl Fn(usize) -> u32) -> usize {
+    let mut first_run = 0;
+    let mut best_inner_run = 0;
+    let mut index = 0;
+    while index < words {
+        if read(index) != STACK_PAINT {
+            index += 1;
+            continue;
+        }
+        let start = index;
+        while index < words && read(index) == STACK_PAINT {
+            index += 1;
+        }
+        let run = index - start;
+        if start == 0 {
+            first_run = run;
+        } else {
+            best_inner_run = best_inner_run.max(run);
+        }
+    }
+    // Sin cierre copiado (o si la pila ya lo alcanzó) solo existe el tramo inicial.
+    if best_inner_run > 0 {
+        best_inner_run
+    } else {
+        first_run
+    }
 }
 
 #[cfg(test)]
