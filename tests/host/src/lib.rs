@@ -35,3 +35,6 @@ pub mod health;
 
 #[path = "../../../src/backoff.rs"]
 pub mod backoff;
+
+#[path = "../../../src/sntp.rs"]
+pub mod sntp;

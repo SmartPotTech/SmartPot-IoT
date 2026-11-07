@@ -57,6 +57,7 @@ pub mod limits;
 pub mod protocol;
 pub mod safety;
 pub mod sim;
+pub mod sntp;
 pub mod tasks;
 #[cfg(feature = "mqtt")]
 pub mod tls;
