@@ -6,7 +6,7 @@
 
 use libm::{floorf, roundf};
 use smartpot_iot_host::codec::{
-    COMPACT_BINARY_MAGIC, COMPACT_BINARY_VERSION, PACKET_SIZE, calc_crc8, encode_state,
+    calc_crc8, encode_state, COMPACT_BINARY_MAGIC, COMPACT_BINARY_VERSION, PACKET_SIZE,
 };
 use smartpot_iot_host::limits::{self, ApiRange};
 use smartpot_iot_host::protocol::SensorState;
@@ -377,8 +377,8 @@ fn exact_api_boundaries_are_accepted_and_encoded_verbatim() {
     let expected_max = [6_000i64, 10_000, 200_000, 1_400, 10_000, 11_000, 10_000];
     let mut packet = [0u8; PACKET_SIZE];
     assert_eq!(encode_state(&maximum, 1, 0, &mut packet), 0b0111_1111);
-    for index in 0..FIELD_COUNT {
-        assert_eq!(decoded_value(&packet, index), expected_max[index]);
+    for (index, expected) in expected_max.iter().enumerate() {
+        assert_eq!(decoded_value(&packet, index), *expected);
     }
 
     let minimum = SensorState {
@@ -393,8 +393,8 @@ fn exact_api_boundaries_are_accepted_and_encoded_verbatim() {
     let expected_min = [-2_000i64, 0, 0, 0, 0, 3_000, 0];
     let mut packet = [0u8; PACKET_SIZE];
     assert_eq!(encode_state(&minimum, 1, 0, &mut packet), 0b0111_1111);
-    for index in 0..FIELD_COUNT {
-        assert_eq!(decoded_value(&packet, index), expected_min[index]);
+    for (index, expected) in expected_min.iter().enumerate() {
+        assert_eq!(decoded_value(&packet, index), *expected);
     }
 }
 
