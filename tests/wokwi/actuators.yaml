@@ -11,30 +11,34 @@ steps:
 
   - write-serial: "{\"id\":\"t-1\",\"actuator\":\"WATER_PUMP\",\"action\":\"ACTIVATE\",\"durationSeconds\":2}\n"
   - wait-serial: 'SMARTPOT-ACK t-1 EXECUTED Water pump turned on for 2 s'
-  - expect-pin: { part-id: esp, name: '25', value: 1 }
+  - expect-pin: { part-id: esp, name: '19', value: 1 }
   - wait-serial: 'SMARTPOT-ACT WATER_PUMP OFF timer'
-  - expect-pin: { part-id: esp, name: '25', value: 0 }
+  - expect-pin: { part-id: esp, name: '19', value: 0 }
 
   # Un id repetido no vuelve a accionar la bomba: solo repite el ACK.
   - write-serial: "{\"id\":\"t-1\",\"actuator\":\"WATER_PUMP\",\"action\":\"ACTIVATE\",\"durationSeconds\":2}\n"
   - wait-serial: 'SMARTPOT-ACK t-1 EXECUTED'
-  - expect-pin: { part-id: esp, name: '25', value: 0 }
+  - expect-pin: { part-id: esp, name: '19', value: 0 }
 
   - write-serial: "{\"id\":\"t-2\",\"actuator\":\"WATER_PUMP\",\"action\":\"ACTIVATE\",\"durationSeconds\":-5}\n"
   - wait-serial: 'SMARTPOT-ACK t-2 FAILED durationSeconds must be an integer between 1 and 3600'
-  - expect-pin: { part-id: esp, name: '25', value: 0 }
+  - expect-pin: { part-id: esp, name: '19', value: 0 }
 
   - write-serial: "{\"id\":\"t-3\",\"actuator\":\"UV_LIGHT\",\"action\":\"ACTIVATE\"}\n"
   - wait-serial: 'SMARTPOT-ACK t-3 EXECUTED UV light turned on'
-  - expect-pin: { part-id: esp, name: '26', value: 1 }
+  - expect-pin: { part-id: esp, name: '18', value: 1 }
 
   # Sin duración, la bomba recibe el tope y el failsafe la apaga sin broker.
   - write-serial: "{\"id\":\"t-4\",\"actuator\":\"WATER_PUMP\",\"action\":\"ACTIVATE\"}\n"
   - wait-serial: 'SMARTPOT-ACK t-4 EXECUTED Water pump turned on for 1 h (safety limit)'
-  - expect-pin: { part-id: esp, name: '25', value: 1 }
+  - expect-pin: { part-id: esp, name: '19', value: 1 }
   - wait-serial: 'SMARTPOT-ACT WATER_PUMP OFF failsafe'
-  - expect-pin: { part-id: esp, name: '25', value: 0 }
-  - expect-pin: { part-id: esp, name: '26', value: 1 }
+  - expect-pin: { part-id: esp, name: '19', value: 0 }
+  - expect-pin: { part-id: esp, name: '18', value: 1 }
 
   - write-serial: "{\"id\":\"t-5\",\"actuator\":\"PH_DOSER\",\"action\":\"ACTIVATE\"}\n"
-  - wait-serial: 'SMARTPOT-ACK t-5 FAILED This device does not have PH_DOSER installed'
+  - wait-serial: 'SMARTPOT-ACK t-5 FAILED This device does not have PH_DOSER'
+
+  # La placa compartida con MicroPython no tiene humidificador.
+  - write-serial: "{\"id\":\"t-6\",\"actuator\":\"HUMIDIFIER\",\"action\":\"ACTIVATE\"}\n"
+  - wait-serial: 'SMARTPOT-ACK t-6 FAILED This device does not have HUMIDIFIER'

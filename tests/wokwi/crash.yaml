@@ -8,8 +8,8 @@ steps:
   - wait-serial: 'Serial command injector ready'
   - write-serial: "{\"id\":\"c-1\",\"actuator\":\"WATER_PUMP\",\"action\":\"ACTIVATE\",\"durationSeconds\":60}\n"
   - wait-serial: 'SMARTPOT-ACK c-1 EXECUTED'
-  - expect-pin: { part-id: esp, name: '25', value: 1 }
+  - expect-pin: { part-id: esp, name: '19', value: 1 }
   - write-serial: "{\"sim\":\"panic\"}\n"
   - wait-serial: 'SMARTPOT-FATAL panic'
   - wait-serial: 'SMARTPOT-READY'
-  - expect-pin: { part-id: esp, name: '25', value: 0 }
+  - expect-pin: { part-id: esp, name: '19', value: 0 }
