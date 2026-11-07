@@ -126,3 +126,17 @@ pub fn reading_table(state: &SensorState, epoch: Option<u64>) -> Vec<Line, 10> {
     let _ = lines.push(separator);
     lines
 }
+
+/// Código de `machine.reset_cause()` de MicroPython: 1 encendido, 2 externo,
+/// 3 watchdog, 4 deep sleep y 5 reinicio por software o pánico.
+#[cfg(target_arch = "xtensa")]
+pub fn reset_cause() -> u8 {
+    use esp_hal::rtc_cntl::SocResetReason::*;
+    match esp_hal::system::reset_reason() {
+        Some(ChipPowerOn | SysBrownOut) | None => 1,
+        Some(CoreMwdt0 | CoreMwdt1 | CoreRtcWdt | CpuMwdt0 | Cpu0RtcWdt | SysRtcWdt) => 3,
+        Some(CoreDeepSleep) => 4,
+        Some(CoreSw | Cpu0Sw | Cpu1Cpu0) => 5,
+        Some(_) => 2,
+    }
+}

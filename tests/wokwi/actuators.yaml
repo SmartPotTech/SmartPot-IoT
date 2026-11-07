@@ -6,7 +6,6 @@ name: Actuator commands and safety policy
 version: 1
 author: SmartPot
 steps:
-  - wait-serial: 'SMARTPOT-READY'
   - wait-serial: 'Serial command injector ready'
 
   - write-serial: "{\"id\":\"t-1\",\"actuator\":\"WATER_PUMP\",\"action\":\"ACTIVATE\",\"durationSeconds\":2}\n"

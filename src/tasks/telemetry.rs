@@ -28,7 +28,14 @@ pub async fn telemetry_task(
 
     let mut sensors = FreshState::default();
     // La primera lectura sale en cuanto hay muestras, como el bucle de MicroPython.
-    let mut snapshot_timer = Timer::after(Duration::from_secs(3));
+    wait_like_micropython_boot().await;
+    marker!(
+        "SMARTPOT-READY firmware=smartpot-iot/{} reset={}",
+        env!("CARGO_PKG_VERSION"),
+        crate::report::reset_cause()
+    );
+    // La primera lectura sale en cuanto arranca el bucle, como en MicroPython.
+    let mut snapshot_timer = Timer::after(Duration::from_millis(0));
 
     loop {
         beat(Beat::Telemetry);
@@ -68,6 +75,31 @@ pub async fn telemetry_task(
                 }
                 snapshot_timer = Timer::after(Duration::from_secs(interval_seconds));
             }
+        }
+    }
+}
+
+/// Espera como `main.py` antes de su bucle: hasta 30 s a que conecte el Wi-Fi
+/// y, si conectó, hasta 10 s a que el reloj se sincronice. Las muestras de los
+/// sensores se siguen tomando mientras tanto.
+async fn wait_like_micropython_boot() {
+    let mut wifi = crate::events::WIFI_ONLINE.receiver();
+    let mut connected = false;
+    for _ in 0..120 {
+        beat(Beat::Telemetry);
+        if wifi.as_mut().and_then(|r| r.try_get()) == Some(true) {
+            connected = true;
+            break;
+        }
+        Timer::after(Duration::from_millis(250)).await;
+    }
+    if connected {
+        for _ in 0..40 {
+            beat(Beat::Telemetry);
+            if clock::is_synced() {
+                break;
+            }
+            Timer::after(Duration::from_millis(250)).await;
         }
     }
 }

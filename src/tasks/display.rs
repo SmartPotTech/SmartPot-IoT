@@ -70,9 +70,11 @@ pub async fn display_task(i2c: I2c<'static, Async>) {
         }
 
         if ready {
-            let state = sensors
-                .as_mut()
-                .and_then(|r| r.try_get())
+            // `try_changed` primero: `try_get` marca el valor como visto.
+            let fresh = sensors.as_mut().and_then(|r| r.try_changed());
+            let new_reading = fresh.is_some();
+            let state = fresh
+                .or_else(|| sensors.as_mut().and_then(|r| r.try_get()))
                 .unwrap_or_default();
             let actuator_states = actuators
                 .as_mut()
@@ -102,7 +104,8 @@ pub async fn display_task(i2c: I2c<'static, Async>) {
                     }
                 }
             }
-            if ready && changed {
+            // MicroPython cuenta un render por lectura aunque ninguna fila cambie.
+            if ready && (changed || new_reading) {
                 renders = renders.wrapping_add(1);
                 // Marcador para las capturas automáticas de Wokwi: el render terminó.
                 marker!("SMARTPOT-LCD n={}", renders);

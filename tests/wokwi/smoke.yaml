@@ -5,8 +5,9 @@ name: Boot smoke test
 version: 1
 author: SmartPot
 steps:
-  - wait-serial: 'SMARTPOT-LCD n='
   - wait-serial: 'SMARTPOT-WIFI-UP'
+  - wait-serial: 'SMARTPOT-READY'
+  - wait-serial: 'SMARTPOT-LCD n='
   - wait-serial: 'SMARTPOT-HEAP'
   - take-screenshot:
       part-id: lcd1

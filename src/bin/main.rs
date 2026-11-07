@@ -57,19 +57,6 @@ pub fn custom_halt() -> ! {
     esp_hal::system::software_reset()
 }
 
-/// Código de `machine.reset_cause()` de MicroPython: 1 encendido, 2 externo,
-/// 3 watchdog, 4 deep sleep y 5 reinicio por software o pánico.
-fn reset_cause() -> u8 {
-    use esp_hal::rtc_cntl::SocResetReason::*;
-    match esp_hal::system::reset_reason() {
-        Some(ChipPowerOn | SysBrownOut) | None => 1,
-        Some(CoreMwdt0 | CoreMwdt1 | CoreRtcWdt | CpuMwdt0 | Cpu0RtcWdt | SysRtcWdt) => 3,
-        Some(CoreDeepSleep) => 4,
-        Some(CoreSw | Cpu0Sw | Cpu1Cpu0) => 5,
-        Some(_) => 2,
-    }
-}
-
 #[allow(unused_variables)]
 #[esp_rtos::main]
 async fn main(spawner: embassy_executor::Spawner) -> ! {
@@ -385,10 +372,15 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
         );
     }
 
+    // Sin telemetría no hay bucle de lecturas: READY sale al terminar el arranque.
+    #[cfg(not(all(
+        feature = "sensors",
+        any(feature = "mqtt", feature = "http-api", feature = "ble")
+    )))]
     smartpot_iot::marker!(
         "SMARTPOT-READY firmware=smartpot-iot/{} reset={}",
         env!("CARGO_PKG_VERSION"),
-        reset_cause()
+        smartpot_iot::report::reset_cause()
     );
 
     loop {

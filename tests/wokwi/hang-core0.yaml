@@ -5,7 +5,6 @@ name: RTC watchdog recovers from a stalled core 0
 version: 1
 author: SmartPot
 steps:
-  - wait-serial: 'SMARTPOT-READY'
   - wait-serial: 'Serial command injector ready'
   - write-serial: "{\"sim\":\"hang\"}\n"
   - wait-serial: 'SMARTPOT-SIM hang'

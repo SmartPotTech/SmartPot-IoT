@@ -6,7 +6,6 @@ name: Supervisor recovers from a stalled core 1
 version: 1
 author: SmartPot
 steps:
-  - wait-serial: 'SMARTPOT-READY'
   - wait-serial: 'Serial command injector ready'
   - write-serial: "{\"sim\":\"hang-core1\"}\n"
   - wait-serial: 'SMARTPOT-FATAL watchdog task='
