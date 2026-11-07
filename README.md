@@ -60,18 +60,30 @@ flowchart LR
 
 ### Pinout Assignment
 
-| Component         | ESP32 Pin   | Type                        | Variable / Function                                    |
-|-------------------|-------------|-----------------------------|--------------------------------------------------------|
-| **BME280** (SCL)  | GPIO 22     | Main I2C Bus (100 kHz)      | Shared I2C clock                                       |
-| **BME280** (SDA)  | GPIO 21     | Main I2C Bus (100 kHz)      | `temperature` (°C), `humidity` (%), `atmosphere` (hPa) |
-| **BH1750**        | I2C (22/21) | I2C (Address 0x23)          | `brightness` (lux)                                     |
-| **TDS Sensor**    | GPIO 34     | ADC1 CH6 (11dB Attenuation) | `tds` (ppm)                                            |
-| **pH Sensor**     | GPIO 35     | ADC1 CH7 (11dB Attenuation) | `ph` (0.00 – 14.00)                                    |
-| **Soil Moisture** | GPIO 32     | ADC1 CH4 (11dB Attenuation) | `soilMoisture` (%)                                     |
-| **Water Pump**    | GPIO 25     | Digital Output              | `WATER_PUMP`                                           |
-| **UV Light**      | GPIO 26     | Digital Output              | `UV_LIGHT`                                             |
-| **Fan**           | GPIO 27     | Digital Output              | `FAN`                                                  |
-| **Humidifier**    | GPIO 5      | Digital Output              | `HUMIDIFIER`                                           |
+By default the firmware uses **the same board as SmartPot-IoT-Python**: both repositories share a byte-identical
+`diagram.json`, the same `config.json` format, and the same console and LCD output, so the two firmwares look the same
+from outside. Filtering, the compact v2 packet, the watchdog and the rest of the internals stay specific to this
+firmware.
+
+| Component                   | ESP32 pin                | Contract field / actuator          |
+|-----------------------------|--------------------------|------------------------------------|
+| DHT22                       | GPIO 15                  | `temperature` (°C), `humidity` (%) |
+| Light potentiometer         | GPIO 34 (0..2000 lux)    | `brightness`                       |
+| pH potentiometer            | GPIO 35 (0..14)          | `ph`                               |
+| TDS potentiometer           | GPIO 32 (0..3000 ppm)    | `tds`                              |
+| Soil moisture potentiometer | GPIO 33 (0..100 %)       | `soilMoisture`                     |
+| Water pump                  | GPIO 19                  | `WATER_PUMP`                       |
+| UV light                    | GPIO 18                  | `UV_LIGHT`                         |
+| Fan                         | GPIO 5                   | `FAN`                              |
+| LCD2004 (I2C, 0x27)         | SCL GPIO 16, SDA GPIO 17 | local display                      |
+
+The previous physical prototype (three BME280 behind a TCA9548A at 0x70 on SDA GPIO21 / SCL GPIO22, a BH1750, real TDS
+and pH curves, the pump on GPIO25, UV light on GPIO26, fan on GPIO27 and humidifier on GPIO5) is still available with
+`--features board-physical`.
+
+**Configuration**: copy `config.example.json` to `config.json` (untracked). It has the same `WIFI`, `SMARTPOT` and
+`BROKER.CA_CRT` blocks as the MicroPython firmware and is read at build time; environment variables with the names in
+`.env.example` override single values.
 
 ### MQTT v1 Contract
 
@@ -146,15 +158,9 @@ uv run --with paho-mqtt python tests/verify_contract_v1.py
 
 ### Wokwi Simulation
 
-`diagram.json` reproduces the real pinout: ESP32 DevKit, ADC potentiometers on GPIO34 (TDS), GPIO35 (pH) and GPIO32 (
-soil), and actuator LEDs with 220 Ω resistors on GPIO25 (water pump), GPIO26 (UV light), GPIO27 (fan) and GPIO5 (
-humidifier), plus the LCD2004 on SCL GPIO16 / SDA GPIO17. The sensor I2C bus stays on SDA GPIO21 / SCL GPIO22.
-
-Wokwi does not provide functional built-in models for the BME280 or the BH1750 (verified with `wokwi-cli lint`), so the
-simulation only covers the ADC inputs and actuator outputs. The firmware logs a warning and keeps running without the
-I2C sensors; TDS and pH thermal compensation falls back to 25.0 °C until a real BME280 reading exists. The physical
-device uses three BME280 sensors behind a TCA9548A multiplexer at 0x70 (channels 2, 3 and 4, address 0x76) plus a BH1750
-at 0x23. That 3×BME topology is physical-hardware-only and cannot be modeled in Wokwi.
+`diagram.json` is the MicroPython board described above (identical in both repositories). The DHT22, the four
+potentiometers, the actuator LEDs and the LCD2004 are all simulated; the console prints the same reading table and
+messages as the MicroPython firmware. Internal `[INFO ]`/`[WARN ]` logs are only printed with `--features verbose-logs`.
 
 ### Reliability and Actuator Safety
 
@@ -230,18 +236,30 @@ inglés.
 
 ### Asignación de Pines (Pinout)
 
-| Componente           | Pin ESP32   | Tipo                        | Variable / Función                                     |
-|----------------------|-------------|-----------------------------|--------------------------------------------------------|
-| **BME280** (SCL)     | GPIO 22     | I2C Bus Principal (100 kHz) | Reloj I2C compartido                                   |
-| **BME280** (SDA)     | GPIO 21     | I2C Bus Principal (100 kHz) | `temperature` (°C), `humidity` (%), `atmosphere` (hPa) |
-| **BH1750**           | I2C (22/21) | I2C (Dirección 0x23)        | `brightness` (lux)                                     |
-| **Sensor TDS**       | GPIO 34     | ADC1 CH6 (Atenuación 11dB)  | `tds` (ppm)                                            |
-| **Sensor pH**        | GPIO 35     | ADC1 CH7 (Atenuación 11dB)  | `ph` (0.00 – 14.00)                                    |
-| **Humedad Sustrato** | GPIO 32     | ADC1 CH4 (Atenuación 11dB)  | `soilMoisture` (%)                                     |
-| **Bomba de Agua**    | GPIO 25     | Salida Digital              | `WATER_PUMP`                                           |
-| **Luz UV**           | GPIO 26     | Salida Digital              | `UV_LIGHT`                                             |
-| **Ventilador**       | GPIO 27     | Salida Digital              | `FAN`                                                  |
-| **Humidificador**    | GPIO 5      | Salida Digital              | `HUMIDIFIER`                                           |
+Por defecto el firmware usa **la misma placa que SmartPot-IoT-Python**: los dos repositorios comparten un `diagram.json`
+idéntico byte a byte, el mismo formato de `config.json` y la misma salida de consola y de LCD, así que desde fuera los
+dos firmwares se ven iguales. El filtrado, el paquete compacto v2, el watchdog y el resto de detalles internos siguen
+siendo propios de este firmware.
+
+| Componente                     | Pin del ESP32            | Campo del contrato / actuador      |
+|--------------------------------|--------------------------|------------------------------------|
+| DHT22                          | GPIO 15                  | `temperature` (°C), `humidity` (%) |
+| Potenciómetro de luz           | GPIO 34 (0..2000 lux)    | `brightness`                       |
+| Potenciómetro de pH            | GPIO 35 (0..14)          | `ph`                               |
+| Potenciómetro de TDS           | GPIO 32 (0..3000 ppm)    | `tds`                              |
+| Potenciómetro de humedad suelo | GPIO 33 (0..100 %)       | `soilMoisture`                     |
+| Bomba de agua                  | GPIO 19                  | `WATER_PUMP`                       |
+| Luz UV                         | GPIO 18                  | `UV_LIGHT`                         |
+| Ventilador                     | GPIO 5                   | `FAN`                              |
+| LCD2004 (I2C, 0x27)            | SCL GPIO 16, SDA GPIO 17 | pantalla local                     |
+
+El prototipo físico anterior (tres BME280 tras un TCA9548A en 0x70 sobre SDA GPIO21 / SCL GPIO22, un BH1750, curvas
+reales de TDS y pH, bomba en GPIO25, luz UV en GPIO26, ventilador en GPIO27 y humidificador en GPIO5) sigue disponible
+con `--features board-physical`.
+
+**Configuración**: copia `config.example.json` como `config.json` (no se versiona). Tiene los mismos bloques `WIFI`,
+`SMARTPOT` y `BROKER.CA_CRT` que el firmware MicroPython y se lee al compilar; las variables de entorno con los nombres
+de `.env.example` sobrescriben valores sueltos.
 
 ### Contrato MQTT v1
 
@@ -317,16 +335,10 @@ uv run --with paho-mqtt python tests/verify_contract_v1.py
 
 ### Simulación en Wokwi
 
-`diagram.json` reproduce el pinout real: ESP32 DevKit, potenciómetros ADC en GPIO34 (TDS), GPIO35 (pH) y GPIO32 (suelo),
-y LEDs de actuador con resistencias de 220 Ω en GPIO25 (bomba de agua), GPIO26 (luz UV), GPIO27 (ventilador) y GPIO5 (
-humidificador), además del LCD2004 en SCL GPIO16 / SDA GPIO17. El bus I2C de los sensores se mantiene en SDA GPIO21 /
-SCL GPIO22.
-
-Wokwi no ofrece modelos funcionales integrados del BME280 ni del BH1750 (verificado con `wokwi-cli lint`), así que la
-simulación solo cubre las entradas ADC y las salidas de actuador. El firmware registra un aviso y sigue funcionando sin
-los sensores I2C; la compensación térmica de TDS y pH usa 25.0 °C hasta que exista una lectura real del BME280. El
-dispositivo físico usa tres BME280 detrás de un multiplexor TCA9548A en 0x70 (canales 2, 3 y 4, dirección 0x76) y un
-BH1750 en 0x23. Esa topología de 3×BME280 es exclusiva del hardware físico y no puede modelarse en Wokwi.
+`diagram.json` es la placa de MicroPython descrita arriba (idéntica en los dos repositorios). Se simulan el DHT22, los
+cuatro potenciómetros, los LED de los actuadores y el LCD2004; la consola imprime la misma tabla de lecturas y los mismos
+mensajes que el firmware MicroPython. Los registros internos `[INFO ]`/`[WARN ]` solo se imprimen con
+`--features verbose-logs`.
 
 ### Fiabilidad y seguridad de actuadores
 
