@@ -1,0 +1,50 @@
+name: Wokwi simulation
+
+# Escenas automatizadas en el simulador Wokwi (arranque, actuadores y política
+# de seguridad, pánico y watchdog). Se ejecuta a mano porque consume minutos
+# de la cuota de Wokwi CI; necesita el secreto WOKWI_CLI_TOKEN.
+on:
+  workflow_dispatch:
+    inputs:
+      scenarios:
+        description: "Scenarios to run (space separated, empty = all)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  wokwi:
+    name: Wokwi scenarios
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Xtensa Rust toolchain
+        uses: esp-rs/xtensa-toolchain@v1.5
+        with:
+          default: true
+          buildtargets: esp32
+          ldproxy: true
+
+      - name: Install Wokwi CLI
+        run: |
+          curl -fsSL https://wokwi.com/ci/install.sh | sh
+          echo "$HOME/.wokwi/bin" >> "$GITHUB_PATH"
+
+      - name: Run scenarios
+        env:
+          WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
+          SCENARIOS: ${{ inputs.scenarios }}
+        run: python3 tests/wokwi/run.py $SCENARIOS
+
+      - name: Upload serial logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wokwi-serial-logs
+          path: tests/wokwi/out/
+          if-no-files-found: ignore
