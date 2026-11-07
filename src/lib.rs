@@ -74,6 +74,7 @@ pub mod clock;
 pub mod codec;
 pub mod config;
 pub mod display_layout;
+pub mod dns;
 pub mod drivers;
 pub mod events;
 pub mod filter;

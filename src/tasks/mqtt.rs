@@ -16,9 +16,8 @@ use core::str;
 
 use embassy_executor::task;
 use embassy_futures::select::{Either, Either4, select, select4};
-use embassy_net::dns::DnsQueryType;
+use embassy_net::Stack;
 use embassy_net::tcp::TcpSocket as NetTcpSocket;
-use embassy_net::{IpAddress, Stack};
 use embassy_sync::pubsub::{DynPublisher, DynSubscriber};
 use embassy_time::{Duration, Instant, Ticker, Timer, with_timeout};
 
@@ -271,20 +270,13 @@ pub async fn mqtt_task(
     }
 }
 
-/// Resuelve el host del broker a IPv4 mediante el DNS del stack de red.
-///
-/// `dns_query` acepta tanto nombres como literales IP, por lo que
-/// `BROKER_HOST=127.0.0.1` sigue funcionando sin configuración adicional.
-#[allow(unreachable_patterns)]
+/// Resuelve el host del broker a IPv4 (DNS del stack con respaldo). Acepta
+/// también literales IP, así que `BROKER_HOST=127.0.0.1` sigue funcionando.
 async fn resolve_broker(stack: Stack<'static>, host: &str) -> Option<Ipv4Addr> {
-    match stack.dns_query(host, DnsQueryType::A).await {
-        Ok(addresses) => addresses.iter().find_map(|address| match address {
-            IpAddress::Ipv4(ipv4) => Some(Ipv4Addr::from(ipv4.octets())),
-            // La variante IPv6 solo existe si se compila proto-ipv6.
-            _ => None,
-        }),
-        Err(e) => {
-            error!("[MQTT] DNS resolution failed for {}: {:?}", host, e);
+    match crate::tasks::resolver::resolve_ipv4(stack, host).await {
+        Ok(address) => Some(address),
+        Err(reason) => {
+            error!("[MQTT] Could not resolve {}: {}", host, reason);
             None
         }
     }

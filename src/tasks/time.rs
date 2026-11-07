@@ -3,14 +3,14 @@
 //! El handshake TLS necesita la hora para validar la vigencia de los
 //! certificados, así que esta tarea arranca antes que el cliente MQTT. Espera a
 //! que el stack tenga configuración IPv4, resuelve el servidor por DNS y repite
-//! la sincronización cada 60 segundos. No usa heap: todos los búferes son
+//! la sincronización cada 60 segundos (cada 10 hasta la primera, como el bucle
+//! del firmware MicroPython). No usa heap: todos los búferes son
 //! locales y de tamaño fijo.
 
 use embassy_executor::task;
 use embassy_futures::select::{Either, select};
-use embassy_net::dns::DnsQueryType;
 use embassy_net::udp::{PacketMetadata, UdpSocket};
-use embassy_net::{IpEndpoint, Stack};
+use embassy_net::{IpAddress, IpEndpoint, Stack};
 use embassy_time::{Duration, Instant, Timer};
 
 use crate::clock;
@@ -18,6 +18,8 @@ use crate::sntp::{self, NTP_PACKET_SIZE};
 
 const NTP_PORT: u16 = 123;
 const SYNC_INTERVAL: Duration = Duration::from_secs(60);
+/// Reintento hasta la primera sincronización: sin hora no hay TLS ni MQTT.
+const FIRST_SYNC_RETRY: Duration = Duration::from_secs(10);
 const RESPONSE_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[task]
@@ -51,17 +53,21 @@ pub async fn sntp_task(stack: Stack<'static>, server: &'static str) {
             }
         }
 
-        Timer::after(SYNC_INTERVAL).await;
+        Timer::after(if synchronized_once {
+            SYNC_INTERVAL
+        } else {
+            FIRST_SYNC_RETRY
+        })
+        .await;
     }
 }
 
 /// Realiza una única petición SNTP y devuelve el epoch Unix del servidor.
 async fn sync_once(stack: Stack<'static>, server: &str, nonce: u64) -> Result<u64, &'static str> {
-    let addresses = stack
-        .dns_query(server, DnsQueryType::A)
-        .await
-        .map_err(|_| "DNS resolution failed")?;
-    let address = *addresses.first().ok_or("no IPv4 address returned")?;
+    let [a, b, c, d] = crate::tasks::resolver::resolve_ipv4(stack, server)
+        .await?
+        .octets();
+    let address = IpAddress::v4(a, b, c, d);
 
     let mut rx_meta = [PacketMetadata::EMPTY; 1];
     let mut tx_meta = [PacketMetadata::EMPTY; 1];

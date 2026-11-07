@@ -21,6 +21,9 @@ pub mod protocol;
 #[path = "../../../src/codec.rs"]
 pub mod codec;
 
+#[path = "../../../src/dns.rs"]
+pub mod dns;
+
 #[path = "../../../src/filter.rs"]
 pub mod filter;
 
