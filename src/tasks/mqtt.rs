@@ -4,22 +4,26 @@
 //! `USE_TLS` está activo (valor por defecto). El epoch Unix se obtiene por SNTP
 //! antes del handshake y nunca se cae a una conexión sin verificar: si falta la
 //! CA o el reloj, el cliente registra el error y reintenta.
+//!
+//! La sesión detecta enlaces muertos por tres vías: PINGREQ cada 30 s con plazo
+//! para el PINGRESP, tiempo límite del socket TCP y keepalive TCP. Los
+//! reintentos usan espera exponencial con dispersión aleatoria.
 
-extern crate alloc;
-
+use core::fmt::Write as _;
 use core::net::{Ipv4Addr, SocketAddrV4};
 use core::num::NonZero;
 use core::str;
 
 use embassy_executor::task;
-use embassy_futures::select::{Either3, select3};
+use embassy_futures::select::{Either, Either4, select, select4};
 use embassy_net::dns::DnsQueryType;
 use embassy_net::tcp::TcpSocket as NetTcpSocket;
 use embassy_net::{IpAddress, Stack};
 use embassy_sync::pubsub::{DynPublisher, DynSubscriber};
-use embassy_time::{Duration, Timer};
+use embassy_time::{Duration, Instant, Ticker, Timer, with_timeout};
 
 use embedded_tls::{TlsConfig, TlsConnection, TlsContext};
+use esp_hal::rng::Trng;
 use heapless::String;
 use rust_mqtt::buffer::AllocBuffer;
 use rust_mqtt::client::Client;
@@ -29,7 +33,9 @@ use rust_mqtt::client::options::{
 };
 use rust_mqtt::config::KeepAlive;
 use rust_mqtt::types::{MqttBinary, MqttString, TopicName};
+use static_cell::ConstStaticCell;
 
+use crate::backoff::Backoff;
 use crate::capabilities::CAPABILITIES_JSON;
 use crate::clock;
 use crate::config::{self, Config};
@@ -38,22 +44,82 @@ use crate::events::{AckMessage, BROKER_ONLINE, Command};
 use crate::health::{Beat, beat};
 use crate::protocol::{TopicResolver, parse_command};
 use crate::tls::VerifyingProvider;
-use static_cell::ConstStaticCell;
 
 /// Tamaño del búfer para la cadena de certificados del servidor durante el handshake.
 const TLS_CERT_BUFFER_SIZE: usize = 2048;
 
+/// Intervalo de PINGREQ y plazo máximo para recibir el PINGRESP.
+const PING_INTERVAL: Duration = Duration::from_secs(30);
+const PING_DEADLINE: Duration = Duration::from_secs(15);
+
+/// Sin datos ni ACK del broker durante este tiempo, el socket TCP se aborta.
+const SOCKET_TIMEOUT: Duration = Duration::from_secs(90);
+const SOCKET_KEEP_ALIVE: Duration = Duration::from_secs(30);
+
+/// Paquete más grande que el firmware acepta del broker. Un comando ocupa
+/// menos de 200 bytes; el límite evita reservas enormes en un heap de 98 KB.
+const MAX_INCOMING_PACKET: u32 = 1024;
+
+/// Tiempo máximo para despedirse del broker al cerrar una sesión rota.
+const CLOSE_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// Espera entre reintentos: de 2 s a 60 s con dispersión.
+const RETRY_BASE_MS: u32 = 2_000;
+const RETRY_MAX_MS: u32 = 60_000;
+
+/// Tópicos del cultivo, resueltos una sola vez.
+struct Topics {
+    telemetry: String<64>,
+    commands: String<64>,
+    ack: String<64>,
+    status: String<64>,
+    capabilities: String<64>,
+}
+
+/// Resultado de una sesión MQTT, para decidir la espera del siguiente intento.
+enum SessionOutcome {
+    /// El broker rechazó la conexión o la suscripción.
+    Refused,
+    /// La sesión llegó a estar operativa y después se cerró.
+    Ended,
+}
+
+/// Convierte un tópico en `TopicName`; falla si el cultivo está mal configurado.
+fn topic_name(topic: &str) -> Option<TopicName<'_>> {
+    TopicName::new(MqttString::from_str(topic).ok()?)
+}
+
+/// Espera a que el stack tenga IPv4 sin dejar de latir para el supervisor.
+async fn wait_for_network(stack: Stack<'static>) {
+    loop {
+        beat(Beat::Mqtt);
+        if let Either::First(()) =
+            select(stack.wait_config_up(), Timer::after(Duration::from_secs(5))).await
+        {
+            return;
+        }
+    }
+}
+
+/// Espera latiendo para que el supervisor no confunda un reintento con un bloqueo.
+async fn sleep_with_beats(delay: Duration) {
+    let deadline = Instant::now() + delay;
+    while Instant::now() < deadline {
+        beat(Beat::Mqtt);
+        let remaining = deadline - Instant::now();
+        Timer::after(remaining.min(Duration::from_secs(5))).await;
+    }
+}
+
 #[task]
 pub async fn mqtt_task(
     stack: Stack<'static>,
-    rng: esp_hal::rng::Trng,
+    rng: Trng,
     config: Config,
     mut telemetry_channel: DynSubscriber<'static, TelemetryMessage>,
     commands_channel: DynPublisher<'static, Command>,
     mut ack_channel: DynSubscriber<'static, AckMessage>,
 ) {
-    stack.wait_config_up().await;
-
     static RX_BUFFER: ConstStaticCell<[u8; 4096]> = ConstStaticCell::new([0u8; 4096]);
     static TX_BUFFER: ConstStaticCell<[u8; 4096]> = ConstStaticCell::new([0u8; 4096]);
     static TLS_RX: ConstStaticCell<[u8; 16640]> = ConstStaticCell::new([0u8; 16640]);
@@ -65,12 +131,17 @@ pub async fn mqtt_task(
     let tls_tx = TLS_TX.take();
 
     let resolver = TopicResolver::new(config.crop_id);
-    let topic_telemetry_str: String<64> = resolver.telemetry();
-    let topic_commands_str: String<64> = resolver.commands();
-    let topic_ack_str: String<64> = resolver.ack();
-    let topic_status_str: String<64> = resolver.status();
-    let topic_capabilities_str: String<64> = resolver.capabilities();
+    let topics = Topics {
+        telemetry: resolver.telemetry(),
+        commands: resolver.commands(),
+        ack: resolver.ack(),
+        status: resolver.status(),
+        capabilities: resolver.capabilities(),
+    };
+    let mut backoff = Backoff::new(RETRY_BASE_MS, RETRY_MAX_MS);
     let mut ca_missing_logged = false;
+
+    wait_for_network(stack).await;
 
     loop {
         beat(Beat::Mqtt);
@@ -81,101 +152,99 @@ pub async fn mqtt_task(
             );
         }
 
-        // Precondiciones de TLS: hora válida y CA propia. Se comprueban antes
-        // de abrir el socket para no mantener conexiones TCP sin verificar.
-        let ca_der = if config.use_tls {
-            while !clock::is_synced() {
-                beat(Beat::Mqtt);
-                warn!("[MQTT] Waiting for SNTP time synchronization before TLS");
-                Timer::after(Duration::from_secs(2)).await;
-            }
-
-            match config::ca_cert_der::<TLS_CERT_BUFFER_SIZE>(config.ca_cert_pem) {
-                Ok(der) => der,
-                Err(_) => {
-                    if !ca_missing_logged {
-                        error!(
-                            "[MQTT] CA_CERT_PEM is missing or invalid; refusing to connect without certificate verification"
-                        );
-                        ca_missing_logged = true;
-                    }
-                    Timer::after(Duration::from_secs(5)).await;
-                    continue;
+        let outcome = 'attempt: {
+            // Precondiciones de TLS: hora válida y CA propia. Se comprueban antes
+            // de abrir el socket para no mantener conexiones TCP sin verificar.
+            let ca_der = if config.use_tls {
+                while !clock::is_synced() {
+                    warn!("[MQTT] Waiting for SNTP time synchronization before TLS");
+                    sleep_with_beats(Duration::from_secs(2)).await;
                 }
+
+                match config::ca_cert_der::<TLS_CERT_BUFFER_SIZE>(config.ca_cert_pem) {
+                    Ok(der) => der,
+                    Err(_) => {
+                        if !ca_missing_logged {
+                            error!(
+                                "[MQTT] CA_CERT_PEM is missing or invalid; refusing to connect without certificate verification"
+                            );
+                            ca_missing_logged = true;
+                        }
+                        break 'attempt SessionOutcome::Refused;
+                    }
+                }
+            } else {
+                heapless::Vec::new()
+            };
+
+            info!(
+                "[MQTT] Connecting to {}:{} (Crop: {})",
+                config.broker_host, config.broker_port, config.crop_id
+            );
+
+            let Some(broker_ip) = resolve_broker(stack, config.broker_host).await else {
+                break 'attempt SessionOutcome::Refused;
+            };
+            let broker_addr = SocketAddrV4::new(broker_ip, config.broker_port);
+
+            let mut socket = NetTcpSocket::new(stack, rx_buffer, tx_buffer);
+            socket.set_timeout(Some(SOCKET_TIMEOUT));
+            socket.set_keep_alive(Some(SOCKET_KEEP_ALIVE));
+            if let Err(e) = socket.connect(broker_addr).await {
+                error!("[MQTT] TCP connection failed: {:?}", e);
+                break 'attempt SessionOutcome::Refused;
             }
-        } else {
-            heapless::Vec::new()
+            info!("[MQTT] TCP connection established");
+            beat(Beat::Mqtt);
+
+            if config.use_tls {
+                let tls_config = TlsConfig::new()
+                    .with_server_name(config.broker_host)
+                    .enable_rsa_signatures();
+                let provider = VerifyingProvider::new(rng.clone(), ca_der.as_slice());
+                let tls_context = TlsContext::new(&tls_config, provider);
+                let mut tls = TlsConnection::new(socket, tls_rx, tls_tx);
+                if let Err(e) = tls.open(tls_context).await {
+                    error!("[MQTT] TLS handshake failed: {:?}", e);
+                    break 'attempt SessionOutcome::Refused;
+                }
+                info!("[MQTT] TLS session established; broker certificate verified");
+                marker!("SMARTPOT-TLS-OK host={}", config.broker_host);
+
+                run_mqtt_client(
+                    &mut tls,
+                    &config,
+                    &topics,
+                    &mut telemetry_channel,
+                    &commands_channel,
+                    &mut ack_channel,
+                )
+                .await
+            } else {
+                warn!("[MQTT] TLS is disabled; connecting without certificate verification");
+
+                run_mqtt_client(
+                    &mut socket,
+                    &config,
+                    &topics,
+                    &mut telemetry_channel,
+                    &commands_channel,
+                    &mut ack_channel,
+                )
+                .await
+            }
         };
 
-        info!(
-            "[MQTT] Connecting to {}:{} (Crop: {})",
-            config.broker_host, config.broker_port, config.crop_id
+        if let SessionOutcome::Ended = outcome {
+            backoff.reset();
+        }
+        let delay = backoff.next_delay_ms(rng.random());
+        warn!(
+            "[MQTT] Connection closed. Retrying in {} ms (attempt {})",
+            delay,
+            backoff.attempt()
         );
-
-        let broker_ip = match resolve_broker(stack, config.broker_host).await {
-            Some(ip) => ip,
-            None => {
-                Timer::after(Duration::from_secs(5)).await;
-                continue;
-            }
-        };
-        let broker_addr = SocketAddrV4::new(broker_ip, config.broker_port);
-
-        let mut socket = NetTcpSocket::new(stack, rx_buffer, tx_buffer);
-        if let Err(e) = socket.connect(broker_addr).await {
-            error!("[MQTT] TCP connection failed: {:?}", e);
-            Timer::after(Duration::from_secs(5)).await;
-            continue;
-        }
-        info!("[MQTT] TCP connection established");
-
-        if config.use_tls {
-            let tls_config = TlsConfig::new()
-                .with_server_name(config.broker_host)
-                .enable_rsa_signatures();
-            let provider = VerifyingProvider::new(rng.clone(), ca_der.as_slice());
-            let tls_context = TlsContext::new(&tls_config, provider);
-            let mut tls = TlsConnection::new(socket, tls_rx, tls_tx);
-            if let Err(e) = tls.open(tls_context).await {
-                error!("[MQTT] TLS handshake failed: {:?}", e);
-                Timer::after(Duration::from_secs(5)).await;
-                continue;
-            }
-            info!("[MQTT] TLS session established; broker certificate verified");
-
-            run_mqtt_client(
-                &mut tls,
-                &config,
-                &topic_telemetry_str,
-                &topic_commands_str,
-                &topic_ack_str,
-                &topic_status_str,
-                &topic_capabilities_str,
-                &mut telemetry_channel,
-                &commands_channel,
-                &mut ack_channel,
-            )
-            .await;
-        } else {
-            warn!("[MQTT] TLS is disabled; connecting without certificate verification");
-
-            run_mqtt_client(
-                &mut socket,
-                &config,
-                &topic_telemetry_str,
-                &topic_commands_str,
-                &topic_ack_str,
-                &topic_status_str,
-                &topic_capabilities_str,
-                &mut telemetry_channel,
-                &commands_channel,
-                &mut ack_channel,
-            )
-            .await;
-        }
-
-        warn!("[MQTT] Connection closed. Retrying in 5 s...");
-        Timer::after(Duration::from_secs(5)).await;
+        sleep_with_beats(Duration::from_millis(delay as u64)).await;
     }
 }
 
@@ -198,57 +267,96 @@ async fn resolve_broker(stack: Stack<'static>, host: &str) -> Option<Ipv4Addr> {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+/// Convierte un mensaje de telemetría en el estado que se publica.
+fn telemetry_state(message: TelemetryMessage) -> crate::protocol::SensorState {
+    match message {
+        TelemetryMessage::SendAll(state) => state,
+        TelemetryMessage::SendOne(measurement) => {
+            let mut state = crate::protocol::SensorState::default();
+            match measurement {
+                crate::events::Measurements::BME280((t, h, p)) => state.update_bme280(t, h, p),
+                crate::events::Measurements::BH1750(l) => state.update_lux(l),
+                crate::events::Measurements::PH(p) => state.update_ph(p),
+                crate::events::Measurements::TDS(t) => state.update_tds(t),
+                crate::events::Measurements::SoilMoisture(sm) => state.update_soil_moisture(sm),
+            }
+            state
+        }
+    }
+}
+
 async fn run_mqtt_client<T>(
     transport: &mut T,
     config: &Config,
-    topic_telemetry_str: &str,
-    topic_commands_str: &str,
-    topic_ack_str: &str,
-    topic_status_str: &str,
-    topic_capabilities_str: &str,
+    topics: &Topics,
     telemetry_channel: &mut DynSubscriber<'static, TelemetryMessage>,
     commands_channel: &DynPublisher<'static, Command>,
     ack_channel: &mut DynSubscriber<'static, AckMessage>,
-) where
+) -> SessionOutcome
+where
     T: embedded_io_async::Read + embedded_io_async::Write,
 {
+    let (
+        Some(status_topic),
+        Some(capabilities_topic),
+        Some(commands_topic),
+        Some(ack_topic),
+        Some(telemetry_topic),
+    ) = (
+        topic_name(&topics.status),
+        topic_name(&topics.capabilities),
+        topic_name(&topics.commands),
+        topic_name(&topics.ack),
+        topic_name(&topics.telemetry),
+    )
+    else {
+        error!("[MQTT] Invalid MQTT topics; check CROP_ID");
+        return SessionOutcome::Refused;
+    };
+    let (Ok(user_name), Ok(password), Ok(offline)) = (
+        MqttString::from_str(config.crop_id),
+        MqttBinary::from_slice(config.device_key.as_bytes()),
+        MqttBinary::from_slice(b"offline"),
+    ) else {
+        error!("[MQTT] Invalid MQTT credentials; check CROP_ID and DEVICE_KEY");
+        return SessionOutcome::Refused;
+    };
+
+    let mut client_id: String<48> = String::new();
+    let _ = write!(client_id, "smartpot-{}", config.crop_id);
+    let Ok(client_id) = MqttString::from_str(client_id.as_str()) else {
+        error!("[MQTT] Invalid MQTT client id; check CROP_ID");
+        return SessionOutcome::Refused;
+    };
+
     let mut buffer_provider = AllocBuffer;
     let mut client: Client<'_, &mut T, _, 4, 4, 4, 4> = Client::new(&mut buffer_provider);
 
-    // Configurar última voluntad (LWT) retenida: smartpot/v1/{cropId}/status = offline
-    let will = WillOptions::new(
-        TopicName::new(MqttString::from_str(topic_status_str).unwrap()).unwrap(),
-        MqttBinary::from_slice(b"offline").unwrap(),
-    )
-    .retain()
-    .at_least_once();
+    // Última voluntad (LWT) retenida: smartpot/v1/{cropId}/status = offline
+    let will = WillOptions::new(status_topic.clone(), offline)
+        .retain()
+        .at_least_once();
 
     let connect_options = ConnectOptions::new()
         .clean_start()
-        .keep_alive(KeepAlive::Seconds(NonZero::new(60).unwrap()))
-        .user_name(MqttString::from_str(config.crop_id).unwrap())
-        .password(MqttBinary::from_slice(config.device_key.as_bytes()).unwrap())
+        .keep_alive(KeepAlive::Seconds(NonZero::<u16>::MIN.saturating_add(59)))
+        .maximum_packet_size(NonZero::<u32>::MIN.saturating_add(MAX_INCOMING_PACKET - 1))
+        .user_name(user_name)
+        .password(password)
         .will(will);
 
-    let client_id_str = alloc::format!("smartpot-{}", config.crop_id);
     if let Err(e) = client
-        .connect(
-            transport,
-            &connect_options,
-            Some(MqttString::from_str(&client_id_str).unwrap()),
-        )
+        .connect(transport, &connect_options, Some(client_id))
         .await
     {
         error!("[MQTT] CONNACK failed: {:?}", e);
-        return;
+        marker!("SMARTPOT-MQTT-REFUSED");
+        return SessionOutcome::Refused;
     }
     info!("[MQTT] MQTT session authenticated successfully");
 
     // Publicar estado online retenido
-    let status_topic_name =
-        TopicName::new(MqttString::from_str(topic_status_str).unwrap()).unwrap();
-    let pub_online = PublicationOptions::new(TopicReference::Name(status_topic_name.clone()))
+    let pub_online = PublicationOptions::new(TopicReference::Name(status_topic.clone()))
         .retain()
         .at_least_once();
     if let Err(e) = client
@@ -257,14 +365,15 @@ async fn run_mqtt_client<T>(
     {
         error!("[MQTT] Could not publish online status: {:?}", e);
     } else {
-        info!("[MQTT] Published 'online' status to {}", topic_status_str);
+        info!(
+            "[MQTT] Published 'online' status to {}",
+            topics.status.as_str()
+        );
     }
 
     // Publicar capacidades retenidas antes de suscribirse a comandos. Un fallo
     // aquí no impide operar: se registra y se continúa con la suscripción.
-    let capabilities_topic_name =
-        TopicName::new(MqttString::from_str(topic_capabilities_str).unwrap()).unwrap();
-    let pub_capabilities = PublicationOptions::new(TopicReference::Name(capabilities_topic_name))
+    let pub_capabilities = PublicationOptions::new(TopicReference::Name(capabilities_topic))
         .retain()
         .at_least_once();
     match client
@@ -276,75 +385,99 @@ async fn run_mqtt_client<T>(
     {
         Ok(_) => info!(
             "[MQTT] Published retained capabilities to {}",
-            topic_capabilities_str
+            topics.capabilities.as_str()
         ),
         Err(e) => warn!("[MQTT] Could not publish capabilities: {:?}", e),
     }
 
-    // Suscribirse al tópico de comandos
-    let commands_topic_name =
-        TopicName::new(MqttString::from_str(topic_commands_str).unwrap()).unwrap();
     if let Err(e) = client
         .subscribe(
-            commands_topic_name.as_borrowed().into(),
+            commands_topic.as_borrowed().into(),
             SubscriptionOptions::new().at_least_once(),
         )
         .await
     {
         error!("[MQTT] Error subscribing to commands: {:?}", e);
-        return;
+        let _ = with_timeout(CLOSE_TIMEOUT, client.abort()).await;
+        return SessionOutcome::Refused;
     }
-    info!("[MQTT] Active subscription to {}", topic_commands_str);
-    BROKER_ONLINE.sender().send(true);
+    info!("[MQTT] Active subscription to {}", topics.commands.as_str());
 
-    let ack_topic_name = TopicName::new(MqttString::from_str(topic_ack_str).unwrap()).unwrap();
-    let telemetry_topic_name =
-        TopicName::new(MqttString::from_str(topic_telemetry_str).unwrap()).unwrap();
+    // Las instantáneas acumuladas sin conexión se descartan: llevarían la hora
+    // de publicación en vez de la de medición y llegarían todas a la vez.
+    let mut stale = 0u32;
+    while telemetry_channel.try_next_message_pure().is_some() {
+        stale += 1;
+    }
+    if stale > 0 {
+        warn!("[MQTT] Discarded {} stale telemetry snapshots", stale);
+    }
+
+    BROKER_ONLINE.sender().send(true);
+    marker!("SMARTPOT-MQTT-UP crop={}", config.crop_id);
+
     let mut telemetry_seq: u16 = 0;
+    let mut ping_ticker = Ticker::every(PING_INTERVAL);
+    let mut ping_sent_at: Option<Instant> = None;
 
     loop {
         beat(Beat::Mqtt);
-        match select3(
-            client.poll(),
+        // `poll_header` es seguro ante cancelación: si gana otra rama del
+        // `select`, no se pierde ningún byte del paquete entrante. El cuerpo se
+        // lee fuera del `select` porque `poll_body` no lo es.
+        match select4(
+            client.poll_header(),
             ack_channel.next_message_pure(),
             telemetry_channel.next_message_pure(),
+            ping_ticker.next(),
         )
         .await
         {
-            // Eventos del cliente MQTT (mensajes entrantes o pingreq)
-            Either3::First(poll_res) => match poll_res {
+            Either4::First(Err(e)) => {
+                error!("[MQTT] MQTT poll error: {:?}", e);
+                break;
+            }
+            Either4::First(Ok(header)) => match client.poll_body(header).await {
                 Ok(Event::Publish(pub_event)) => {
-                    let msg_bytes = pub_event.message.as_bytes();
-                    if let Ok(msg_str) = str::from_utf8(msg_bytes) {
-                        info!("[MQTT SUB] Message received: {}", msg_str);
-                        match parse_command(msg_str) {
-                            Ok(cmd) => {
-                                commands_channel.publish_immediate(cmd);
-                            }
-                            Err(reason) => {
-                                warn!("[MQTT SUB] Invalid command discarded: {}", msg_str);
-                                // Si es un JSON con id, emitir ACK de fallo con el motivo
-                                if let Ok(id) =
-                                    crate::protocol::command::extract_str_field(msg_str, "id")
+                    let Ok(msg_str) = str::from_utf8(pub_event.message.as_bytes()) else {
+                        warn!("[MQTT SUB] Command payload is not UTF-8; discarded");
+                        continue;
+                    };
+                    info!("[MQTT SUB] Message received: {}", msg_str);
+                    match parse_command(msg_str) {
+                        Ok(cmd) => commands_channel.publish_immediate(cmd),
+                        Err(reason) => {
+                            warn!("[MQTT SUB] Invalid command discarded: {}", msg_str);
+                            // Si es un JSON con id, emitir ACK de fallo con el motivo
+                            if let Ok(id) =
+                                crate::protocol::command::extract_str_field(msg_str, "id")
+                            {
+                                let fail_ack = AckMessage::failure(id.as_str(), reason.message());
+                                marker!(
+                                    "SMARTPOT-ACK {} FAILED {}",
+                                    fail_ack.id.as_str(),
+                                    fail_ack.message.as_str()
+                                );
+                                let ack_json: String<160> = fail_ack.to_json();
+                                let pub_opts = PublicationOptions::new(TopicReference::Name(
+                                    ack_topic.clone(),
+                                ))
+                                .at_least_once();
+                                if let Err(e) = client
+                                    .publish(
+                                        &pub_opts,
+                                        rust_mqtt::Bytes::Borrowed(ack_json.as_bytes()),
+                                    )
+                                    .await
                                 {
-                                    let fail_ack =
-                                        AckMessage::failure(id.as_str(), reason.message());
-                                    let ack_json: String<160> = fail_ack.to_json();
-                                    let pub_opts = PublicationOptions::new(TopicReference::Name(
-                                        ack_topic_name.clone(),
-                                    ))
-                                    .at_least_once();
-                                    let _ = client
-                                        .publish(
-                                            &pub_opts,
-                                            rust_mqtt::Bytes::Borrowed(ack_json.as_bytes()),
-                                        )
-                                        .await;
+                                    error!("[MQTT] Error publishing failure ACK: {:?}", e);
+                                    break;
                                 }
                             }
                         }
                     }
                 }
+                Ok(Event::Pingresp) => ping_sent_at = None,
                 Ok(_) => {}
                 Err(e) => {
                     error!("[MQTT] MQTT poll error: {:?}", e);
@@ -353,14 +486,13 @@ async fn run_mqtt_client<T>(
             },
 
             // Confirmaciones ACK producidas por el ejecutor de actuadores
-            Either3::Second(ack) => {
+            Either4::Second(ack) => {
                 let ack_json: String<160> = ack.to_json();
-                let pub_opts =
-                    PublicationOptions::new(TopicReference::Name(ack_topic_name.clone()))
-                        .at_least_once();
+                let pub_opts = PublicationOptions::new(TopicReference::Name(ack_topic.clone()))
+                    .at_least_once();
                 info!(
                     "[MQTT ACK] Publishing to {}: {}",
-                    topic_ack_str,
+                    topics.ack.as_str(),
                     ack_json.as_str()
                 );
                 if let Err(e) = client
@@ -373,31 +505,8 @@ async fn run_mqtt_client<T>(
             }
 
             // Mensajes de telemetría para publicar
-            Either3::Third(telem_msg) => {
-                let state = match telem_msg {
-                    TelemetryMessage::SendAll(state) => state,
-                    TelemetryMessage::SendOne(m) => {
-                        let mut state = crate::protocol::SensorState::default();
-                        match m {
-                            crate::events::Measurements::BME280((t, h, p)) => {
-                                state.update_bme280(t, h, p);
-                            }
-                            crate::events::Measurements::BH1750(l) => {
-                                state.update_lux(l);
-                            }
-                            crate::events::Measurements::PH(p) => {
-                                state.update_ph(p);
-                            }
-                            crate::events::Measurements::TDS(t) => {
-                                state.update_tds(t);
-                            }
-                            crate::events::Measurements::SoilMoisture(sm) => {
-                                state.update_soil_moisture(sm);
-                            }
-                        }
-                        state
-                    }
-                };
+            Either4::Third(telem_msg) => {
+                let state = telemetry_state(telem_msg);
                 let mut payload: String<255> = String::new();
                 let mut packet = [0u8; crate::codec::PACKET_SIZE];
                 let body: &[u8] = if config.compact_telemetry {
@@ -417,10 +526,10 @@ async fn run_mqtt_client<T>(
 
                 if !body.is_empty() {
                     let pub_opts =
-                        PublicationOptions::new(TopicReference::Name(telemetry_topic_name.clone()));
+                        PublicationOptions::new(TopicReference::Name(telemetry_topic.clone()));
                     info!(
                         "[MQTT PUB] Telemetry on {} ({} bytes)",
-                        topic_telemetry_str,
+                        topics.telemetry.as_str(),
                         body.len()
                     );
                     if let Err(e) = client
@@ -432,17 +541,37 @@ async fn run_mqtt_client<T>(
                     }
                 }
             }
+
+            // Vida del enlace: un PINGRESP que no llega significa conexión muerta.
+            Either4::Fourth(()) => {
+                if let Some(sent_at) = ping_sent_at {
+                    if Instant::now() - sent_at >= PING_DEADLINE {
+                        error!("[MQTT] No PINGRESP from the broker; closing the session");
+                        break;
+                    }
+                    continue;
+                }
+                if let Err(e) = client.ping().await {
+                    error!("[MQTT] Could not send PINGREQ: {:?}", e);
+                    break;
+                }
+                ping_sent_at = Some(Instant::now());
+            }
         }
     }
 
     BROKER_ONLINE.sender().send(false);
+    marker!("SMARTPOT-MQTT-DOWN");
 
-    // Publicar estado offline antes de desconectar
-    let pub_offline = PublicationOptions::new(TopicReference::Name(status_topic_name))
+    // Despedida acotada: en un enlace muerto no se espera al tiempo límite TCP.
+    let pub_offline = PublicationOptions::new(TopicReference::Name(status_topic))
         .retain()
         .at_least_once();
-    let _ = client
-        .publish(&pub_offline, rust_mqtt::Bytes::Borrowed(b"offline"))
-        .await;
-    let _ = client.abort().await;
+    let _ = with_timeout(
+        CLOSE_TIMEOUT,
+        client.publish(&pub_offline, rust_mqtt::Bytes::Borrowed(b"offline")),
+    )
+    .await;
+    let _ = with_timeout(CLOSE_TIMEOUT, client.abort()).await;
+    SessionOutcome::Ended
 }
