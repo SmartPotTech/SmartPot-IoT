@@ -124,6 +124,10 @@ pub async fn bme280_sequential_task(
         // Se prefiere el primer sensor disponible (canal 2) como referencia
         // térmica para TDS y pH; si falla, se usa el siguiente que responda.
         let mut reference_temperature: Option<f32> = None;
+        // Las tres unidades se promedian: antes se publicaba cada una por
+        // separado y la telemetría se quedaba con la última que respondía.
+        let mut sum = (0.0f32, 0.0f32, 0.0f32);
+        let mut readings = 0u8;
 
         for index in 0..sensors.len() {
             let Some(sensor) = sensors[index].as_mut() else {
@@ -139,11 +143,8 @@ pub async fn bme280_sequential_task(
                         BME280_TCA_CHANNELS[index], temperature, humidity, pressure
                     );
 
-                    sensor_channel.publish_immediate(Measurements::BME280((
-                        temperature,
-                        humidity,
-                        pressure,
-                    )));
+                    sum = (sum.0 + temperature, sum.1 + humidity, sum.2 + pressure);
+                    readings += 1;
 
                     if reference_temperature.is_none() {
                         reference_temperature = Some(temperature);
@@ -158,75 +159,20 @@ pub async fn bme280_sequential_task(
             }
         }
 
+        if readings > 0 {
+            let count = readings as f32;
+            sensor_channel.publish_immediate(Measurements::BME280((
+                sum.0 / count,
+                sum.1 / count,
+                sum.2 / count,
+            )));
+        }
+
         if let Some(temperature) = reference_temperature {
             BME_TEMPERATURE.sender().send(temperature);
         }
 
         Timer::after(Duration::from_secs(SENSOR_INTERVAL_SECS)).await;
-    }
-}
-
-#[task]
-pub async fn bme280_task(
-    i2c_bus: I2cDevice<'static, NoopRawMutex, I2c<'static, Async>>,
-    sensor_channel: DynPublisher<'static, Measurements>,
-    address: u8,
-) {
-    wait_for_i2c_scan().await;
-
-    info!("Starting BME280 sensor at address 0x{:02X}...", address);
-    if let Ok(mut bme280) = Bme280::new(i2c_bus, address).await {
-        let mut filters = BmeCascade::new();
-
-        loop {
-            match bme280.measure().await {
-                Ok(measurement) => {
-                    let (temperature, humidity, pressure) = filters.update(&measurement);
-                    sensor_channel.publish_immediate(Measurements::BME280((
-                        temperature,
-                        humidity,
-                        pressure,
-                    )));
-                    BME_TEMPERATURE.sender().send(temperature);
-                }
-                Err(_) => {
-                    error!("Error reading BME280");
-                }
-            }
-            Timer::after(Duration::from_secs(5)).await;
-        }
-    } else {
-        error!("Could not initialize BME280 at 0x{:02X}", address);
-    }
-}
-
-#[task]
-pub async fn bme280_task_tca(
-    i2c_bus: TcaI2c,
-    sensor_channel: DynPublisher<'static, Measurements>,
-    address: u8,
-) {
-    wait_for_i2c_scan().await;
-
-    let channel = i2c_bus.get_channel();
-    info!("Starting BME280 on TCA channel {}...", channel);
-    if let Ok(mut bme280) = Bme280::new(i2c_bus, address).await {
-        let mut filters = BmeCascade::new();
-
-        loop {
-            if let Ok(measurement) = bme280.measure().await {
-                let (temperature, humidity, pressure) = filters.update(&measurement);
-                sensor_channel.publish_immediate(Measurements::BME280((
-                    temperature,
-                    humidity,
-                    pressure,
-                )));
-                BME_TEMPERATURE.sender().send(temperature);
-            }
-            Timer::after(Duration::from_secs(5)).await;
-        }
-    } else {
-        error!("Could not initialize BME280 on TCA channel {}", channel);
     }
 }
 
