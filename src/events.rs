@@ -69,6 +69,10 @@ pub static BROKER_ONLINE: Watch<CriticalSectionRawMutex, bool, 4> = Watch::new_w
 /// `true` mientras el Wi-Fi está asociado (pantalla «Connecting WiFi»).
 pub static WIFI_ONLINE: Watch<CriticalSectionRawMutex, bool, 2> = Watch::new_with(false);
 
+/// `true` desde que se imprime `SMARTPOT-READY`. El informe de memoria espera a
+/// ese momento, como el bucle del firmware MicroPython.
+pub static READY: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
+
 /// La CA del broker falta o está dañada (pantalla «Check CA in config.json»).
 pub static CA_REJECTED: Watch<CriticalSectionRawMutex, bool, 2> = Watch::new_with(false);
 

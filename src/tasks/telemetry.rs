@@ -34,6 +34,7 @@ pub async fn telemetry_task(
         env!("CARGO_PKG_VERSION"),
         crate::report::reset_cause()
     );
+    crate::events::READY.store(true, core::sync::atomic::Ordering::Relaxed);
     // La primera lectura sale en cuanto arranca el bucle, como en MicroPython.
     let mut snapshot_timer = Timer::after(Duration::from_millis(0));
 

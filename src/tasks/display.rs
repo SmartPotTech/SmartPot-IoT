@@ -36,6 +36,7 @@ pub async fn display_task(i2c: I2c<'static, Async>) {
     let mut ca_notice_done = false;
     let mut ca_rejected = CA_REJECTED.receiver();
     let mut cycle: u32 = 0;
+    let mut has_reading = false;
 
     let mut sensors = DISPLAY_SENSORS.receiver();
     let mut actuators = ACTUATOR_STATES.receiver();
@@ -69,9 +70,16 @@ pub async fn display_task(i2c: I2c<'static, Async>) {
             shown = Default::default();
         }
 
-        if ready {
-            // `try_changed` primero: `try_get` marca el valor como visto.
-            let fresh = sensors.as_mut().and_then(|r| r.try_changed());
+        // `try_changed` primero: `try_get` marca el valor como visto.
+        let fresh = if ready {
+            sensors.as_mut().and_then(|r| r.try_changed())
+        } else {
+            None
+        };
+        has_reading |= fresh.is_some();
+
+        // Como en MicroPython, la pantalla de conexión sigue hasta la primera lectura.
+        if ready && has_reading {
             let new_reading = fresh.is_some();
             let state = fresh
                 .or_else(|| sensors.as_mut().and_then(|r| r.try_get()))

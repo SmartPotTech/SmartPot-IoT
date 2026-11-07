@@ -377,11 +377,14 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
         feature = "sensors",
         any(feature = "mqtt", feature = "http-api", feature = "ble")
     )))]
-    smartpot_iot::marker!(
-        "SMARTPOT-READY firmware=smartpot-iot/{} reset={}",
-        env!("CARGO_PKG_VERSION"),
-        smartpot_iot::report::reset_cause()
-    );
+    {
+        smartpot_iot::marker!(
+            "SMARTPOT-READY firmware=smartpot-iot/{} reset={}",
+            env!("CARGO_PKG_VERSION"),
+            smartpot_iot::report::reset_cause()
+        );
+        smartpot_iot::events::READY.store(true, core::sync::atomic::Ordering::Relaxed);
+    }
 
     loop {
         core::future::pending::<()>().await;

@@ -81,7 +81,8 @@ pub async fn supervisor_task(mut rtc: Rtc<'static>) {
             }
         }
 
-        if now >= next_report {
+        // Como MicroPython, el primer informe sale tras SMARTPOT-READY.
+        if now >= next_report && crate::events::READY.load(core::sync::atomic::Ordering::Relaxed) {
             next_report = now + Duration::from_secs(HEAP_LOG_SECS);
             report_memory();
         }
