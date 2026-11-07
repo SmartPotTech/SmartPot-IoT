@@ -6,7 +6,6 @@
 //! la sincronización cada 60 segundos. No usa heap: todos los búferes son
 //! locales y de tamaño fijo.
 
-use defmt::{info, warn};
 use embassy_executor::task;
 use embassy_futures::select::{Either, select};
 use embassy_net::Stack;

@@ -11,7 +11,6 @@ use core::net::{Ipv4Addr, SocketAddrV4};
 use core::num::NonZero;
 use core::str;
 
-use defmt::{error, info, warn};
 use embassy_executor::task;
 use embassy_futures::select::{Either3, select3};
 use embassy_net::dns::DnsQueryType;

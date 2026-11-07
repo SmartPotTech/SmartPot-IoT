@@ -1,5 +1,4 @@
 use crate::protocol::SensorState;
-use defmt::info;
 use embassy_executor::task;
 use embassy_futures::select::{Either, select};
 use embassy_sync::pubsub::{DynPublisher, DynSubscriber};
@@ -7,6 +6,7 @@ use embassy_time::{Duration, Timer};
 
 use crate::events::Measurements;
 use crate::events::telemetry::TelemetryMessage;
+use crate::health::{Beat, beat};
 
 #[task]
 pub async fn telemetry_task(
@@ -23,6 +23,7 @@ pub async fn telemetry_task(
     let mut snapshot_timer = Timer::after(Duration::from_secs(interval_seconds));
 
     loop {
+        beat(Beat::Telemetry);
         match select(sensors_channel.next_message_pure(), &mut snapshot_timer).await {
             Either::First(m) => match m {
                 Measurements::BME280((t, h, p)) => sensor_state.update_bme280(t, h, p),

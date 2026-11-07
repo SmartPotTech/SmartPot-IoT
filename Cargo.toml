@@ -23,6 +23,11 @@ ble = []
 # MQTT publica telemetria, por lo que necesita sensores y red.
 mqtt = ["wifi", "sensors"]
 
+# Build para el simulador Wokwi: marcadores de prueba, inyección de comandos por
+# la consola serie y el ajuste de interrupciones que necesita el simulador.
+# Nunca se incluye en `full`.
+sim = []
+
 # Perfiles de conveniencia para no encadenar muchas features a mano.
 net = ["wifi"]
 full = ["sensors", "actuators", "wifi", "mqtt"]
@@ -36,7 +41,15 @@ defmt = "1.0.1"
 static_cell = "2.1.1"
 esp-println = { version = "0.17.0", features = ["defmt-espflash", "esp32"] }
 esp-bootloader-esp-idf = { version = "0.5.0", features = ["defmt", "esp32"] }
-esp-alloc = { version = "0.10.0", features = ["defmt", ] }
+esp-alloc = { version = "0.10.0", features = ["defmt", "internal-heap-stats"] }
+# Manejador de pánico con backtrace; los ganchos apagan actuadores y reinician.
+esp-backtrace = { version = "0.19.0", default-features = false, features = [
+    "esp32",
+    "panic-handler",
+    "println",
+    "custom-pre-backtrace",
+    "custom-halt",
+] }
 
 esp-hal = { version = "1.1.0-rc.0", features = ["defmt", "esp32", "unstable"] }
 esp-rtos = { version = "0.3.0", features = [
@@ -48,6 +61,7 @@ esp-rtos = { version = "0.3.0", features = [
 ] }
 esp-radio = { version = "0.18.0", default-features = false, features = [
     "defmt",
+    "esp-alloc",
     "esp32",
     "unstable",
     "wifi",

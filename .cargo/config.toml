@@ -1,12 +1,14 @@
 [target.xtensa-esp32-none-elf]
-runner = "espflash flash --monitor --chip esp32 --log-format defmt"
+runner = "espflash flash --monitor --chip esp32"
 rustflags = [
     "-C", "link-arg=-nostartfiles",
     "-Z", "macro-backtrace"
 ]
 
 [env]
-DEFMT_LOG = "info"
+DEFMT_LOG = "off"
+ESP_HAL_CONFIG_STACK_GUARD_MONITORING = "false"
+ESP_HAL_CONFIG_STACK_GUARD_MONITORING_WITH_DEBUGGER_CONNECTED = "false"
 SSID = "Wokwi-GUEST"
 PASSWORD = ""
 

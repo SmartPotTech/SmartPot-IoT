@@ -7,7 +7,7 @@
 )]
 #![allow(clippy::large_stack_frames)]
 
-use defmt::{debug, info};
+use esp_backtrace as _;
 use esp_hal::analog::adc::{Adc, AdcConfig, Attenuation};
 use esp_hal::clock::CpuClock;
 use esp_hal::interrupt::software::SoftwareInterruptControl;
@@ -20,6 +20,7 @@ use esp_hal::{
 use esp_println::{self as _, println};
 use esp_rtos::embassy::Executor;
 use esp_rtos::start_second_core;
+use smartpot_iot::{debug, info};
 use static_cell::StaticCell;
 
 #[cfg(feature = "sensors")]
@@ -41,23 +42,20 @@ extern crate alloc;
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
-#[panic_handler]
-fn panic(info: &core::panic::PanicInfo) -> ! {
-    println!("\n\n================ PANIC ================");
-    if let Some(location) = info.location() {
-        println!(
-            "Panic in file '{}' at line {}",
-            location.file(),
-            location.line(),
-        );
-    } else {
-        println!("Panic but no location information available.");
-    }
+/// Gancho de `esp-backtrace` antes de imprimir el pánico: lo primero es dejar
+/// todos los actuadores apagados, porque el chip va a reiniciarse.
+#[unsafe(no_mangle)]
+pub fn custom_pre_backtrace() {
+    smartpot_iot::safety::force_actuators_off();
+    println!("\nSMARTPOT-FATAL panic");
+}
 
-    println!("message: {:?}", info.message());
-    println!("======================================\n\n");
-
-    loop {}
+/// Gancho final de `esp-backtrace`: en vez de quedarse en un bucle infinito,
+/// reinicia el chip para que el dispositivo vuelva a operar solo.
+#[unsafe(no_mangle)]
+pub fn custom_halt() -> ! {
+    esp_hal::delay::Delay::new().delay_millis(100);
+    esp_hal::system::software_reset()
 }
 
 #[allow(unused_variables)]
@@ -67,9 +65,15 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
     let peripherals = esp_hal::init(config);
     esp_alloc::heap_allocator!(#[unsafe(link_section = ".dram2_uninit")] size: 98768);
 
+    // Las salidas de actuador quedan en bajo desde el primer instante.
+    smartpot_iot::safety::force_actuators_off();
+    let rtc = esp_hal::rtc_cntl::Rtc::new(peripherals.LPWR);
+
     let timg0 = TimerGroup::new(peripherals.TIMG0);
     let sw_int = SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
     esp_rtos::start(timg0.timer0, sw_int.software_interrupt0);
+    #[cfg(feature = "sim")]
+    smartpot_iot::sim::enable_timer_interrupt_for_simulator();
     info!("Embassy RTOS initialized!");
 
     // =========================================================================
@@ -173,10 +177,14 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
 
     #[allow(static_mut_refs)]
     {
-        const CORE1_STACK_SIZE: usize = 8192;
+        const CORE1_STACK_SIZE: usize = 16384;
         static CORE1_STACK: StaticCell<esp_hal::system::Stack<CORE1_STACK_SIZE>> =
             StaticCell::new();
         let core1_stack = CORE1_STACK.init_with(esp_hal::system::Stack::new);
+        // SAFETY: la pila aún no la usa nadie; se pinta para medir su marca de agua.
+        unsafe {
+            smartpot_iot::health::paint_core1_stack(core1_stack.bottom(), CORE1_STACK_SIZE / 4);
+        }
 
         start_second_core(
             peripherals.CPU_CTRL,
@@ -197,6 +205,11 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
     // =========================================================================
     // CORE 0: PILA DE RED WI-FI Y CLIENTE MQTT (CONTRATO V1)
     // =========================================================================
+
+    spawner.spawn(
+        smartpot_iot::tasks::supervisor::supervisor_task(rtc)
+            .expect("Failed to spawn supervisor_task"),
+    );
 
     #[cfg(feature = "wifi")]
     {
@@ -271,6 +284,12 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
             .expect("Failed to start mqtt_task"),
         );
     }
+
+    smartpot_iot::marker!(
+        "SMARTPOT-READY firmware=smartpot-iot/{} reset={:?}",
+        env!("CARGO_PKG_VERSION"),
+        esp_hal::system::reset_reason()
+    );
 
     loop {
         core::future::pending::<()>().await;

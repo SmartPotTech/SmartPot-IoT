@@ -1,4 +1,4 @@
-use defmt::{Format, warn};
+use defmt::Format;
 use embassy_time::{Duration, Timer};
 use embedded_hal_async::i2c::I2c;
 

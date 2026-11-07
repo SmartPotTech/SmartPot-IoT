@@ -1,6 +1,5 @@
 //! Tareas de conectividad Wi-Fi, pila de red y empaquetado de telemetría.
 
-use defmt::{info, warn};
 use embassy_executor::task;
 use embassy_net::Runner;
 use embassy_time::{Duration, Timer};
@@ -50,10 +49,10 @@ pub async fn wifi_connection_task(
             info!("[WIFI] Wi-Fi connection established and online");
             match wifi.wait_for_disconnect_async().await {
                 Ok(info) => {
-                    warn!("[WIFI] Wi-Fi disconnected: {}", info.reason);
+                    warn!("[WIFI] Wi-Fi disconnected: {:?}", info.reason);
                 }
                 Err(e) => {
-                    warn!("[WIFI] Error during disconnection: {}", e);
+                    warn!("[WIFI] Error during disconnection: {:?}", e);
                 }
             }
         } else {

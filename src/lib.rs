@@ -3,13 +3,44 @@ extern crate alloc;
 
 /// Imprime un marcador de texto plano (`SMARTPOT-...`) por la consola serie.
 ///
-/// Los registros normales viajan en `defmt` binario; estos marcadores son
-/// texto legible para el monitor de `espflash`, el simulador Wokwi y sus
-/// escenarios automatizados (`wait-serial`).
+/// Estos marcadores son texto legible para el monitor de `espflash`, el
+/// simulador Wokwi y sus escenarios automatizados (`wait-serial`).
 #[macro_export]
 macro_rules! marker {
     ($($arg:tt)*) => {
         ::esp_println::println!($($arg)*)
+    };
+}
+
+/// Imprime un registro informativo en texto plano por la consola serie (UART0).
+#[macro_export]
+macro_rules! info {
+    ($($arg:tt)*) => {
+        ::esp_println::println!("[INFO ] {}", ::core::format_args!($($arg)*))
+    };
+}
+
+/// Imprime una advertencia en texto plano por la consola serie (UART0).
+#[macro_export]
+macro_rules! warn {
+    ($($arg:tt)*) => {
+        ::esp_println::println!("[WARN ] {}", ::core::format_args!($($arg)*))
+    };
+}
+
+/// Imprime un error en texto plano por la consola serie (UART0).
+#[macro_export]
+macro_rules! error {
+    ($($arg:tt)*) => {
+        ::esp_println::println!("[ERROR] {}", ::core::format_args!($($arg)*))
+    };
+}
+
+/// Imprime una traza de depuración en texto plano por la consola serie (UART0).
+#[macro_export]
+macro_rules! debug {
+    ($($arg:tt)*) => {
+        ::esp_println::println!("[DEBUG] {}", ::core::format_args!($($arg)*))
     };
 }
 
@@ -20,16 +51,18 @@ pub mod config;
 pub mod drivers;
 pub mod events;
 pub mod filter;
+pub mod health;
 pub mod limits;
 pub mod protocol;
 pub mod safety;
+#[cfg(feature = "sim")]
+pub mod sim;
 pub mod tasks;
 #[cfg(feature = "mqtt")]
 pub mod tls;
 
 #[cfg(feature = "sensors")]
 pub mod i2c_scanner {
-    use defmt::{info, warn};
     use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
     use embassy_sync::blocking_mutex::raw::NoopRawMutex;
     use embedded_hal_async::i2c::I2c as I2cAsync;
@@ -49,6 +82,11 @@ pub mod i2c_scanner {
 
         pub async fn i2c_scan_tca9548a(&mut self) {
             info!("Starting I2C scan with TCA9548A...");
+
+            if self.i2c.write(0x70, &[0x00]).await.is_err() {
+                warn!("TCA9548A multiplexer not detected at 0x70; skipping channel scan");
+                return;
+            }
 
             for channel in 0..8 {
                 let channel_mask = 1 << channel;
@@ -78,7 +116,7 @@ pub mod i2c_scanner {
             // principal (BH1750) quede accesible al terminar el diagnóstico.
             let _ = self.i2c.write(0x70, &[0x00]).await;
 
-            warn!("I2C scan finished");
+            info!("I2C scan finished");
         }
     }
 

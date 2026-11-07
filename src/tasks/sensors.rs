@@ -7,7 +7,6 @@
 //! desbloquea las tareas para no detener la adquisición.
 
 use crate::drivers::bh1750::{BH1750_DEFAULT_ADDRESS, Bh1750};
-use defmt::{debug, error, info, warn};
 use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
 use embassy_executor::task;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
@@ -23,6 +22,7 @@ use crate::drivers::tca9548a::{Tca9548a, TcaChannel};
 use crate::drivers::tds::{ph_from_adc, soil_moisture_from_adc, tds_from_adc};
 use crate::events::{BME_TEMPERATURE, I2C_SCAN_DONE, Measurements};
 use crate::filter::SensorCascade;
+use crate::health::{Beat, beat};
 
 /// Dirección I2C de los tres BME280 (configurable por hardware, todos iguales).
 const BME280_ADDRESS: u8 = 0x76;
@@ -119,6 +119,7 @@ pub async fn bme280_sequential_task(
     let mut filters = [BmeCascade::new(); 3];
 
     loop {
+        beat(Beat::Bme280);
         // Se prefiere el primer sensor disponible (canal 2) como referencia
         // térmica para TDS y pH; si falla, se usa el siguiente que responda.
         let mut reference_temperature: Option<f32> = None;
@@ -238,15 +239,27 @@ pub async fn bh1750_task(
     info!("Starting BH1750 light sensor...");
     let mut sensor = Bh1750::new(i2c_bus, BH1750_DEFAULT_ADDRESS);
     let mut lux_filter = SensorCascade::new(0.5, 2.0);
+    let mut available = true;
 
     loop {
+        beat(Beat::Light);
         match sensor.measure().await {
             Ok(measure) => {
+                if !available {
+                    info!("BH1750 light sensor online");
+                    available = true;
+                }
                 let lux = lux_filter.update(measure);
                 sensor_channel.publish_immediate(Measurements::BH1750(lux));
             }
             Err(_) => {
-                error!("Error reading BH1750");
+                if available {
+                    warn!(
+                        "BH1750 light sensor not responding at 0x{:02X}",
+                        BH1750_DEFAULT_ADDRESS
+                    );
+                    available = false;
+                }
             }
         }
 
@@ -270,6 +283,7 @@ pub async fn analog_sensors_task(
     let mut soil_filter = SensorCascade::new(0.1, 0.5);
 
     loop {
+        beat(Beat::Analog);
         // Sin lectura de BME280 se usa el respaldo de 25.0 °C.
         let current_temp = temperature_receiver
             .as_mut()

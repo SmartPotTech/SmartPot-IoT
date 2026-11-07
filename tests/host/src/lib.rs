@@ -29,3 +29,6 @@ pub mod config;
 
 #[path = "../../../src/safety.rs"]
 pub mod safety;
+
+#[path = "../../../src/health.rs"]
+pub mod health;

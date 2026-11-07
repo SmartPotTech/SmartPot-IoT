@@ -1,7 +1,6 @@
 //! Manejador de actuadores con temporización asíncrona, confirmación ACK y
 //! política de seguridad (tope de duración y failsafe sin broker).
 
-use defmt::{info, warn};
 use embassy_executor::task;
 use embassy_futures::select::{Either, select};
 use embassy_sync::pubsub::{DynPublisher, DynSubscriber};
@@ -9,6 +8,7 @@ use embassy_time::{Duration, Instant, Timer};
 use esp_hal::gpio::Output;
 
 use crate::events::{AckMessage, AckStatus, Action, Actuators, BROKER_ONLINE, Command};
+use crate::health::{Beat, beat};
 use crate::safety;
 
 /// Número de ACK recientes que se conservan para detectar comandos duplicados.
@@ -162,6 +162,7 @@ pub async fn catch_commands(
     let mut offline_since: Option<Instant> = Some(Instant::now());
 
     loop {
+        beat(Beat::Command);
         match select(command_channel.next_message_pure(), Timer::after(TICK)).await {
             Either::First(cmd) => {
                 info!("[ACTUATOR] Received command: {:?}", cmd);
