@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "telemetry": {
+    "formats": ["json-v1", "compact-v2"],
+    "compactBytes": 27
+  },
+  "sensors": [
+    { "key": "temperature", "unit": "C" },
+    { "key": "humidity", "unit": "%" },
+    { "key": "atmosphere", "unit": "hPa" },
+    { "key": "brightness", "unit": "lux" },
+    { "key": "ph", "unit": "pH" },
+    { "key": "tds", "unit": "ppm" },
+    { "key": "soilMoisture", "unit": "%" }
+  ],
+  "actuators": [
+    "WATER_PUMP",
+    "UV_LIGHT",
+    "FAN",
+    "HUMIDIFIER",
+    "NUTRIENT_DOSER",
+    "PH_DOSER"
+  ],
+  "aliases": {
+    "LIGHTS": "UV_LIGHT"
+  }
+}
