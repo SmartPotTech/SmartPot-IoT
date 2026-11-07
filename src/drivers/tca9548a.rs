@@ -33,6 +33,16 @@ pub struct TcaChannel<BUS: 'static> {
     channel: u8,
 }
 
+// Copiar un canal solo duplica la referencia al bus compartido: permite volver
+// a crear el driver de un sensor que se reconecta.
+impl<BUS: 'static> Clone for TcaChannel<BUS> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<BUS: 'static> Copy for TcaChannel<BUS> {}
+
 impl<BUS: 'static> TcaChannel<BUS> {
     pub fn new(bus: &'static Mutex<NoopRawMutex, BUS>, tca_addr: u8, channel: u8) -> Self {
         Self {

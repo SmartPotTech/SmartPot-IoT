@@ -110,7 +110,14 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
 
             static I2C_BUS: StaticCell<Mutex<NoopRawMutex, I2c<'static, Async>>> =
                 StaticCell::new();
-            let i2c = I2c::new(i2c0, Config::default())
+            // Tiempo límite por transacción: un sensor que retiene el bus ya no
+            // bloquea indefinidamente a los demás.
+            let i2c_config = Config::default().with_software_timeout(
+                esp_hal::i2c::master::SoftwareTimeout::Transaction(
+                    esp_hal::time::Duration::from_millis(25),
+                ),
+            );
+            let i2c = I2c::new(i2c0, i2c_config)
                 .unwrap()
                 .with_scl(scl)
                 .with_sda(sda)

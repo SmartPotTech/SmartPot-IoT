@@ -5,6 +5,24 @@ use embedded_hal_async::i2c::I2c;
 /// Tiempo máximo de espera del bit de medición del BME280.
 const MEASURE_TIMEOUT_MS: u32 = 20;
 
+/// Identificador del BME280 en el registro 0xD0 (un BMP280 responde 0x58).
+const BME280_CHIP_ID: u8 = 0x60;
+
+/// Valor crudo que entrega el sensor cuando no hizo ninguna medición, por
+/// ejemplo tras perder la alimentación y volver en modo de reposo.
+const SKIPPED_SAMPLE: i32 = 0x80000;
+
+/// Errores del driver.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Bme280Error<E> {
+    /// Fallo del bus I2C.
+    Bus(E),
+    /// En la dirección responde otro chip (por ejemplo, un BMP280 sin humedad).
+    WrongChip(u8),
+    /// El sensor no midió: suele indicar que se reinició y hay que configurarlo.
+    Skipped,
+}
+
 pub struct Bme280<I2C> {
     i2c: I2C,
     address: u8,
@@ -46,14 +64,22 @@ impl<I2C> Bme280<I2C>
 where
     I2C: I2c,
 {
-    pub async fn new(i2c: I2C, address: u8) -> Result<Self, I2C::Error> {
+    pub async fn new(i2c: I2C, address: u8) -> Result<Self, Bme280Error<I2C::Error>> {
         let mut dev = Self {
             i2c,
             address,
             calib: CalibrationData::default(),
         };
 
-        dev.init().await?;
+        let mut chip_id = [0u8; 1];
+        dev.read_regs(0xD0, &mut chip_id)
+            .await
+            .map_err(Bme280Error::Bus)?;
+        if chip_id[0] != BME280_CHIP_ID {
+            return Err(Bme280Error::WrongChip(chip_id[0]));
+        }
+
+        dev.init().await.map_err(Bme280Error::Bus)?;
         Ok(dev)
     }
 
@@ -112,14 +138,21 @@ where
 
         self.calib.dig_h2 = i16::from_le_bytes([buf2[0], buf2[1]]);
         self.calib.dig_h3 = buf2[2];
-        self.calib.dig_h4 = ((buf2[3] as i16) << 4) | ((buf2[4] & 0x0F) as i16);
-        self.calib.dig_h5 = ((buf2[5] as i16) << 4) | ((buf2[4] >> 4) as i16);
+        // Según la referencia de Bosch, los 8 bits altos de dig_H4 y dig_H5
+        // llevan signo: se interpretan como i8 antes de desplazarlos.
+        self.calib.dig_h4 = (((buf2[3] as i8) as i16) << 4) | ((buf2[4] & 0x0F) as i16);
+        self.calib.dig_h5 = (((buf2[5] as i8) as i16) << 4) | ((buf2[4] >> 4) as i16);
         self.calib.dig_h6 = buf2[6] as i8;
 
         Ok(())
     }
 
-    pub async fn measure(&mut self) -> Result<MeasurementsBME280, I2C::Error> {
+    pub async fn measure(&mut self) -> Result<MeasurementsBME280, Bme280Error<I2C::Error>> {
+        let measurement = self.read_measurement().await.map_err(Bme280Error::Bus)?;
+        measurement.ok_or(Bme280Error::Skipped)
+    }
+
+    async fn read_measurement(&mut self) -> Result<Option<MeasurementsBME280>, I2C::Error> {
         // Espera acotada a que el sensor termine la conversión. El bit 3 del
         // registro de estado (0xF3) vale 1 mientras hay una medición en curso.
         let mut status = [0u8; 1];
@@ -149,16 +182,19 @@ where
         let adc_p = ((data[0] as i32) << 12) | ((data[1] as i32) << 4) | ((data[2] as i32) >> 4);
         let adc_t = ((data[3] as i32) << 12) | ((data[4] as i32) << 4) | ((data[5] as i32) >> 4);
         let adc_h = ((data[6] as i32) << 8) | data[7] as i32;
+        if adc_t == SKIPPED_SAMPLE {
+            return Ok(None);
+        }
 
         let (temperature, t_fine) = self.compensate_temp(adc_t);
         let pressure = self.compensate_pressure(adc_p, t_fine);
         let humidity = self.compensate_humidity(adc_h, t_fine);
 
-        Ok(MeasurementsBME280 {
+        Ok(Some(MeasurementsBME280 {
             temperature,
             pressure,
             humidity,
-        })
+        }))
     }
 
     fn compensate_temp(&self, adc_t: i32) -> (f32, i32) {

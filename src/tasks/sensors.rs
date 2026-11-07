@@ -18,7 +18,7 @@ use esp_hal::peripherals::{ADC1, GPIO32, GPIO34, GPIO35};
 use esp_hal::{Async, i2c::master::I2c};
 
 use crate::config::SENSOR_INTERVAL_SECS;
-use crate::drivers::bme280::{Bme280, MeasurementsBME280};
+use crate::drivers::bme280::{Bme280, Bme280Error, MeasurementsBME280};
 use crate::drivers::tca9548a::{Tca9548a, TcaChannel};
 use crate::drivers::tds::{ph_from_adc, soil_moisture_from_adc, tds_from_adc};
 use crate::events::{BME_TEMPERATURE, I2C_SCAN_DONE, Measurements};
@@ -75,31 +75,40 @@ async fn wait_for_i2c_scan() {
     }
 }
 
-/// Inicializa los BME280 disponibles, sin abortar si alguno falta.
-async fn init_bme_sensors(tca: Tca9548a<I2c<'static, Async>>) -> [Option<Bme280<TcaI2c>>; 3] {
-    let [_, _, ch2, ch3, ch4, _, _, _] = tca.split();
-    let channels = [ch2, ch3, ch4];
-    let mut sensors: [Option<Bme280<TcaI2c>>; 3] = [None, None, None];
+/// Fallos seguidos tras los que un BME280 se da por desconectado.
+const BME280_MAX_FAILURES: u8 = 3;
 
-    for (index, channel) in channels.into_iter().enumerate() {
-        match Bme280::new(channel, BME280_ADDRESS).await {
-            Ok(sensor) => {
-                sensors[index] = Some(sensor);
-                info!(
-                    "BME280 initialized on TCA channel {}",
-                    BME280_TCA_CHANNELS[index]
-                );
-            }
-            Err(_) => {
-                warn!(
-                    "BME280 initialization failed on TCA channel {}",
-                    BME280_TCA_CHANNELS[index]
-                );
-            }
+/// Cada cuántos ciclos se intenta inicializar un BME280 ausente (conexión en caliente).
+const BME280_REINIT_EVERY: u32 = 6;
+
+/// Tiempo máximo de una medición: un bus atascado no puede detener la tarea.
+const SENSOR_TIMEOUT: Duration = Duration::from_millis(500);
+
+/// Intenta inicializar el BME280 de un canal sin abortar si no responde.
+async fn init_bme_sensor(channel: TcaI2c, index: usize) -> Option<Bme280<TcaI2c>> {
+    match with_timeout(SENSOR_TIMEOUT, Bme280::new(channel, BME280_ADDRESS)).await {
+        Ok(Ok(sensor)) => {
+            info!(
+                "BME280 initialized on TCA channel {}",
+                BME280_TCA_CHANNELS[index]
+            );
+            Some(sensor)
+        }
+        Ok(Err(Bme280Error::WrongChip(id))) => {
+            warn!(
+                "TCA channel {} answers with chip id 0x{:02X}, not a BME280",
+                BME280_TCA_CHANNELS[index], id
+            );
+            None
+        }
+        _ => {
+            warn!(
+                "BME280 initialization failed on TCA channel {}",
+                BME280_TCA_CHANNELS[index]
+            );
+            None
         }
     }
-
-    sensors
 }
 
 #[task]
@@ -109,7 +118,12 @@ pub async fn bme280_sequential_task(
 ) {
     wait_for_i2c_scan().await;
 
-    let mut sensors = init_bme_sensors(tca).await;
+    let [_, _, ch2, ch3, ch4, _, _, _] = tca.split();
+    let channels = [ch2, ch3, ch4];
+    let mut sensors: [Option<Bme280<TcaI2c>>; 3] = [None, None, None];
+    for (index, channel) in channels.iter().enumerate() {
+        sensors[index] = init_bme_sensor(*channel, index).await;
+    }
     let available = sensors.iter().flatten().count();
     if available == 0 {
         warn!("No BME280 sensors available; analog compensation uses 25.0 C");
@@ -118,9 +132,25 @@ pub async fn bme280_sequential_task(
     }
 
     let mut filters = [BmeCascade::new(); 3];
+    let mut failures = [0u8; 3];
+    let mut cycle: u32 = 0;
 
     loop {
         beat(Beat::Bme280);
+        cycle = cycle.wrapping_add(1);
+        // Los sensores ausentes o caídos se vuelven a buscar periódicamente.
+        if cycle.is_multiple_of(BME280_REINIT_EVERY) {
+            for (index, channel) in channels.iter().enumerate() {
+                if sensors[index].is_none() {
+                    sensors[index] = init_bme_sensor(*channel, index).await;
+                    if sensors[index].is_some() {
+                        failures[index] = 0;
+                        filters[index] = BmeCascade::new();
+                    }
+                }
+            }
+        }
+
         // Se prefiere el primer sensor disponible (canal 2) como referencia
         // térmica para TDS y pH; si falla, se usa el siguiente que responda.
         let mut reference_temperature: Option<f32> = None;
@@ -134,8 +164,9 @@ pub async fn bme280_sequential_task(
                 continue;
             };
 
-            match sensor.measure().await {
-                Ok(measurement) => {
+            match with_timeout(SENSOR_TIMEOUT, sensor.measure()).await {
+                Ok(Ok(measurement)) => {
+                    failures[index] = 0;
                     let (temperature, humidity, pressure) = filters[index].update(&measurement);
 
                     debug!(
@@ -150,11 +181,18 @@ pub async fn bme280_sequential_task(
                         reference_temperature = Some(temperature);
                     }
                 }
-                Err(_) => {
+                result => {
+                    failures[index] = failures[index].saturating_add(1);
                     warn!(
                         "BME280 read failed on TCA channel {}",
                         BME280_TCA_CHANNELS[index]
                     );
+                    // Un sensor que se reinició (muestra omitida) o que falla
+                    // varias veces se vuelve a configurar en el siguiente intento.
+                    let skipped = matches!(result, Ok(Err(Bme280Error::Skipped)));
+                    if skipped || failures[index] >= BME280_MAX_FAILURES {
+                        sensors[index] = None;
+                    }
                 }
             }
         }
@@ -191,8 +229,8 @@ pub async fn bh1750_task(
 
     loop {
         beat(Beat::Light);
-        match sensor.measure().await {
-            Ok(measure) => {
+        match with_timeout(SENSOR_TIMEOUT, sensor.measure()).await {
+            Ok(Ok(measure)) => {
                 if !available {
                     info!("BH1750 light sensor online");
                     available = true;
@@ -200,7 +238,7 @@ pub async fn bh1750_task(
                 let lux = lux_filter.update(measure);
                 sensor_channel.publish_immediate(Measurements::BH1750(lux));
             }
-            Err(_) => {
+            _ => {
                 if available {
                     warn!(
                         "BH1750 light sensor not responding at 0x{:02X}",
