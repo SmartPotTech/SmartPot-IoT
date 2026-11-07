@@ -31,7 +31,7 @@ struct Channel {
 
 impl Channel {
     fn new(kind: Actuators, mut pin: Output<'static>) -> Self {
-        pin.set_low();
+        drive(&mut pin, false);
         Self {
             kind,
             pin,
@@ -41,7 +41,7 @@ impl Channel {
     }
 
     fn turn_on(&mut self, now: Instant, duration: Option<u32>) {
-        self.pin.set_high();
+        drive(&mut self.pin, true);
         self.on_since = Some(now);
         self.until = duration.map(|s| now + Duration::from_secs(s as u64));
         match duration {
@@ -52,12 +52,21 @@ impl Channel {
 
     fn turn_off(&mut self, reason: &str) {
         let was_on = self.on_since.is_some();
-        self.pin.set_low();
+        drive(&mut self.pin, false);
         self.on_since = None;
         self.until = None;
         if was_on {
             marker!("SMARTPOT-ACT {} OFF {}", self.kind.key(), reason);
         }
+    }
+}
+
+/// Aplica el nivel lógico según la polaridad de los relés.
+fn drive(pin: &mut Output<'static>, on: bool) {
+    if on == safety::on_level_is_high() {
+        pin.set_high();
+    } else {
+        pin.set_low();
     }
 }
 

@@ -22,7 +22,23 @@ pub const OFFLINE_CUTOFF_SECONDS: u64 = match option_env!("OFFLINE_CUTOFF_SECS")
     None => 300,
 };
 
+/// Módulos de relé activos en bajo (`ACTUATOR_ACTIVE_LOW=1` al compilar): la
+/// salida en alto los mantiene apagados. Por defecto, alto = encendido.
+pub const ACTIVE_LOW: bool = match option_env!("ACTUATOR_ACTIVE_LOW") {
+    Some(v) => crate::config::parse_u64_or(v, 0) == 1,
+    None => false,
+};
+
+/// Nivel lógico que enciende un actuador.
+pub const fn on_level_is_high() -> bool {
+    !ACTIVE_LOW
+}
+
 /// GPIO de cada actuador; deben coincidir con los pines de `main.rs`.
+///
+/// GPIO5 es un pin de *strapping*: emite una señal PWM durante el arranque y
+/// puede hacer vibrar el relé del humidificador. En hardware conviene una
+/// resistencia de *pull-down* (o una red RC) en la entrada del driver del relé.
 pub const WATER_PUMP_GPIO: u8 = 25;
 pub const UV_LIGHT_GPIO: u8 = 26;
 pub const FAN_GPIO: u8 = 27;
@@ -78,15 +94,22 @@ pub const fn failsafe_due(
     }
 }
 
-/// Pone en bajo todas las salidas de actuador escribiendo directamente en
-/// `GPIO_OUT_W1TC_REG`. Es segura en el manejador de pánico: no usa el heap,
-/// no toma cerrojos y no depende de que los drivers de `esp-hal` sigan vivos.
+/// Apaga todas las salidas de actuador escribiendo directamente en
+/// `GPIO_OUT_W1TC_REG` (o en `W1TS` con relés activos en bajo). Es segura en el
+/// manejador de pánico: no usa el heap, no toma cerrojos y no depende de que
+/// los drivers de `esp-hal` sigan vivos.
 #[cfg(target_arch = "xtensa")]
 pub fn force_actuators_off() {
+    const GPIO_OUT_W1TS_REG: *mut u32 = 0x3FF4_4008 as *mut u32;
     const GPIO_OUT_W1TC_REG: *mut u32 = 0x3FF4_400C as *mut u32;
+    let register = if ACTIVE_LOW {
+        GPIO_OUT_W1TS_REG
+    } else {
+        GPIO_OUT_W1TC_REG
+    };
     // SAFETY: escritura de 32 bits alineada a un registro de solo escritura del
     // periférico GPIO del ESP32; solo afecta a los bits de la máscara.
-    unsafe { core::ptr::write_volatile(GPIO_OUT_W1TC_REG, ACTUATOR_GPIO_MASK) };
+    unsafe { core::ptr::write_volatile(register, ACTUATOR_GPIO_MASK) };
 }
 
 #[cfg(test)]

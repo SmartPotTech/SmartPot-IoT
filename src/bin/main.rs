@@ -180,10 +180,17 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
         {
             use esp_hal::gpio::{Level, Output, OutputConfig};
 
-            let water = Output::new(water_pin, Level::Low, OutputConfig::default());
-            let uv_light = Output::new(uv_light_pin, Level::Low, OutputConfig::default());
-            let fan = Output::new(fan_pin, Level::Low, OutputConfig::default());
-            let humidifier = Output::new(humidifier_pin, Level::Low, OutputConfig::default());
+            // Las salidas nacen apagadas, también con relés activos en bajo.
+            let off_level = if smartpot_iot::safety::on_level_is_high() {
+                Level::Low
+            } else {
+                Level::High
+            };
+
+            let water = Output::new(water_pin, off_level, OutputConfig::default());
+            let uv_light = Output::new(uv_light_pin, off_level, OutputConfig::default());
+            let fan = Output::new(fan_pin, off_level, OutputConfig::default());
+            let humidifier = Output::new(humidifier_pin, off_level, OutputConfig::default());
 
             _spawner.spawn(
                 smartpot_iot::tasks::command::catch_commands(
