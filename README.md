@@ -134,7 +134,7 @@ cargo +esp check --ignore-rust-version
 # Build executable binary
 cargo +esp build --bin smartpot-iot --ignore-rust-version
 
-# Flash to physical ESP32 board and open defmt serial monitor
+# Flash to physical ESP32 board and open the serial monitor (plain-text logs)
 espflash flash target/xtensa-esp32-none-elf/debug/smartpot-iot --monitor
 ```
 
@@ -148,13 +148,48 @@ uv run --with paho-mqtt python tests/verify_contract_v1.py
 
 `diagram.json` reproduces the real pinout: ESP32 DevKit, ADC potentiometers on GPIO34 (TDS), GPIO35 (pH) and GPIO32 (
 soil), and actuator LEDs with 220 Ω resistors on GPIO25 (water pump), GPIO26 (UV light), GPIO27 (fan) and GPIO5 (
-humidifier). The I2C bus stays on SDA GPIO21 / SCL GPIO22.
+humidifier), plus the LCD2004 on SCL GPIO16 / SDA GPIO17. The sensor I2C bus stays on SDA GPIO21 / SCL GPIO22.
 
 Wokwi does not provide functional built-in models for the BME280 or the BH1750 (verified with `wokwi-cli lint`), so the
 simulation only covers the ADC inputs and actuator outputs. The firmware logs a warning and keeps running without the
 I2C sensors; TDS and pH thermal compensation falls back to 25.0 °C until a real BME280 reading exists. The physical
 device uses three BME280 sensors behind a TCA9548A multiplexer at 0x70 (channels 2, 3 and 4, address 0x76) plus a BH1750
 at 0x23. That 3×BME topology is physical-hardware-only and cannot be modeled in Wokwi.
+
+### Reliability and Actuator Safety
+
+* **Actuator safety policy** (shared with the MicroPython firmware and the contract fixture): `durationSeconds` must be
+  an integer between 1 and 3600, otherwise the command is rejected with a `FAILED` ACK and its reason. The water pump
+  and the humidifier never run without a limit: `ACTIVATE` without a duration uses 3600 s, and both switch off after
+  300 s without a broker session. The UV light and the fan keep indefinite activation.
+* **Watchdog and fatal errors**: `esp_hal::init` disables every watchdog, so a supervisor task re-arms the RTC watchdog
+  and feeds it only while every critical task keeps beating. A stalled task, a panic or a CPU exception turns every
+  actuator off, prints `SMARTPOT-FATAL` and restarts the chip.
+* **Network**: open networks (empty `PASSWORD`) are joined with open authentication; Wi-Fi and MQTT retries use
+  exponential backoff with jitter (2 s to 60 s). MQTT pings the broker every 30 s, uses a 90 s TCP timeout and a 1 KiB
+  maximum packet size, and discards telemetry queued while offline. TLS keeps a 4 KiB buffer for the broker chain
+  (server certificate plus RSA 4096 CA).
+* **Sensors**: the median + Kalman cascade reseeds after three consecutive rejections, so real steps (watering, lamps)
+  show up within a minute, and light is filtered in tens of lux to avoid Q16.16 clipping. Readings older than three
+  sampling periods are omitted, the three BME280 units are averaged, probes stuck at an ADC rail are dropped, and I2C
+  transactions and measurements have timeouts with BME280 hot-plug recovery.
+* **Local display**: an LCD2004 on its own I2C bus (I2C1, SCL GPIO16 / SDA GPIO17) shows the same four rows as the
+  MicroPython firmware, plus the humidifier flag. A missing or failing LCD never affects sensors or telemetry.
+* **Plain-text markers** for monitors and automated tests: `SMARTPOT-READY`, `WIFI-UP`, `TLS-OK`, `MQTT-UP`,
+  `MQTT-REFUSED`, `MQTT-DOWN`, `ACT`, `ACK`, `LCD`, `HEAP` and `FATAL`.
+
+Additional build-time variables: `TELEMETRY_INTERVAL_SECS`, `SENSOR_INTERVAL_SECS`, `OFFLINE_CUTOFF_SECS`,
+`WATCHDOG_TIMEOUT_SECS`, `LIVENESS_TIMEOUT_SECS`, `HEAP_LOG_SECS`, `HEAP_MIN_FREE`, `ACTUATOR_ACTIVE_LOW=1` (relay boards
+that switch on with a low input), `PH_NEUTRAL_MV`, `PH_SLOPE_MV`, `SOIL_DRY_RAW` and `SOIL_WET_RAW`. GPIO5 (humidifier)
+is a strapping pin that toggles at boot: add a pull-down on the relay input.
+
+### Automated Simulation Tests
+
+`cargo +esp build --features sim` adds a serial command injector (JSON command lines on UART0) and test hooks.
+`python tests/wokwi/run.py` builds it with short intervals and runs the scenarios in `tests/wokwi/` with `wokwi-cli`
+(needs `WOKWI_CLI_TOKEN`): boot smoke test, actuator commands and safety policy, panic recovery and both watchdog paths.
+The *Wokwi simulation* workflow runs them on demand. Wokwi applies the TIMG interrupt mask that the ESP32 silicon
+ignores, so the firmware enables it at boot; without it Embassy time never advanced in the simulator.
 
 ### Full Documentation
 
@@ -270,7 +305,7 @@ cargo +esp check --ignore-rust-version
 # Compilación del binario ejecutable
 cargo +esp build --bin smartpot-iot --ignore-rust-version
 
-# Grabación en placa física ESP32 y monitor serie defmt
+# Grabación en placa física ESP32 y monitor serie (registros en texto plano)
 espflash flash target/xtensa-esp32-none-elf/debug/smartpot-iot --monitor
 ```
 
@@ -284,13 +319,52 @@ uv run --with paho-mqtt python tests/verify_contract_v1.py
 
 `diagram.json` reproduce el pinout real: ESP32 DevKit, potenciómetros ADC en GPIO34 (TDS), GPIO35 (pH) y GPIO32 (suelo),
 y LEDs de actuador con resistencias de 220 Ω en GPIO25 (bomba de agua), GPIO26 (luz UV), GPIO27 (ventilador) y GPIO5 (
-humidificador). El bus I2C se mantiene en SDA GPIO21 / SCL GPIO22.
+humidificador), además del LCD2004 en SCL GPIO16 / SDA GPIO17. El bus I2C de los sensores se mantiene en SDA GPIO21 /
+SCL GPIO22.
 
 Wokwi no ofrece modelos funcionales integrados del BME280 ni del BH1750 (verificado con `wokwi-cli lint`), así que la
 simulación solo cubre las entradas ADC y las salidas de actuador. El firmware registra un aviso y sigue funcionando sin
 los sensores I2C; la compensación térmica de TDS y pH usa 25.0 °C hasta que exista una lectura real del BME280. El
 dispositivo físico usa tres BME280 detrás de un multiplexor TCA9548A en 0x70 (canales 2, 3 y 4, dirección 0x76) y un
 BH1750 en 0x23. Esa topología de 3×BME280 es exclusiva del hardware físico y no puede modelarse en Wokwi.
+
+### Fiabilidad y seguridad de actuadores
+
+* **Política de actuadores** (compartida con el firmware MicroPython y con el fixture del contrato): `durationSeconds`
+  debe ser un entero entre 1 y 3600; si no, el comando se rechaza con un ACK `FAILED` y su motivo. La bomba de agua y el
+  humidificador nunca quedan encendidos sin límite: un `ACTIVATE` sin duración usa 3600 s y ambos se apagan tras 300 s
+  sin sesión con el broker. La luz UV y el ventilador conservan el encendido indefinido.
+* **Watchdog y errores fatales**: `esp_hal::init` desactiva todos los watchdogs, así que una tarea supervisora vuelve a
+  armar el watchdog RTC y solo lo alimenta mientras todas las tareas críticas laten. Una tarea detenida, un pánico o una
+  excepción de CPU apagan todos los actuadores, imprimen `SMARTPOT-FATAL` y reinician el chip.
+* **Red**: las redes abiertas (`PASSWORD` vacío) se conectan con autenticación abierta; los reintentos de Wi-Fi y MQTT
+  usan espera exponencial con dispersión (2 s a 60 s). MQTT envía PINGREQ cada 30 s, usa un tiempo límite TCP de 90 s y
+  un paquete máximo de 1 KiB, y descarta la telemetría acumulada sin conexión. TLS reserva 4 KiB para la cadena del
+  broker (certificado del servidor y CA RSA 4096).
+* **Sensores**: la cascada mediana + Kalman se vuelve a sembrar tras tres rechazos seguidos, de modo que los cambios
+  reales (un riego, una lámpara) aparecen en menos de un minuto, y la luz se filtra en decenas de lux para no saturar
+  Q16.16. Las lecturas con más de tres periodos de muestreo se omiten, los tres BME280 se promedian, las sondas pegadas
+  a un riel del ADC se descartan y las transacciones I2C y las mediciones tienen tiempo límite, con reconexión en
+  caliente del BME280.
+* **Pantalla local**: un LCD2004 en su propio bus I2C (I2C1, SCL GPIO16 / SDA GPIO17) muestra las mismas cuatro filas que
+  el firmware MicroPython, más el indicador del humidificador. Un LCD ausente o averiado no afecta a los sensores ni a la
+  telemetría.
+* **Marcadores de texto** para monitores y pruebas automáticas: `SMARTPOT-READY`, `WIFI-UP`, `TLS-OK`, `MQTT-UP`,
+  `MQTT-REFUSED`, `MQTT-DOWN`, `ACT`, `ACK`, `LCD`, `HEAP` y `FATAL`.
+
+Variables de compilación adicionales: `TELEMETRY_INTERVAL_SECS`, `SENSOR_INTERVAL_SECS`, `OFFLINE_CUTOFF_SECS`,
+`WATCHDOG_TIMEOUT_SECS`, `LIVENESS_TIMEOUT_SECS`, `HEAP_LOG_SECS`, `HEAP_MIN_FREE`, `ACTUATOR_ACTIVE_LOW=1` (módulos de
+relé que se activan con nivel bajo), `PH_NEUTRAL_MV`, `PH_SLOPE_MV`, `SOIL_DRY_RAW` y `SOIL_WET_RAW`. GPIO5
+(humidificador) es un pin de *strapping* que conmuta al arrancar: conviene un *pull-down* en la entrada del relé.
+
+### Pruebas automáticas en simulación
+
+`cargo +esp build --features sim` añade un inyector de comandos por la consola serie (líneas JSON por UART0) y ganchos de
+prueba. `python tests/wokwi/run.py` lo compila con intervalos cortos y ejecuta las escenas de `tests/wokwi/` con
+`wokwi-cli` (necesita `WOKWI_CLI_TOKEN`): arranque, comandos y política de seguridad de actuadores, recuperación tras un
+pánico y las dos vías del watchdog. El workflow *Wokwi simulation* las ejecuta a demanda. Wokwi aplica la máscara de
+interrupciones de TIMG que el silicio del ESP32 ignora, así que el firmware la habilita al arrancar; sin ella el tiempo de
+Embassy no avanzaba en el simulador.
 
 ### Documentación Completa
 
