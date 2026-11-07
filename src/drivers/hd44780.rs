@@ -59,6 +59,23 @@ where
         Ok(())
     }
 
+    /// Borra la pantalla y vuelve el cursor al inicio.
+    pub async fn clear(&mut self) -> Result<(), I2C::Error> {
+        self.command(0x01).await?;
+        Timer::after_millis(2).await;
+        Ok(())
+    }
+
+    /// Escribe `text` a partir de la columna `col` de la fila `row`.
+    pub async fn write_at(&mut self, row: usize, col: u8, text: &str) -> Result<(), I2C::Error> {
+        self.command(0x80 | (ROW_OFFSETS[row % ROW_OFFSETS.len()] + col))
+            .await?;
+        for ch in text.chars() {
+            self.send(character_code(ch), RS).await?;
+        }
+        Ok(())
+    }
+
     /// Escribe una fila completa desde la primera columna.
     pub async fn write_row(&mut self, row: usize, text: &str) -> Result<(), I2C::Error> {
         self.command(0x80 | ROW_OFFSETS[row % ROW_OFFSETS.len()])
@@ -91,8 +108,9 @@ where
     }
 }
 
-/// Código de la ROM A00 del HD44780: ASCII y los caracteres propios 0..7.
+/// Código de la ROM A00 del HD44780: ASCII, los caracteres propios 0..7 y,
+/// como en MicroPython, los códigos 0x80..0xFF de la ROM (el *spinner*).
 fn character_code(ch: char) -> u8 {
     let code = ch as u32;
-    if code < 0x80 { code as u8 } else { b'?' }
+    if code < 0x100 { code as u8 } else { b'?' }
 }
