@@ -18,8 +18,7 @@ use embedded_tls::{
 };
 use esp_hal::Blocking;
 use esp_hal::rng::Trng;
-use esp_hal::rsa::operand_sizes::{Op2048, Op2560, Op3072, Op3584, Op4096};
-use esp_hal::rsa::{Rsa, RsaModularMultiplication};
+use esp_hal::rsa::Rsa;
 use heapless::String;
 use sha2::{Digest, Sha256};
 
@@ -66,7 +65,7 @@ impl<'a> VerifyingProvider<'a> {
             rng,
             verifier: HardwareVerifier {
                 anchor,
-                engine: Accelerator { rsa },
+                engine: Accelerator { _rsa: rsa },
                 host: None,
                 transcript: None,
                 server_key: None,
@@ -88,50 +87,99 @@ impl CryptoProvider for VerifyingProvider<'_> {
     }
 }
 
+/// Registros del acelerador RSA del ESP32 (manual de referencia, cap. 15).
+///
+/// Se escriben directamente porque el PAC que usa esp-hal 1.1 declara cada
+/// bloque de memoria con 32 palabras (1024 bits) aunque el hardware tiene 128:
+/// con `RsaModularMultiplication` los operandos de 2048 y 4096 bits llegaban
+/// truncados y ninguna firma se verificaba.
+mod registers {
+    const BASE: usize = 0x3ff0_2000;
+    pub const M_MEM: usize = BASE;
+    pub const Z_MEM: usize = BASE + 0x200;
+    pub const X_MEM: usize = BASE + 0x600;
+    pub const M_PRIME: usize = BASE + 0x800;
+    pub const MULT_MODE: usize = BASE + 0x80c;
+    pub const MULT_START: usize = BASE + 0x810;
+    pub const INTERRUPT: usize = BASE + 0x814;
+    /// Palabras de cada bloque de memoria.
+    pub const MEM_WORDS: usize = 128;
+}
+
+/// Sondeos máximos del fin de una operación (una de 4096 bits tarda
+/// microsegundos en el silicio); si se agotan, la verificación falla.
+const MAX_POLLS: u32 = 1_000_000;
+
 /// Multiplicador modular sobre el acelerador RSA del ESP32.
 pub struct Accelerator<'a> {
-    rsa: &'a mut Rsa<'static, Blocking>,
+    /// El controlador de esp-hal enciende el periférico y espera a que limpie
+    /// su memoria; tenerlo prestado garantiza el acceso exclusivo.
+    _rsa: &'a mut Rsa<'static, Blocking>,
+}
+
+impl Accelerator<'_> {
+    /// # Safety
+    /// El periférico debe estar encendido y `address` debe ser un bloque de
+    /// memoria del acelerador con espacio para `words`.
+    unsafe fn write_block(address: usize, words: &[u32]) {
+        for (i, &word) in words.iter().enumerate() {
+            // SAFETY: lo garantiza quien llama.
+            unsafe { core::ptr::write_volatile((address + 4 * i) as *mut u32, word) };
+        }
+    }
+
+    /// Espera el fin de la operación en curso y limpia el aviso.
+    ///
+    /// # Safety
+    /// El periférico debe estar encendido.
+    unsafe fn wait_and_clear() -> bool {
+        let interrupt = registers::INTERRUPT as *mut u32;
+        for _ in 0..MAX_POLLS {
+            // SAFETY: lo garantiza quien llama.
+            if unsafe { core::ptr::read_volatile(interrupt) } & 1 == 1 {
+                // SAFETY: escribir 1 limpia el aviso de fin de operación.
+                unsafe { core::ptr::write_volatile(interrupt, 1) };
+                return true;
+            }
+        }
+        false
+    }
 }
 
 impl ModMul for Accelerator<'_> {
     fn mod_mul(&mut self, key: &PreparedKey, a: &[u32], b: &[u32], out: &mut [u32]) {
         let words = key.words();
-        if a.len() != words || b.len() != words || out.len() != words {
+        let valid_size = words.is_multiple_of(16) && (16..=registers::MEM_WORDS).contains(&words);
+        if !valid_size || a.len() != words || b.len() != words || out.len() != words {
             // Un resultado nulo hace fallar la verificación.
             out.fill(0);
             return;
         }
 
-        macro_rules! run {
-            ($op:ty) => {{
-                let (Ok(a), Ok(b), Ok(modulus), Ok(r), Ok(out)) = (
-                    a.try_into(),
-                    b.try_into(),
-                    key.modulus().try_into(),
-                    key.r_squared().try_into(),
-                    out.try_into(),
-                ) else {
-                    return;
-                };
-                let mut operation = RsaModularMultiplication::<$op, Blocking>::new(
-                    self.rsa,
-                    a,
-                    modulus,
-                    r,
-                    key.m_prime(),
-                );
-                operation.start_modular_multiplication(b);
-                operation.read_results(out);
-            }};
+        // Multiplicación modular en dos pasadas (manual §15.3.3): la primera
+        // lleva X a la forma de Montgomery con r = R² mod M y la segunda la
+        // multiplica por Y.
+        // SAFETY: `_rsa` mantiene el periférico encendido y en exclusiva, las
+        // direcciones son las del manual y los operandos caben en los bloques.
+        let finished = unsafe {
+            core::ptr::write_volatile(registers::MULT_MODE as *mut u32, (words / 16 - 1) as u32);
+            Self::write_block(registers::X_MEM, a);
+            Self::write_block(registers::M_MEM, key.modulus());
+            Self::write_block(registers::Z_MEM, key.r_squared());
+            core::ptr::write_volatile(registers::M_PRIME as *mut u32, key.m_prime());
+            core::ptr::write_volatile(registers::MULT_START as *mut u32, 1);
+            let first = Self::wait_and_clear();
+            Self::write_block(registers::X_MEM, b);
+            core::ptr::write_volatile(registers::MULT_START as *mut u32, 1);
+            first && Self::wait_and_clear()
+        };
+        if !finished {
+            out.fill(0);
+            return;
         }
-
-        match words {
-            64 => run!(Op2048),
-            80 => run!(Op2560),
-            96 => run!(Op3072),
-            112 => run!(Op3584),
-            128 => run!(Op4096),
-            _ => out.fill(0),
+        for (i, word) in out.iter_mut().enumerate() {
+            // SAFETY: lectura del bloque Z, dentro de sus 128 palabras.
+            *word = unsafe { core::ptr::read_volatile((registers::Z_MEM + 4 * i) as *const u32) };
         }
     }
 }
@@ -261,6 +309,12 @@ fn verify_issued_by(
     if rsa_verify::pkcs1v15_matches(&encoded[..encoded_len], hash, &digest[..len]) {
         Ok(())
     } else {
+        // Un bloque válido empieza por 00 01 FF FF; sirve para distinguir un
+        // fallo del acelerador de una firma realmente distinta.
+        debug!(
+            "[TLS] Recovered signature block starts with {:02x?}",
+            &encoded[..encoded_len.min(4)]
+        );
         error!("[TLS] A broker certificate signature does not match its issuer");
         Err(TlsError::InvalidCertificate)
     }

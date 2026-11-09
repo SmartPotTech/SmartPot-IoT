@@ -207,9 +207,11 @@ pub fn public_operation<M: ModMul>(
     let top_bit = 31 - key.exponent.leading_zeros();
     for bit in (0..top_bit).rev() {
         engine.mod_mul(key, &acc[..words], &acc[..words], &mut scratch[..words]);
+        reduce_once(&mut scratch[..words], key.modulus());
         acc[..words].copy_from_slice(&scratch[..words]);
         if (key.exponent >> bit) & 1 == 1 {
             engine.mod_mul(key, &acc[..words], &base[..words], &mut scratch[..words]);
+            reduce_once(&mut scratch[..words], key.modulus());
             acc[..words].copy_from_slice(&scratch[..words]);
         }
     }
@@ -315,6 +317,22 @@ fn be_from_words(words: &[u32], bytes: &mut [u8]) {
     }
 }
 
+/// Resta el módulo si `value` no es menor que él. La multiplicación de
+/// Montgomery del hardware puede devolver resultados en `[n, R)`; el puerto de
+/// mbedTLS para el ESP32 hace la misma corrección tras cada operación.
+fn reduce_once(value: &mut [u32], modulus: &[u32]) {
+    if less_than(value, modulus) {
+        return;
+    }
+    let mut borrow = 0u32;
+    for (word, &m) in value.iter_mut().zip(modulus) {
+        let (diff, b1) = word.overflowing_sub(m);
+        let (diff, b2) = diff.overflowing_sub(borrow);
+        *word = diff;
+        borrow = u32::from(b1 || b2);
+    }
+}
+
 fn less_than(a: &[u32], b: &[u32]) -> bool {
     for (x, y) in a.iter().rev().zip(b.iter().rev()) {
         if x != y {
@@ -350,7 +368,8 @@ fn r_squared(modulus: &[u32], modulus_bits: usize, out: &mut [u32]) {
             *word = (*word << 1) | carry;
             carry = next;
         }
-        if carry == 1 || !less_than(out, modulus) {
+        if carry == 1 {
+            // 2x desbordó las palabras: 2x - n cabe y es menor que n.
             let mut borrow = 0u32;
             for (word, &m) in out.iter_mut().zip(modulus) {
                 let (diff, b1) = word.overflowing_sub(m);
@@ -358,6 +377,8 @@ fn r_squared(modulus: &[u32], modulus_bits: usize, out: &mut [u32]) {
                 *word = diff;
                 borrow = u32::from(b1 || b2);
             }
+        } else {
+            reduce_once(out, modulus);
         }
     }
 }

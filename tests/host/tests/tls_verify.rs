@@ -81,6 +81,26 @@ fn mont_mul(x: &[u32], y: &[u32], n: &[u32], m_prime: u32) -> Vec<u32> {
     result
 }
 
+/// Como `Montgomery`, pero devuelve `a·b mod n + n` siempre que quepa en las
+/// palabras del operando, como puede hacer el hardware sin la resta final.
+struct Unreduced;
+
+impl ModMul for Unreduced {
+    fn mod_mul(&mut self, key: &PreparedKey, a: &[u32], b: &[u32], out: &mut [u32]) {
+        Montgomery.mod_mul(key, a, b, out);
+        let mut sum = out.to_vec();
+        let mut carry = 0u64;
+        for (s, &m) in sum.iter_mut().zip(key.modulus()) {
+            let v = u64::from(*s) + u64::from(m) + carry;
+            *s = v as u32;
+            carry = v >> 32;
+        }
+        if carry == 0 {
+            out.copy_from_slice(&sum);
+        }
+    }
+}
+
 fn hex(text: &str) -> Vec<u8> {
     (0..text.len())
         .step_by(2)
@@ -181,6 +201,22 @@ fn verifies_the_broker_chain() {
     assert!(issued_by(&ca, &ca));
     // La hoja no firmó la CA.
     assert!(!issued_by(&ca, &leaf));
+}
+
+#[test]
+fn tolerates_unreduced_hardware_results() {
+    let ca = x509::parse(CA).unwrap();
+    let leaf = x509::parse(LEAF).unwrap();
+    let key = ca.public_key.unwrap();
+    let key = PreparedKey::new(key.modulus, key.exponent).unwrap();
+    let (digest, len) = Hash::Sha256.digest(&[leaf.signed_data]);
+    let mut encoded = [0u8; MAX_BYTES];
+    let n = public_operation(&mut Unreduced, &key, leaf.signature, &mut encoded).unwrap();
+    assert!(pkcs1v15_matches(
+        &encoded[..n],
+        Hash::Sha256,
+        &digest[..len]
+    ));
 }
 
 #[test]
