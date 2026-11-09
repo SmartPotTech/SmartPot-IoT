@@ -66,14 +66,25 @@ pub static BME_TEMPERATURE: Watch<CriticalSectionRawMutex, f32, 2> = Watch::new_
 /// tarea MQTT y lo leen el failsafe de actuadores y la pantalla.
 pub static BROKER_ONLINE: Watch<CriticalSectionRawMutex, bool, 4> = Watch::new_with(false);
 
-/// `true` mientras el Wi-Fi está asociado (pantalla «Connecting WiFi»).
+/// `true` mientras el Wi-Fi tiene dirección IP, como `isconnected()` de
+/// MicroPython (pantalla «Connecting WiFi» y espera del arranque).
 pub static WIFI_ONLINE: Watch<CriticalSectionRawMutex, bool, 2> = Watch::new_with(false);
+
+/// `true` desde que termina el primer intento de SNTP, salga bien o mal. El
+/// arranque lo espera antes de `SMARTPOT-READY`, como `main.py`.
+pub static SNTP_ATTEMPTED: core::sync::atomic::AtomicBool =
+    core::sync::atomic::AtomicBool::new(false);
+
+/// Último fallo del DHT22 (`report::DHT_*`), para el aviso de la tabla.
+pub static DHT_ERROR: core::sync::atomic::AtomicU8 =
+    core::sync::atomic::AtomicU8::new(crate::report::DHT_OK);
 
 /// `true` desde que se imprime `SMARTPOT-READY`. El informe de memoria espera a
 /// ese momento, como el bucle del firmware MicroPython.
 pub static READY: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
 
 /// La CA del broker falta o está dañada (pantalla «Check CA in config.json»).
+/// Lo publica el arranque antes de `SMARTPOT-READY`.
 pub static CA_REJECTED: Watch<CriticalSectionRawMutex, bool, 2> = Watch::new_with(false);
 
 /// Último estado de sensores (ya sin lecturas caducadas) para la pantalla.

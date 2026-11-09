@@ -1,0 +1,73 @@
+{
+  "schema": 1,
+  "about": "Console and LCD output shared by SmartPot-IoT (Rust) and SmartPot-IoT-Python. Both test suites read this file: keep both copies identical.",
+  "messages": {
+    "noWifi": "No WiFi: device continues measuring and keeps retrying",
+    "lcdUnavailable": "LCD not available at 0x27",
+    "caMissing": "Cannot connect securely: config.json is missing the broker CA: copy the BROKER block from the connection guide",
+    "caCorrupted": "Cannot connect securely: the CA in config.json is corrupted: copy the BROKER block again",
+    "keyRejected": "No connection to broker: broker rejected the device key",
+    "brokerRefused": "No connection to broker: broker refused the connection",
+    "refusedMarker": "SMARTPOT-MQTT-REFUSED",
+    "dhtNoResponse": "Error reading DHT22: no response",
+    "dhtChecksum": "Error reading DHT22: checksum mismatch",
+    "commandRejected": "Command rejected: ",
+    "noPingResponse": "Connection lost: no PINGRESP from the broker"
+  },
+  "networkReasons": [
+    "timed out",
+    "connection reset",
+    "connection aborted",
+    "connection refused",
+    "host unreachable",
+    "not connected",
+    "connection closed by the broker",
+    "out of memory",
+    "protocol error"
+  ],
+  "analogScale": [
+    { "raw": 0, "low": 0, "high": 2000, "table": "0.00", "lcd": "0" },
+    { "raw": 4095, "low": 0, "high": 2000, "table": "2000.00", "lcd": "2000" },
+    { "raw": 2048, "low": 0, "high": 2000, "table": "1000.24", "lcd": "1000" },
+    { "raw": 1234, "low": 0, "high": 14, "table": "4.22", "lcd": "4.2" },
+    { "raw": 2600, "low": 0, "high": 14, "table": "8.89", "lcd": "8.9" },
+    { "raw": 3001, "low": 0, "high": 3000, "table": "2198.53", "lcd": "2199" },
+    { "raw": 777, "low": 0, "high": 100, "table": "18.97", "lcd": "19" }
+  ],
+  "table": {
+    "epoch": 1794240000,
+    "readings": { "temperature": 23.5, "humidity": 61, "brightness": 820, "ph": 6.1, "tds": 790, "soilMoisture": null },
+    "lines": [
+      "+----------------+----------------+",
+      "| Reading 2026-11-09 16:00:00 UTC |",
+      "+----------------+----------------+",
+      "| Temperature    | 23.50 °C       |",
+      "| Air humidity   | 61.00 %        |",
+      "| Light          | 820.00 lux     |",
+      "| pH             | 6.10           |",
+      "| TDS            | 790.00 ppm     |",
+      "| Soil moisture  | --             |",
+      "+----------------+----------------+"
+    ],
+    "unsynchronizedHeader": "| Reading unsynchronized clock    |"
+  },
+  "lcd": {
+    "readings": { "temperature": 23.5, "humidity": 61, "brightness": 820, "ph": 6.1, "tds": 790, "soilMoisture": null },
+    "actuators": { "WATER_PUMP": true, "UV_LIGHT": false, "FAN": true },
+    "online": true,
+    "rowsWithoutIcon": ["T 23.5C H  61%     ", "Light   820 lux     ", "Soil  --% pH  6.1   ", "TDS  790ppm [P-F]   "],
+    "icon": "online"
+  },
+  "commandRejections": [
+    { "payload": "not json", "ackId": null, "reason": "Invalid command: id, actuator and action are required" },
+    { "payload": "{\"id\": \"0123456789012345678901234567890123456\", \"actuator\": \"FAN\", \"action\": \"ACTIVATE\"}", "ackId": null, "reason": "Invalid command: id, actuator and action are required" },
+    { "payload": "{\"id\": \"c1\", \"actuator\": \"\", \"action\": \"ACTIVATE\"}", "ackId": "c1", "reason": "Invalid command: id, actuator and action are required" },
+    { "payload": "{\"id\": \"c2\", \"actuator\": \"DOOR\", \"action\": \"ACTIVATE\"}", "ackId": "c2", "reason": "Unknown actuator: DOOR" },
+    { "payload": "{\"id\": \"c3\", \"actuator\": \"door\", \"action\": \"toggle\"}", "ackId": "c3", "reason": "Unknown actuator: DOOR" },
+    { "payload": "{\"id\": \"c4\", \"actuator\": \"fan\", \"action\": \"toggle\", \"durationSeconds\": -1}", "ackId": "c4", "reason": "Unknown action: TOGGLE" },
+    { "payload": "{\"id\": \"c5\", \"actuator\": \"FAN\", \"action\": \"ACTIVATE\", \"durationSeconds\": 0}", "ackId": "c5", "reason": "durationSeconds must be an integer between 1 and 3600" }
+  ],
+  "acceptedCommands": [
+    { "payload": "{\"id\": \"c6\", \"actuator\": \" lights \", \"action\": \"activate\", \"durationSeconds\": 90}", "actuator": "UV_LIGHT", "action": "ACTIVATE", "durationSeconds": 90 }
+  ]
+}

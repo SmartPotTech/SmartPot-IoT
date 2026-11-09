@@ -97,6 +97,7 @@ pub mod filter;
 pub mod health;
 pub mod limits;
 pub mod protocol;
+pub mod reason;
 pub mod report;
 pub mod rsa_verify;
 pub mod safety;

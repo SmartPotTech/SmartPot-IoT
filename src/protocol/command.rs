@@ -161,13 +161,44 @@ pub enum CommandError {
 }
 
 impl CommandError {
+    /// Parte fija del motivo; los desconocidos añaden el valor recibido.
     pub fn message(&self) -> &'static str {
         match self {
             Self::Malformed => "Invalid command: id, actuator and action are required",
-            Self::UnknownActuator => "Invalid command or unknown actuator",
-            Self::UnknownAction => "Invalid command: unknown action",
+            Self::UnknownActuator => "Unknown actuator: ",
+            Self::UnknownAction => "Unknown action: ",
             Self::InvalidDuration => "durationSeconds must be an integer between 1 and 3600",
         }
+    }
+
+    /// Motivo completo del rechazo, el mismo texto que el firmware MicroPython:
+    /// un actuador o una acción desconocidos llevan su nombre en mayúsculas.
+    pub fn reason(&self, payload: &str) -> String<96> {
+        let mut reason = String::new();
+        let _ = reason.push_str(self.message());
+        let field = match self {
+            Self::UnknownActuator => "actuator",
+            Self::UnknownAction => "action",
+            _ => return reason,
+        };
+        if let Ok(value) = extract_str_field(payload, field) {
+            for ch in value.trim().chars() {
+                let _ = reason.push(ch.to_ascii_uppercase());
+            }
+        }
+        reason
+    }
+
+    /// Identificador para confirmar el rechazo, solo si es válido: sin un
+    /// `id` legible y de hasta 36 caracteres no hay a quién responder.
+    pub fn ack_id(payload: &str) -> Option<String<MAX_COMMAND_ID_LEN>> {
+        let id = extract_str_field(payload, "id").ok()?;
+        if id.trim().is_empty() {
+            return None;
+        }
+        let mut valid = String::new();
+        valid.push_str(id.as_str()).ok()?;
+        Some(valid)
     }
 }
 

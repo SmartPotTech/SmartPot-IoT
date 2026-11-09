@@ -42,9 +42,10 @@ use crate::capabilities::CAPABILITIES_JSON;
 use crate::clock;
 use crate::config::{self, Config};
 use crate::events::telemetry::TelemetryMessage;
-use crate::events::{AckMessage, BROKER_ONLINE, CA_REJECTED, Command};
+use crate::events::{AckMessage, BROKER_ONLINE, Command};
 use crate::health::{Beat, beat};
-use crate::protocol::{TopicResolver, parse_command};
+use crate::protocol::{CommandError, TopicResolver, parse_command};
+use crate::reason::{self, NetFailure};
 use crate::tls::{TracedIo, TrustAnchor, VerifyingProvider};
 
 /// Tamaño del búfer para la cadena de certificados del servidor durante el handshake.
@@ -103,6 +104,64 @@ async fn wait_for_network(stack: Stack<'static>) {
     }
 }
 
+/// Comprueba la CA del broker sin abrir ningún socket. El arranque la revisa
+/// antes de `SMARTPOT-READY`, como `build_client` en MicroPython; devuelve el
+/// texto del aviso si la CA falta o está dañada.
+pub fn ca_problem(config: &Config) -> Option<&'static str> {
+    if !config.use_tls {
+        return None;
+    }
+    if config.ca_cert_pem.trim().is_empty() {
+        return Some(reason::CA_MISSING);
+    }
+    match config::ca_cert_der::<TLS_CERT_BUFFER_SIZE>(config.ca_cert_pem) {
+        Ok(der) if TrustAnchor::new(der.as_slice()).is_ok() => None,
+        _ => Some(reason::CA_CORRUPTED),
+    }
+}
+
+/// Clase de fallo para un error de E/S de la pila de red o de TLS.
+fn io_failure(kind: embedded_io_async::ErrorKind) -> NetFailure {
+    use embedded_io_async::ErrorKind as Kind;
+    match kind {
+        Kind::TimedOut => NetFailure::TimedOut,
+        Kind::ConnectionReset => NetFailure::ConnectionReset,
+        Kind::ConnectionAborted => NetFailure::ConnectionAborted,
+        Kind::ConnectionRefused => NetFailure::ConnectionRefused,
+        Kind::NotConnected => NetFailure::NotConnected,
+        Kind::BrokenPipe | Kind::WriteZero => NetFailure::ClosedByBroker,
+        Kind::OutOfMemory => NetFailure::OutOfMemory,
+        Kind::InvalidData => NetFailure::Protocol,
+        _ => NetFailure::Other,
+    }
+}
+
+/// Clase de fallo al abrir la conexión TCP.
+fn tcp_failure(error: embassy_net::tcp::ConnectError) -> NetFailure {
+    use embassy_net::tcp::ConnectError;
+    match error {
+        ConnectError::ConnectionReset => NetFailure::ConnectionReset,
+        ConnectError::TimedOut => NetFailure::TimedOut,
+        ConnectError::NoRoute => NetFailure::HostUnreachable,
+        ConnectError::InvalidState => NetFailure::Other,
+    }
+}
+
+/// Clase de fallo de una sesión MQTT ya abierta.
+fn session_failure(error: &MqttError<'_>) -> NetFailure {
+    match error {
+        MqttError::Network(kind) => io_failure(*kind),
+        MqttError::Alloc => NetFailure::OutOfMemory,
+        MqttError::Disconnect { .. } => NetFailure::ClosedByBroker,
+        _ => NetFailure::Protocol,
+    }
+}
+
+/// Imprime por qué se cerró la sesión, con las frases de MicroPython.
+fn report_lost(reason: &str) {
+    marker!("Connection lost: {}", reason);
+}
+
 /// Espera latiendo para que el supervisor no confunda un reintento con un bloqueo.
 async fn sleep_with_beats(delay: Duration) {
     let deadline = Instant::now() + delay;
@@ -144,12 +203,19 @@ pub async fn mqtt_task(
         capabilities: resolver.capabilities(),
     };
     let mut backoff = Backoff::new(RETRY_BASE_MS, RETRY_MAX_MS);
-    let mut ca_missing_logged = false;
 
-    wait_for_network(stack).await;
-    if let Some(net_cfg) = stack.config_v4() {
-        marker!("WiFi connected: {}", net_cfg.address.address());
+    // Como en MicroPython, el primer intento llega después de SMARTPOT-READY.
+    while !crate::events::READY.load(core::sync::atomic::Ordering::Relaxed) {
+        sleep_with_beats(Duration::from_millis(250)).await;
     }
+    // Sin una CA válida la clave del dispositivo nunca se envía; el aviso ya
+    // salió en el arranque y el dispositivo sigue midiendo sin conexión.
+    if ca_problem(&config).is_some() {
+        loop {
+            sleep_with_beats(Duration::from_secs(60)).await;
+        }
+    }
+    wait_for_network(stack).await;
 
     loop {
         beat(Beat::Mqtt);
@@ -168,29 +234,9 @@ pub async fn mqtt_task(
                     warn!("[MQTT] Waiting for SNTP time synchronization before TLS");
                     sleep_with_beats(Duration::from_secs(2)).await;
                 }
-
                 match config::ca_cert_der::<TLS_CERT_BUFFER_SIZE>(config.ca_cert_pem) {
                     Ok(der) => der,
-                    Err(_) => {
-                        if !ca_missing_logged {
-                            // Mismos textos que el firmware MicroPython.
-                            if config.ca_cert_pem.trim().is_empty() {
-                                marker!(
-                                    "Cannot connect securely: config.json is missing the broker CA: copy the BROKER block from the connection guide"
-                                );
-                            } else {
-                                marker!(
-                                    "Cannot connect securely: the CA in config.json is corrupted: copy the BROKER block again"
-                                );
-                            }
-                            CA_REJECTED.sender().send(true);
-                            error!(
-                                "[MQTT] CA_CERT_PEM is missing or invalid; refusing to connect without certificate verification"
-                            );
-                            ca_missing_logged = true;
-                        }
-                        break 'attempt SessionOutcome::Refused;
-                    }
+                    Err(_) => break 'attempt SessionOutcome::Refused,
                 }
             } else {
                 heapless::Vec::new()
@@ -201,20 +247,7 @@ pub async fn mqtt_task(
             let anchor = if config.use_tls {
                 match TrustAnchor::new(ca_der.as_slice()) {
                     Ok(anchor) => Some(anchor),
-                    Err(e) => {
-                        if !ca_missing_logged {
-                            marker!(
-                                "Cannot connect securely: the CA in config.json is corrupted: copy the BROKER block again"
-                            );
-                            CA_REJECTED.sender().send(true);
-                            error!(
-                                "[MQTT] The broker CA must be an RSA certificate of 2048 to 4096 bits ({:?})",
-                                e
-                            );
-                            ca_missing_logged = true;
-                        }
-                        break 'attempt SessionOutcome::Refused;
-                    }
+                    Err(_) => break 'attempt SessionOutcome::Refused,
                 }
             } else {
                 None
@@ -239,7 +272,7 @@ pub async fn mqtt_task(
             socket.set_keep_alive(Some(SOCKET_KEEP_ALIVE));
             if let Err(e) = socket.connect(broker_addr).await {
                 error!("[MQTT] TCP connection failed: {:?}", e);
-                marker!("No connection to broker: {:?}", e);
+                marker!("No connection to broker: {}", tcp_failure(e).text());
                 break 'attempt SessionOutcome::Refused;
             }
             info!("[MQTT] TCP connection established");
@@ -256,10 +289,16 @@ pub async fn mqtt_task(
                 let handshake_started = Instant::now();
                 if let Err(e) = tls.open(tls_context).await {
                     error!("[MQTT] TLS handshake failed: {:?}", e);
-                    marker!(
-                        "No connection to broker: could not verify the broker ({:?}): check the CA in config.json and the system clock",
-                        e
-                    );
+                    match e {
+                        // Un corte de red durante el handshake no es culpa de la CA.
+                        embedded_tls::TlsError::Io(kind) => {
+                            marker!("No connection to broker: {}", io_failure(kind).text())
+                        }
+                        other => marker!(
+                            "No connection to broker: could not verify the broker ({:?}): check the CA in config.json and the system clock",
+                            other
+                        ),
+                    }
                     break 'attempt SessionOutcome::Refused;
                 }
                 info!(
@@ -411,10 +450,16 @@ where
                 reason: ReasonCode::BadUserNameOrPassword | ReasonCode::NotAuthorized,
                 ..
             } => {
-                marker!("No connection to broker: broker rejected the device key");
+                marker!("No connection to broker: {}", reason::KEY_REJECTED);
                 marker!("SMARTPOT-MQTT-REFUSED");
             }
-            other => marker!("No connection to broker: {:?}", other),
+            MqttError::Disconnect { .. } => {
+                marker!("No connection to broker: {}", reason::BROKER_REFUSED)
+            }
+            other => marker!(
+                "No connection to broker: {}",
+                session_failure(&other).text()
+            ),
         }
         return SessionOutcome::Refused;
     }
@@ -478,9 +523,11 @@ where
         warn!("[MQTT] Discarded {} stale telemetry snapshots", stale);
     }
 
-    BROKER_ONLINE.sender().send(true);
     marker!("MQTT connected as {}", config.crop_id);
     marker!("SMARTPOT-MQTT-UP crop={}", config.crop_id);
+    // Después de los marcadores: la pantalla y la lectura fresca de la sesión
+    // nueva reaccionan a este aviso.
+    BROKER_ONLINE.sender().send(true);
 
     let mut telemetry_seq: u16 = 0;
     let mut ping_ticker = Ticker::every(PING_INTERVAL);
@@ -501,7 +548,7 @@ where
         {
             Either4::First(Err(e)) => {
                 error!("[MQTT] MQTT poll error: {:?}", e);
-                marker!("Connection lost: MQTT poll error");
+                report_lost(session_failure(&e).text());
                 break;
             }
             Either4::First(Ok(header)) => match client.poll_body(header).await {
@@ -513,14 +560,13 @@ where
                     info!("[MQTT SUB] Message received: {}", msg_str);
                     match parse_command(msg_str) {
                         Ok(cmd) => commands_channel.publish_immediate(cmd),
-                        Err(reason) => {
+                        Err(error) => {
                             warn!("[MQTT SUB] Invalid command discarded: {}", msg_str);
-                            marker!("Unreadable command discarded: {}", reason.message());
-                            // Si es un JSON con id, emitir ACK de fallo con el motivo
-                            if let Ok(id) =
-                                crate::protocol::command::extract_str_field(msg_str, "id")
-                            {
-                                let fail_ack = AckMessage::failure(id.as_str(), reason.message());
+                            let why = error.reason(msg_str);
+                            marker!("{}{}", reason::COMMAND_REJECTED, why.as_str());
+                            // Con un id válido se confirma el rechazo con su motivo.
+                            if let Some(id) = CommandError::ack_id(msg_str) {
+                                let fail_ack = AckMessage::failure(id.as_str(), why.as_str());
                                 marker!(
                                     "SMARTPOT-ACK {} FAILED {}",
                                     fail_ack.id.as_str(),
@@ -539,7 +585,7 @@ where
                                     .await
                                 {
                                     error!("[MQTT] Error publishing failure ACK: {:?}", e);
-                                    marker!("Connection lost: Error publishing failure ACK");
+                                    report_lost(session_failure(&e).text());
                                     break;
                                 }
                             }
@@ -550,7 +596,7 @@ where
                 Ok(_) => {}
                 Err(e) => {
                     error!("[MQTT] MQTT poll error: {:?}", e);
-                    marker!("Connection lost: MQTT poll error");
+                    report_lost(session_failure(&e).text());
                     break;
                 }
             },
@@ -570,7 +616,7 @@ where
                     .await
                 {
                     error!("[MQTT] Error publishing ACK confirmation: {:?}", e);
-                    marker!("Connection lost: Error publishing ACK confirmation");
+                    report_lost(session_failure(&e).text());
                     break;
                 }
             }
@@ -608,7 +654,7 @@ where
                         .await
                     {
                         error!("[MQTT] Error publishing telemetry: {:?}", e);
-                        marker!("Connection lost: Error publishing telemetry");
+                        report_lost(session_failure(&e).text());
                         break;
                     }
                 }
@@ -619,16 +665,14 @@ where
                 if let Some(sent_at) = ping_sent_at {
                     if Instant::now() - sent_at >= PING_DEADLINE {
                         error!("[MQTT] No PINGRESP from the broker; closing the session");
-                        marker!(
-                            "Connection lost: No PINGRESP from the broker; closing the session"
-                        );
+                        report_lost(reason::NO_PING_RESPONSE);
                         break;
                     }
                     continue;
                 }
                 if let Err(e) = client.ping().await {
                     error!("[MQTT] Could not send PINGREQ: {:?}", e);
-                    marker!("Connection lost: Could not send PINGREQ");
+                    report_lost(session_failure(&e).text());
                     break;
                 }
                 ping_sent_at = Some(Instant::now());

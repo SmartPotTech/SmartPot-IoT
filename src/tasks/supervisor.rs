@@ -4,6 +4,8 @@
 //! el RWDT y solo lo alimenta mientras todas las tareas vigiladas siguen
 //! latiendo. Si una tarea se detiene, apaga los actuadores y reinicia el chip;
 //! si se bloquea el propio núcleo 0, el RWDT reinicia el sistema sin ayuda.
+//! Con `watchdog_seconds` = 0 en `config.json` no se activa ninguno de los dos
+//! mecanismos (para depurar), igual que en MicroPython.
 //! También publica el uso del heap y la marca de agua de la pila del núcleo 1.
 
 use embassy_executor::task;
@@ -14,7 +16,8 @@ use crate::config::parse_u64_or;
 use crate::health::{self, BEAT_NAMES, Liveness};
 use crate::safety;
 
-/// Tiempo sin alimentar el RWDT tras el que se reinicia el sistema.
+/// Tiempo sin alimentar el RWDT tras el que se reinicia el sistema; 0 lo
+/// desactiva junto con la vigilancia de tareas.
 const WATCHDOG_TIMEOUT_SECS: u64 = match option_env!("WATCHDOG_TIMEOUT_SECS") {
     Some(v) => parse_u64_or(v, 30),
     None => 30,
@@ -43,22 +46,28 @@ const CHECK_PERIOD: Duration = Duration::from_secs(5);
 
 #[task]
 pub async fn supervisor_task(mut rtc: Rtc<'static>) {
-    rtc.rwdt
-        .set_stage_action(RwdtStage::Stage0, RwdtStageAction::ResetSystem);
-    rtc.rwdt.set_timeout(
-        RwdtStage::Stage0,
-        esp_hal::time::Duration::from_secs(WATCHDOG_TIMEOUT_SECS),
-    );
-    rtc.rwdt.enable();
-    rtc.rwdt.feed();
-    info!(
-        "[WDT] RTC watchdog armed: {} s, task liveness {} s",
-        WATCHDOG_TIMEOUT_SECS, LIVENESS_TIMEOUT_SECS
-    );
+    let watchdog = WATCHDOG_TIMEOUT_SECS > 0;
+    if watchdog {
+        rtc.rwdt
+            .set_stage_action(RwdtStage::Stage0, RwdtStageAction::ResetSystem);
+        rtc.rwdt.set_timeout(
+            RwdtStage::Stage0,
+            esp_hal::time::Duration::from_secs(WATCHDOG_TIMEOUT_SECS),
+        );
+        rtc.rwdt.enable();
+        rtc.rwdt.feed();
+        info!(
+            "[WDT] RTC watchdog armed: {} s, task liveness {} s",
+            WATCHDOG_TIMEOUT_SECS, LIVENESS_TIMEOUT_SECS
+        );
+    } else {
+        info!("[WDT] Watchdog disabled (watchdog_seconds = 0)");
+    }
 
     let mut liveness = Liveness::new();
     let mut ticker = Ticker::every(CHECK_PERIOD);
-    let mut next_report = Instant::now();
+    // El primer informe lo imprime el arranque junto a SMARTPOT-READY.
+    let mut next_report: Option<Instant> = None;
 
     loop {
         ticker.next().await;
@@ -71,6 +80,7 @@ pub async fn supervisor_task(mut rtc: Rtc<'static>) {
             now.as_millis(),
             LIVENESS_TIMEOUT_SECS * 1000,
         ) {
+            _ if !watchdog => {}
             None => rtc.rwdt.feed(),
             Some(index) => {
                 safety::force_actuators_off();
@@ -81,16 +91,22 @@ pub async fn supervisor_task(mut rtc: Rtc<'static>) {
             }
         }
 
-        // Como MicroPython, el primer informe sale tras SMARTPOT-READY.
-        if now >= next_report && crate::events::READY.load(core::sync::atomic::Ordering::Relaxed) {
-            next_report = now + Duration::from_secs(HEAP_LOG_SECS);
-            report_memory();
+        // Como MicroPython, un informe por minuto contado desde SMARTPOT-READY.
+        if crate::events::READY.load(core::sync::atomic::Ordering::Relaxed) {
+            match next_report {
+                None => next_report = Some(now + Duration::from_secs(HEAP_LOG_SECS)),
+                Some(due) if now >= due => {
+                    next_report = Some(now + Duration::from_secs(HEAP_LOG_SECS));
+                    report_memory();
+                }
+                Some(_) => {}
+            }
         }
     }
 }
 
 /// Imprime el uso del heap y de la pila del núcleo 1.
-fn report_memory() {
+pub fn report_memory() {
     let stats = esp_alloc::HEAP.stats();
     let free = stats.size.saturating_sub(stats.current_usage);
     let min_free = stats.size.saturating_sub(stats.max_usage);

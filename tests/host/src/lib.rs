@@ -60,6 +60,9 @@ pub mod dht22_frame;
 #[path = "../../../src/report.rs"]
 pub mod report;
 
+#[path = "../../../src/reason.rs"]
+pub mod reason;
+
 #[path = "../../../src/x509.rs"]
 pub mod x509;
 

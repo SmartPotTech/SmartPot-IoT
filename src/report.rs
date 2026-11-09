@@ -127,6 +127,33 @@ pub fn reading_table(state: &SensorState, epoch: Option<u64>) -> Vec<Line, 10> {
     lines
 }
 
+/// La tabla completa en un solo texto: se imprime con una única escritura
+/// para que ninguna línea del otro núcleo quede en medio, como `print_table`.
+pub fn reading_table_text(state: &SensorState, epoch: Option<u64>) -> String<512> {
+    let mut text = String::new();
+    for (index, line) in reading_table(state, epoch).iter().enumerate() {
+        if index > 0 {
+            let _ = text.push('\n');
+        }
+        let _ = text.push_str(line.as_str());
+    }
+    text
+}
+
+/// Último fallo del DHT22 (`events::DHT_ERROR`): ninguno, sin respuesta o suma
+/// de control incorrecta.
+pub const DHT_OK: u8 = 0;
+pub const DHT_NO_RESPONSE: u8 = 1;
+pub const DHT_CHECKSUM: u8 = 2;
+
+/// Motivo que acompaña a «Error reading DHT22:», igual que en MicroPython.
+pub const fn dht_reason(code: u8) -> &'static str {
+    match code {
+        DHT_CHECKSUM => "checksum mismatch",
+        _ => "no response",
+    }
+}
+
 /// Código de `machine.reset_cause()` de MicroPython: 1 encendido, 2 externo,
 /// 3 watchdog, 4 deep sleep y 5 reinicio por software o pánico.
 #[cfg(target_arch = "xtensa")]

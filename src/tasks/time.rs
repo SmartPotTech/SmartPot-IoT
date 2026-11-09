@@ -3,9 +3,10 @@
 //! El handshake TLS necesita la hora para validar la vigencia de los
 //! certificados, así que esta tarea arranca antes que el cliente MQTT. Espera a
 //! que el stack tenga configuración IPv4, resuelve el servidor por DNS y repite
-//! la sincronización cada 60 segundos (cada 10 hasta la primera, como el bucle
-//! del firmware MicroPython). No usa heap: todos los búferes son
-//! locales y de tamaño fijo.
+//! la sincronización cada hora (cada 10 s hasta la primera, como el firmware
+//! MicroPython): el cristal del ESP32 deriva milisegundos por hora y los
+//! servidores públicos piden no consultar más de lo necesario. No usa heap:
+//! todos los búferes son locales y de tamaño fijo.
 
 use embassy_executor::task;
 use embassy_futures::select::{Either, select};
@@ -17,7 +18,7 @@ use crate::clock;
 use crate::sntp::{self, NTP_PACKET_SIZE};
 
 const NTP_PORT: u16 = 123;
-const SYNC_INTERVAL: Duration = Duration::from_secs(60);
+const SYNC_INTERVAL: Duration = Duration::from_secs(3600);
 /// Reintento hasta la primera sincronización: sin hora no hay TLS ni MQTT.
 const FIRST_SYNC_RETRY: Duration = Duration::from_secs(10);
 const RESPONSE_TIMEOUT: Duration = Duration::from_secs(5);
@@ -52,6 +53,7 @@ pub async fn sntp_task(stack: Stack<'static>, server: &'static str) {
                 }
             }
         }
+        crate::events::SNTP_ATTEMPTED.store(true, core::sync::atomic::Ordering::Relaxed);
 
         Timer::after(if synchronized_once {
             SYNC_INTERVAL

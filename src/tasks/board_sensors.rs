@@ -3,8 +3,10 @@
 //! DHT22 (temperatura y humedad) en GPIO15 y cuatro potenciómetros: luz
 //! (0..2000 lx) en GPIO34, pH (0..14) en GPIO35, TDS (0..3000 ppm) en GPIO32 y
 //! humedad de suelo (0..100 %) en GPIO33, con las mismas escalas lineales que
-//! MicroPython. El filtrado mediana + Kalman es interno: con el cursor quieto el
-//! valor publicado coincide con el de MicroPython.
+//! MicroPython. Cada canal promedia 16 lecturas del ADC y no lleva filtro
+//! temporal: con potenciómetros o módulos analógicos simples la mediana y el
+//! Kalman solo añaden retraso, y así cada lectura coincide con la de
+//! MicroPython. El prototipo físico (`board-physical`) sí filtra sus sondas.
 
 use embassy_executor::task;
 use embassy_sync::pubsub::DynPublisher;
@@ -14,11 +16,13 @@ use esp_hal::analog::adc::{Adc, AdcChannel, AdcPin};
 use esp_hal::peripherals::{ADC1, GPIO32, GPIO33, GPIO34, GPIO35};
 
 use crate::config::SENSOR_INTERVAL_SECS;
-use crate::drivers::dht22::Dht22;
+use core::sync::atomic::Ordering;
+
+use crate::drivers::dht22::{Dht22, Dht22Error};
 use crate::drivers::tds::{average, linear_scale};
-use crate::events::Measurements;
-use crate::filter::SensorCascade;
+use crate::events::{DHT_ERROR, Measurements};
 use crate::health::{Beat, beat};
+use crate::report::{DHT_CHECKSUM, DHT_NO_RESPONSE, DHT_OK};
 
 /// Lecturas del ADC que se promedian por canal.
 const ADC_OVERSAMPLING: usize = 16;
@@ -34,39 +38,32 @@ pub async fn board_sensors_task(
     mut dht: Dht22<'static>,
     sensor_channel: DynPublisher<'static, Measurements>,
 ) {
-    let mut temperature_filter = SensorCascade::new(0.01, 0.1);
-    let mut humidity_filter = SensorCascade::new(0.05, 0.5);
-    let mut light_filter = SensorCascade::new(0.5, 2.0);
-    let mut ph_filter = SensorCascade::new(0.001, 0.01);
-    let mut tds_filter = SensorCascade::new(0.5, 4.0);
-    let mut soil_filter = SensorCascade::new(0.1, 0.5);
-
     loop {
         beat(Beat::Analog);
 
-        // Un fallo del DHT22 no publica nada: la lectura caduca y la
-        // instantánea muestra «--», como en MicroPython.
-        if let Ok((temperature, humidity)) = dht.read() {
-            sensor_channel.publish_immediate(Measurements::Air((
-                temperature_filter.update(temperature),
-                humidity_filter.update(humidity),
-            )));
+        // Un fallo del DHT22 no publica nada: la lectura caduca tras tres
+        // periodos y la tabla muestra «--» con el motivo, como en MicroPython.
+        match dht.read() {
+            Ok((temperature, humidity)) => {
+                DHT_ERROR.store(DHT_OK, Ordering::Relaxed);
+                sensor_channel.publish_immediate(Measurements::Air((temperature, humidity)));
+            }
+            Err(Dht22Error::Checksum) => DHT_ERROR.store(DHT_CHECKSUM, Ordering::Relaxed),
+            Err(_) => DHT_ERROR.store(DHT_NO_RESPONSE, Ordering::Relaxed),
         }
 
         if let Some(raw) = oversample(&mut adc, &mut light) {
-            let lux = light_filter.update(linear_scale(raw, 0.0, 2000.0));
+            let lux = linear_scale(raw, 0.0, 2000.0);
             sensor_channel.publish_immediate(Measurements::BH1750(lux));
         }
         if let Some(raw) = oversample(&mut adc, &mut ph) {
-            let value = ph_filter.update(linear_scale(raw, 0.0, 14.0));
-            sensor_channel.publish_immediate(Measurements::PH(value));
+            sensor_channel.publish_immediate(Measurements::PH(linear_scale(raw, 0.0, 14.0)));
         }
         if let Some(raw) = oversample(&mut adc, &mut tds) {
-            let value = tds_filter.update(linear_scale(raw, 0.0, 3000.0));
-            sensor_channel.publish_immediate(Measurements::TDS(value));
+            sensor_channel.publish_immediate(Measurements::TDS(linear_scale(raw, 0.0, 3000.0)));
         }
         if let Some(raw) = oversample(&mut adc, &mut soil) {
-            let value = soil_filter.update(linear_scale(raw, 0.0, 100.0));
+            let value = linear_scale(raw, 0.0, 100.0);
             sensor_channel.publish_immediate(Measurements::SoilMoisture(value));
         }
 

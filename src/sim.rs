@@ -75,9 +75,12 @@ pub mod hooks {
 
         match parse_command(line) {
             Ok(command) => commands.publish_immediate(command),
-            Err(reason) => {
-                let id = extract_str_field(line, "id").unwrap_or_default();
-                marker!("SMARTPOT-ACK {} FAILED {}", id.as_str(), reason.message());
+            Err(error) => {
+                let why = error.reason(line);
+                marker!("{}{}", crate::reason::COMMAND_REJECTED, why.as_str());
+                if let Some(id) = crate::protocol::CommandError::ack_id(line) {
+                    marker!("SMARTPOT-ACK {} FAILED {}", id.as_str(), why.as_str());
+                }
             }
         }
     }

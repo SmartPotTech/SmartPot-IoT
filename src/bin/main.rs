@@ -336,7 +336,8 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
         spawner.spawn(net_task(runner).expect("Failed to start net_task"));
         // Corrige concesiones DHCP cuya máscara deja fuera al router.
         spawner.spawn(
-            smartpot_iot::tasks::lease::lease_task(_stack).expect("Failed to start lease_task"),
+            smartpot_iot::tasks::lease::lease_task(_stack, DEFAULT_CONFIG.wifi_ssid)
+                .expect("Failed to start lease_task"),
         );
         spawner.spawn(
             wifi_connection_task(
