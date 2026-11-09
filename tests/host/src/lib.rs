@@ -59,3 +59,9 @@ pub mod dht22_frame;
 
 #[path = "../../../src/report.rs"]
 pub mod report;
+
+#[path = "../../../src/x509.rs"]
+pub mod x509;
+
+#[path = "../../../src/rsa_verify.rs"]
+pub mod rsa_verify;

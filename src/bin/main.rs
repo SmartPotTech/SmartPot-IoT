@@ -370,6 +370,7 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
             smartpot_iot::tasks::mqtt::mqtt_task(
                 _stack,
                 trng.clone(),
+                peripherals.RSA,
                 DEFAULT_CONFIG,
                 TELEMETRY_CH.dyn_subscriber().unwrap(),
                 COMMAND_CH.dyn_publisher().unwrap(),

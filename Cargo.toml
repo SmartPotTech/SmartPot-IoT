@@ -80,7 +80,9 @@ esp-radio = { version = "0.18.0", default-features = false, features = [
 
 embedded-hal-async = "1.0.0"
 embedded-io-async = "0.7"
-embedded-tls = { version = "0.19", default-features = false, features = ["embedded-io-adapters", "defmt", "rustpki", "rsa", "alloc"] }
+# La cadena del broker se verifica con el acelerador RSA (src/tls.rs), así que
+# no hacen falta las verificaciones en software de `rustpki`/`rsa`.
+embedded-tls = { version = "0.19", default-features = false, features = ["embedded-io-adapters", "defmt"] }
 libm = "0.2"
 
 embassy-futures = "0.1.2"
@@ -99,6 +101,8 @@ embassy-net = { version = "0.9.1", features = [
 
 nb = "1.1.0"
 heapless = "0.9.2"
+# Resúmenes para verificar los certificados del broker (misma versión que embedded-tls).
+sha2 = { version = "0.10", default-features = false }
 rust-mqtt = { version = "0.5", features = ["defmt"] }
 
 [build-dependencies]
@@ -122,3 +126,43 @@ incremental = false
 lto = false
 opt-level = 'z'
 overflow-checks = false
+
+# El intercambio de claves P-256 del handshake se calcula en software. Con
+# opt-level "z" es más lento en Wokwi, cuya CPU simulada va a unos 8 MHz, y EMQX
+# corta los handshakes que pasan de 15 s; estas bibliotecas se optimizan para
+# velocidad (el resto sigue en "z" para caber en la partición de 1 MiB).
+[profile.dev.package.p256]
+opt-level = 3
+
+[profile.dev.package.primeorder]
+opt-level = 3
+
+[profile.dev.package.elliptic-curve]
+opt-level = 3
+
+[profile.dev.package.crypto-bigint]
+opt-level = 3
+
+[profile.dev.package.subtle]
+opt-level = 3
+
+[profile.dev.package.ff]
+opt-level = 3
+
+[profile.release.package.p256]
+opt-level = 3
+
+[profile.release.package.primeorder]
+opt-level = 3
+
+[profile.release.package.elliptic-curve]
+opt-level = 3
+
+[profile.release.package.crypto-bigint]
+opt-level = 3
+
+[profile.release.package.subtle]
+opt-level = 3
+
+[profile.release.package.ff]
+opt-level = 3

@@ -98,6 +98,7 @@ pub mod health;
 pub mod limits;
 pub mod protocol;
 pub mod report;
+pub mod rsa_verify;
 pub mod safety;
 pub mod sim;
 pub mod sntp;
@@ -105,6 +106,7 @@ pub mod subnet;
 pub mod tasks;
 #[cfg(feature = "mqtt")]
 pub mod tls;
+pub mod x509;
 
 #[cfg(feature = "board-physical")]
 pub mod i2c_scanner {

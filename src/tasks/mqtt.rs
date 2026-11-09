@@ -22,7 +22,9 @@ use embassy_sync::pubsub::{DynPublisher, DynSubscriber};
 use embassy_time::{Duration, Instant, Ticker, Timer, with_timeout};
 
 use embedded_tls::{TlsConfig, TlsConnection, TlsContext};
+use esp_hal::peripherals::RSA;
 use esp_hal::rng::Trng;
+use esp_hal::rsa::Rsa;
 use heapless::String;
 use rust_mqtt::buffer::AllocBuffer;
 use rust_mqtt::client::Client;
@@ -43,7 +45,7 @@ use crate::events::telemetry::TelemetryMessage;
 use crate::events::{AckMessage, BROKER_ONLINE, CA_REJECTED, Command};
 use crate::health::{Beat, beat};
 use crate::protocol::{TopicResolver, parse_command};
-use crate::tls::VerifyingProvider;
+use crate::tls::{TracedIo, TrustAnchor, VerifyingProvider};
 
 /// Tamaño del búfer para la cadena de certificados del servidor durante el handshake.
 const TLS_CERT_BUFFER_SIZE: usize = 2048;
@@ -115,6 +117,7 @@ async fn sleep_with_beats(delay: Duration) {
 pub async fn mqtt_task(
     stack: Stack<'static>,
     rng: Trng,
+    rsa: RSA<'static>,
     config: Config,
     mut telemetry_channel: DynSubscriber<'static, TelemetryMessage>,
     commands_channel: DynPublisher<'static, Command>,
@@ -129,6 +132,8 @@ pub async fn mqtt_task(
     let tx_buffer = TX_BUFFER.take();
     let tls_rx = TLS_RX.take();
     let tls_tx = TLS_TX.take();
+    // Acelerador RSA para verificar la cadena del broker en el handshake.
+    let mut rsa = Rsa::new(rsa);
 
     let resolver = TopicResolver::new(config.crop_id);
     let topics = Topics {
@@ -191,6 +196,30 @@ pub async fn mqtt_task(
                 heapless::Vec::new()
             };
 
+            // La CA se prepara para el acelerador antes de abrir el socket: el
+            // broker cuenta el tiempo del handshake desde la conexión TCP.
+            let anchor = if config.use_tls {
+                match TrustAnchor::new(ca_der.as_slice()) {
+                    Ok(anchor) => Some(anchor),
+                    Err(e) => {
+                        if !ca_missing_logged {
+                            marker!(
+                                "Cannot connect securely: the CA in config.json is corrupted: copy the BROKER block again"
+                            );
+                            CA_REJECTED.sender().send(true);
+                            error!(
+                                "[MQTT] The broker CA must be an RSA certificate of 2048 to 4096 bits ({:?})",
+                                e
+                            );
+                            ca_missing_logged = true;
+                        }
+                        break 'attempt SessionOutcome::Refused;
+                    }
+                }
+            } else {
+                None
+            };
+
             info!(
                 "[MQTT] Connecting to {}:{} (Crop: {})",
                 config.broker_host, config.broker_port, config.crop_id
@@ -216,13 +245,15 @@ pub async fn mqtt_task(
             info!("[MQTT] TCP connection established");
             beat(Beat::Mqtt);
 
-            if config.use_tls {
+            if let Some(anchor) = &anchor {
                 let tls_config = TlsConfig::new()
                     .with_server_name(config.broker_host)
                     .enable_rsa_signatures();
-                let provider = VerifyingProvider::new(rng.clone(), ca_der.as_slice());
+                let provider = VerifyingProvider::new(rng.clone(), anchor, &mut rsa);
                 let tls_context = TlsContext::new(&tls_config, provider);
-                let mut tls = TlsConnection::new(socket, tls_rx, tls_tx);
+                let mut tls = TlsConnection::new(TracedIo::new(socket), tls_rx, tls_tx);
+                // EMQX cierra la conexión si el handshake no termina en 15 s.
+                let handshake_started = Instant::now();
                 if let Err(e) = tls.open(tls_context).await {
                     error!("[MQTT] TLS handshake failed: {:?}", e);
                     marker!(
@@ -231,7 +262,10 @@ pub async fn mqtt_task(
                     );
                     break 'attempt SessionOutcome::Refused;
                 }
-                info!("[MQTT] TLS session established; broker certificate verified");
+                info!(
+                    "[MQTT] TLS session established in {} ms; broker certificate verified",
+                    handshake_started.elapsed().as_millis()
+                );
                 marker!("SMARTPOT-TLS-OK host={}", config.broker_host);
 
                 run_mqtt_client(
