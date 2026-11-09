@@ -9,7 +9,7 @@
       "top": 0,
       "left": -62.36,
       "attrs": {
-        "env": "micropython-20241129-v1.24.1"
+        "env": "micropython-20231227-v1.22.0"
       }
     },
     {
