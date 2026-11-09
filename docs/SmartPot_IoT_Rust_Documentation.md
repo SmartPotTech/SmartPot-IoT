@@ -1,5 +1,5 @@
 <!-- portada
-eyebrow: Component Documentation · Documentación del componente
+eyebrow: Component Technical Documentation
 titulo: SmartPot-IoT
 acento: IoT
 subtitulo: High-Performance Real Crop Firmware in Rust · Firmware de alto rendimiento para cultivo real en Rust
@@ -12,11 +12,7 @@ proyecto: smartpot.app
 
 # SmartPot-IoT
 
-[English](#english) | [Español](#español)
-
 ---
-
-# English
 
 ## Document Sheet
 
@@ -57,34 +53,34 @@ to the MicroPython implementation, this Rust firmware maximizes ESP32 hardware c
 flowchart LR
   subgraph esp["ESP32 Dual-Core · Rust 2024 no_std · Embassy Runtime"]
     direction TB
-    subgraph core0["Core 0 · Network & Communications"]
+    subgraph core0["Core 0 · Networking & Communications"]
       direction TB
-      wifi["tasks/wifi.rs<br/>WiFi Station · Retries"]
-      mqtt["tasks/mqtt.rs<br/>MQTT v1 Client · TLS 1.3<br/>Retained LWT · select3 loop"]
+      wifi["tasks/wifi.rs<br/>WiFi Station · Reconnect Backoff"]
+      mqtt["tasks/mqtt.rs<br/>MQTT v1/v2 Client · TLS 1.3<br/>LWT Retained · Select Loop"]
       telem["tasks/telemetry.rs: telemetry_task<br/>Aggregation · SensorState"]
-      caps["capabilities topic<br/>retained · schema 1<br/>7 sensors · 4 actuators"]
+      caps["Retained Capabilities<br/>Schema 1 · 7 Sensors · 4 Actuators"]
     end
 
     subgraph core1["Core 1 · Acquisition & Control"]
       direction TB
-      i2c["tasks/sensors.rs: bme280 & bh1750<br/>Temperature, Humidity, Pressure, Lux<br/>median-5 + Q16.16 Kalman"]
-      adc["tasks/sensors.rs: analog_sensors<br/>TDS, pH, Substrate Moisture"]
-      act["tasks/command.rs: catch_commands<br/>Pump, UV Light (LIGHTS alias), Fan, Humidifier<br/>Instant::now() + Duration Timer"]
+      i2c["tasks/sensors.rs: bme280 & bh1750<br/>Temp, Humidity, Pressure, Lux<br/>Median-5 + Kalman Q16.16"]
+      adc["tasks/sensors.rs: analog_sensors<br/>TDS, pH, Soil Moisture"]
+      act["tasks/command.rs: catch_commands<br/>Pump, UV Light (alias LIGHTS), Fan, Humidifier<br/>Instant Timer + Failsafe"]
     end
 
-    subgraph channels["Lock-Free Static Embassy Channels"]
+    subgraph channels["Static Lock-Free Embassy Channels"]
       direction TB
-      sch["SENSOR_CH<br/>Filtered physical measurements"]
+      sch["SENSOR_CH<br/>Filtered measurements"]
       cch["COMMAND_CH<br/>Incoming commands"]
-      ach["ACK_CH<br/>English ACK confirmations"]
-      tch["TELEMETRY_CH<br/>v1 JSON / v2 27-byte packet"]
+      ach["ACK_CH<br/>Execution confirmations"]
+      tch["TELEMETRY_CH<br/>v1 JSON / v2 27B binary"]
     end
   end
 
   subgraph hw["Peripherals & Circuit"]
     direction TB
     sens["I2C SCL 22 / SDA 21<br/>ADC GPIO 34, 35, 32"]
-    outs["Pump 25 · UV 26<br/>Fan 27 · Humidifier 5"]
+    outs["Pump 25 · UV Light 26<br/>Fan 27 · Humidifier 5"]
   end
 
   broker["SmartPot-Broker (EMQX)<br/>mqtt.smartpot.app:8883"]
@@ -92,11 +88,11 @@ flowchart LR
   sens --> i2c & adc
   act --> outs
 
-  i2c & adc -->|"produces measurements"| sch
+  i2c & adc -->|"produces readings"| sch
   sch -->|"consumes & aggregates"| telem
-  telem -->|"emits v1 JSON / v2 binary"| tch
-  tch -->|"publishes on bus"| mqtt
-  mqtt -->|"publishes retained at connect"| caps
+  telem -->|"emits JSON v1 / binary v2"| tch
+  tch -->|"publishes to bus"| mqtt
+  mqtt -->|"publishes retained capabilities"| caps
 
   mqtt <-->|"smartpot/v1/{cropId}/..."| broker
   mqtt -->|"dispatches valid command"| cch
@@ -179,7 +175,8 @@ later resynchronization never moves it backwards.
 
 ## 7. Edge Filtering, Multiplexing and Sensor Timing
 
-Each physical channel passes through a `SensorCascade`: a seeded median-of-5 window rejects impulsive ADC noise, then a
+With `board-physical`, each probe passes through a `SensorCascade` (the shared board has no temporal filter, so its
+readings match MicroPython): a seeded median-of-5 window rejects impulsive ADC noise, then a
 1D Kalman filter in Q16.16 tracks the signal. The filter applies a 3σ innovation gate: an outlier keeps the estimate and
 expands the covariance, so a real step is accepted after a few samples instead of being locked out. BME280 channels use
 per-magnitude `q`/`r` values; BH1750, TDS, pH and soil moisture have their own tuning.
@@ -316,7 +313,8 @@ resincronización posterior nunca la hace retroceder.
 
 ## 7. Filtrado en el borde, multiplexación y tiempos del sensor
 
-Cada canal físico pasa por una `SensorCascade`: una ventana de mediana de 5 muestras, sembrada con la primera lectura,
+Con `board-physical`, cada sonda pasa por una `SensorCascade` (la placa compartida no lleva filtro temporal y sus
+lecturas coinciden con las de MicroPython): una ventana de mediana de 5 muestras, sembrada con la primera lectura,
 rechaza el ruido impulsivo del ADC y luego un filtro de Kalman 1D en Q16.16 sigue la señal. El filtro aplica una puerta
 de innovación de 3σ: un valor atípico conserva la estimación y expande la covarianza, así un cambio real se acepta tras
 unas pocas muestras en vez de quedar bloqueado. Los canales del BME280 usan valores `q`/`r` por magnitud; BH1750, TDS,

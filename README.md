@@ -105,8 +105,8 @@ Canonical prefix: `smartpot/v1/{cropId}/`
   instead of saturating the packet.
 * **Deterministic rounding**: every scaled field uses symmetric `libm::roundf` (half away from zero), so the firmware
   and the API agree on boundary values.
-* **Edge filtering**: each channel runs a median-of-5 window followed by a 1D Kalman filter in Q16.16 with a 3σ
-  innovation gate. Spikes keep the estimate and expand the covariance, so a real step is accepted after a few samples
+* **Edge filtering** (`board-physical`): each probe runs a median-of-5 window followed by a 1D Kalman filter in Q16.16
+  with a 3σ innovation gate. The shared board has no temporal filter, so each reading matches MicroPython. Spikes keep the estimate and expand the covariance, so a real step is accepted after a few samples
   instead of being locked out.
 * **Atomic I2C multiplexing and sensor timing** (`board-physical`): the TCA9548A driver selects the channel inside the
   same bus lock as `write`, `write_read` and `transaction`, so concurrent BME280 reads cannot cross channels. The BME280
@@ -170,12 +170,17 @@ messages as the MicroPython firmware. Internal `[INFO ]`/`[WARN ]` logs are only
   300 s without a broker session. The UV light and the fan keep indefinite activation.
 * **Watchdog and fatal errors**: `esp_hal::init` disables every watchdog, so a supervisor task re-arms the RTC watchdog
   and feeds it only while every critical task keeps beating. A stalled task, a panic or a CPU exception turns every
-  actuator off, prints `SMARTPOT-FATAL` and restarts the chip.
+  actuator off, prints `SMARTPOT-FATAL` and restarts the chip. `watchdog_seconds: 0` disables both mechanisms, as in
+  MicroPython.
 * **Network**: open networks (empty `PASSWORD`) are joined with open authentication; Wi-Fi and MQTT retries use
   exponential backoff with jitter (2 s to 60 s). MQTT pings the broker every 30 s, uses a 90 s TCP timeout and a 1 KiB
-  maximum packet size, and discards telemetry queued while offline. TLS keeps a 4 KiB buffer for the broker chain
+  maximum packet size, and discards telemetry queued while offline; each new session starts with a fresh reading. SNTP
+  retries every 10 s until the first synchronization and then resyncs every hour. TLS keeps a 4 KiB buffer for the broker chain
   (server certificate plus RSA 4096 CA).
-* **Sensors**: the median + Kalman cascade reseeds after three consecutive rejections, so real steps (watering, lamps)
+* **Same output as MicroPython**: `tests/host/tests/fixtures/console_v1.json` (identical in SmartPot-IoT-Python) pins
+  the console messages, the reading table, the LCD rows, the analog scale (`raw / 4095` over 16 averaged reads) and the
+  command rejection reasons for both firmwares.
+* **Sensors** (`board-physical`): the median + Kalman cascade reseeds after three consecutive rejections, so real steps (watering, lamps)
   show up within a minute, and light is filtered in tens of lux to avoid Q16.16 clipping. Readings older than three
   sampling periods are omitted, probes stuck at an ADC rail are dropped and the ADC is oversampled 16 times. With
   `board-physical`, the three BME280 units are averaged and I2C transactions and measurements have timeouts with
@@ -285,8 +290,9 @@ Prefijo canónico: `smartpot/v1/{cropId}/`
   deja su bit de presencia en cero y sus bytes en cero, sin saturar el paquete.
 * **Redondeo determinista**: cada campo escalado usa `libm::roundf` de forma simétrica (mitad fuera de cero), así el
   firmware y la API coinciden en los valores límite.
-* **Filtrado en el borde**: cada canal pasa por una ventana de mediana de 5 muestras y luego por un filtro de Kalman 1D
-  en Q16.16 con puerta de innovación de 3σ. Un pico conserva la estimación y expande la covarianza, de modo que un
+* **Filtrado en el borde** (`board-physical`): cada sonda pasa por una ventana de mediana de 5 muestras y luego por un
+  filtro de Kalman 1D en Q16.16 con puerta de innovación de 3σ. La placa compartida no lleva filtro temporal, así que
+  cada lectura coincide con la de MicroPython. Un pico conserva la estimación y expande la covarianza, de modo que un
   cambio real se acepta tras unas pocas muestras en vez de quedar bloqueado.
 * **Multiplexación I2C atómica y tiempos del sensor** (`board-physical`): el driver TCA9548A selecciona el canal dentro
   del mismo bloqueo de bus que `write`, `write_read` y `transaction`, así dos lecturas concurrentes de BME280 no cruzan
@@ -353,12 +359,17 @@ mensajes que el firmware MicroPython. Los registros internos `[INFO ]`/`[WARN ]`
   sin sesión con el broker. La luz UV y el ventilador conservan el encendido indefinido.
 * **Watchdog y errores fatales**: `esp_hal::init` desactiva todos los watchdogs, así que una tarea supervisora vuelve a
   armar el watchdog RTC y solo lo alimenta mientras todas las tareas críticas laten. Una tarea detenida, un pánico o una
-  excepción de CPU apagan todos los actuadores, imprimen `SMARTPOT-FATAL` y reinician el chip.
+  excepción de CPU apagan todos los actuadores, imprimen `SMARTPOT-FATAL` y reinician el chip. `watchdog_seconds: 0`
+  desactiva ambos mecanismos, como en MicroPython.
 * **Red**: las redes abiertas (`PASSWORD` vacío) se conectan con autenticación abierta; los reintentos de Wi-Fi y MQTT
   usan espera exponencial con dispersión (2 s a 60 s). MQTT envía PINGREQ cada 30 s, usa un tiempo límite TCP de 90 s y
-  un paquete máximo de 1 KiB, y descarta la telemetría acumulada sin conexión. TLS reserva 4 KiB para la cadena del
+  un paquete máximo de 1 KiB, y descarta la telemetría acumulada sin conexión; cada sesión nueva empieza con una
+  lectura fresca. SNTP reintenta cada 10 s hasta la primera sincronización y después sincroniza cada hora. TLS reserva 4 KiB para la cadena del
   broker (certificado del servidor y CA RSA 4096).
-* **Sensores**: la cascada mediana + Kalman se vuelve a sembrar tras tres rechazos seguidos, de modo que los cambios
+* **Misma salida que MicroPython**: `tests/host/tests/fixtures/console_v1.json` (idéntico en SmartPot-IoT-Python) fija
+  los mensajes de consola, la tabla de lecturas, las filas del LCD, la escala analógica (`raw / 4095` sobre 16 lecturas
+  promediadas) y los motivos de rechazo de comandos de los dos firmwares.
+* **Sensores** (`board-physical`): la cascada mediana + Kalman se vuelve a sembrar tras tres rechazos seguidos, de modo que los cambios
   reales (un riego, una lámpara) aparecen en menos de un minuto, y la luz se filtra en decenas de lux para no saturar
   Q16.16. Las lecturas con más de tres periodos de muestreo se omiten, las sondas pegadas a un riel del ADC se
   descartan y el ADC se sobremuestrea 16 veces. Con `board-physical`, los tres BME280 se promedian y las transacciones
