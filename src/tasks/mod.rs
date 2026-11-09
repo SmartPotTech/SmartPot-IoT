@@ -4,6 +4,9 @@ pub mod supervisor;
 pub mod display;
 
 #[cfg(feature = "wifi")]
+pub mod lease;
+
+#[cfg(feature = "wifi")]
 pub mod resolver;
 
 #[cfg(feature = "wifi")]

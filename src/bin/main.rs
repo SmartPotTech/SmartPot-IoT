@@ -317,8 +317,11 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
                 .expect("Could not initialize wifi controller");
         let wifi_interface = interfaces.station;
 
-        static STACK_RESOURCES: StaticCell<StackResources<5>> = StaticCell::new();
-        let stack_resources = STACK_RESOURCES.init_with(StackResources::<5>::new);
+        // Ranuras: DHCP, DNS, MQTT (TCP), SNTP (UDP) y dos consultas del
+        // resolvedor de respaldo a la vez (SNTP y MQTT). Si una ranura falta al
+        // volver a DHCP tras ampliar la subred, smoltcp entraría en pánico.
+        static STACK_RESOURCES: StaticCell<StackResources<6>> = StaticCell::new();
+        let stack_resources = STACK_RESOURCES.init_with(StackResources::<6>::new);
 
         let mut trng_buf = [0u8; 16];
         // Generador aleatorio de hardware del ESP32 para semillas de red y TLS
@@ -331,6 +334,10 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
             embassy_net::new(wifi_interface, net_config, stack_resources, net_seed);
 
         spawner.spawn(net_task(runner).expect("Failed to start net_task"));
+        // Corrige concesiones DHCP cuya máscara deja fuera al router.
+        spawner.spawn(
+            smartpot_iot::tasks::lease::lease_task(_stack).expect("Failed to start lease_task"),
+        );
         spawner.spawn(
             wifi_connection_task(
                 wifi_controller,

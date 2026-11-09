@@ -24,6 +24,9 @@ pub mod codec;
 #[path = "../../../src/dns.rs"]
 pub mod dns;
 
+#[path = "../../../src/subnet.rs"]
+pub mod subnet;
+
 #[path = "../../../src/filter.rs"]
 pub mod filter;
 

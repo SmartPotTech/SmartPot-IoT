@@ -85,6 +85,7 @@ pub mod report;
 pub mod safety;
 pub mod sim;
 pub mod sntp;
+pub mod subnet;
 pub mod tasks;
 #[cfg(feature = "mqtt")]
 pub mod tls;
