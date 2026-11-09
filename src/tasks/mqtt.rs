@@ -26,12 +26,13 @@ use esp_hal::rng::Trng;
 use heapless::String;
 use rust_mqtt::buffer::AllocBuffer;
 use rust_mqtt::client::Client;
+use rust_mqtt::client::MqttError;
 use rust_mqtt::client::event::Event;
 use rust_mqtt::client::options::{
     ConnectOptions, PublicationOptions, SubscriptionOptions, TopicReference, WillOptions,
 };
 use rust_mqtt::config::KeepAlive;
-use rust_mqtt::types::{MqttBinary, MqttString, TopicName};
+use rust_mqtt::types::{MqttBinary, MqttString, ReasonCode, TopicName};
 use static_cell::ConstStaticCell;
 
 use crate::backoff::Backoff;
@@ -369,11 +370,18 @@ where
         .await
     {
         error!("[MQTT] CONNACK failed: {:?}", e);
-        marker!(
-            "No connection to broker: broker rejected the device key ({:?})",
-            e
-        );
-        marker!("SMARTPOT-MQTT-REFUSED");
+        // Solo un CONNACK de rechazo significa clave inválida; un corte de red
+        // durante el CONNECT es otra cosa y no debe culpar a la clave.
+        match e {
+            MqttError::Disconnect {
+                reason: ReasonCode::BadUserNameOrPassword | ReasonCode::NotAuthorized,
+                ..
+            } => {
+                marker!("No connection to broker: broker rejected the device key");
+                marker!("SMARTPOT-MQTT-REFUSED");
+            }
+            other => marker!("No connection to broker: {:?}", other),
+        }
         return SessionOutcome::Refused;
     }
     info!("[MQTT] MQTT session authenticated successfully");
