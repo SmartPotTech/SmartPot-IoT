@@ -20,7 +20,11 @@ macro_rules! marker {
 macro_rules! info {
     ($($arg:tt)*) => {{
         #[cfg(feature = "verbose-logs")]
-        ::esp_println::println!("[INFO ] {}", ::core::format_args!($($arg)*));
+        ::esp_println::println!(
+            "[{:>8} ms][INFO ] {}",
+            ::esp_hal::time::Instant::now().duration_since_epoch().as_millis(),
+            ::core::format_args!($($arg)*)
+        );
         #[cfg(not(feature = "verbose-logs"))]
         {
             let _ = ::core::format_args!($($arg)*);
@@ -33,7 +37,11 @@ macro_rules! info {
 macro_rules! warn {
     ($($arg:tt)*) => {{
         #[cfg(feature = "verbose-logs")]
-        ::esp_println::println!("[WARN ] {}", ::core::format_args!($($arg)*));
+        ::esp_println::println!(
+            "[{:>8} ms][WARN ] {}",
+            ::esp_hal::time::Instant::now().duration_since_epoch().as_millis(),
+            ::core::format_args!($($arg)*)
+        );
         #[cfg(not(feature = "verbose-logs"))]
         {
             let _ = ::core::format_args!($($arg)*);
@@ -46,7 +54,11 @@ macro_rules! warn {
 macro_rules! error {
     ($($arg:tt)*) => {{
         #[cfg(feature = "verbose-logs")]
-        ::esp_println::println!("[ERROR] {}", ::core::format_args!($($arg)*));
+        ::esp_println::println!(
+            "[{:>8} ms][ERROR] {}",
+            ::esp_hal::time::Instant::now().duration_since_epoch().as_millis(),
+            ::core::format_args!($($arg)*)
+        );
         #[cfg(not(feature = "verbose-logs"))]
         {
             let _ = ::core::format_args!($($arg)*);
@@ -59,7 +71,11 @@ macro_rules! error {
 macro_rules! debug {
     ($($arg:tt)*) => {{
         #[cfg(feature = "verbose-logs")]
-        ::esp_println::println!("[DEBUG] {}", ::core::format_args!($($arg)*));
+        ::esp_println::println!(
+            "[{:>8} ms][DEBUG] {}",
+            ::esp_hal::time::Instant::now().duration_since_epoch().as_millis(),
+            ::core::format_args!($($arg)*)
+        );
         #[cfg(not(feature = "verbose-logs"))]
         {
             let _ = ::core::format_args!($($arg)*);
