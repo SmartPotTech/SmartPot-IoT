@@ -89,13 +89,13 @@ and pH curves, the pump on GPIO25, UV light on GPIO26, fan on GPIO27 and humidif
 
 Canonical prefix: `smartpot/v1/{cropId}/`
 
-| Topic              | Direction       | QoS | Retained | Purpose                                                                                             | Payload / JSON Example                                                                                                                                                                                                             |
-|--------------------|-----------------|-----|----------|-----------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `.../status`       | Device → Broker | 1   | Yes      | Crop status (LWT & connection)                                                                      | `"online"` / `"offline"`                                                                                                                                                                                                           |
+| Topic              | Direction       | QoS | Retained | Purpose                                                                                                                                | Payload / JSON Example                                                                                                                                                                                                |
+|--------------------|-----------------|-----|----------|----------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `.../status`       | Device → Broker | 1   | Yes      | Crop status (LWT & connection)                                                                                                         | `"online"` / `"offline"`                                                                                                                                                                                              |
 | `.../capabilities` | Device → Broker | 1   | Yes      | Hardware declaration, published after `online` and before `commands`; 6 sensors and 3 actuators (7 and 4 with `board-physical`), <2 KB | `{"schema":1,"device":{"firmware":"smartpot-iot/0.1.0","hardware":"esp32-devkit-c-v4","telemetry":{"formats":["json-v1","compact-v2"],"compactBytes":27}},"sensors":[…],"actuators":["WATER_PUMP","UV_LIGHT","FAN"]}` |
-| `.../telemetry`    | Device → Broker | 0   | No       | Aggregated sample of physical variables                                                             | `{"temperature":23.4,"humidity":64.8,"brightness":1850,"ph":6.85,"tds":620,"atmosphere":1012.8,"soilMoisture":48.2}`                                                                                                               |
-| `.../commands`     | API → Device    | 1   | No       | Actuation command with optional duration                                                            | `{"id":"cmd-1","actuator":"WATER_PUMP","action":"ACTIVATE","durationSeconds":15}`                                                                                                                                                  |
-| `.../commands/ack` | Device → Broker | 1   | No       | Execution confirmation in English                                                                   | `{"id":"cmd-1","status":"EXECUTED","message":"Water pump turned on for 15 s"}`                                                                                                                                                     |
+| `.../telemetry`    | Device → Broker | 0   | No       | Aggregated sample of physical variables                                                                                                | `{"temperature":23.4,"humidity":64.8,"brightness":1850,"ph":6.85,"tds":620,"atmosphere":1012.8,"soilMoisture":48.2}`                                                                                                  |
+| `.../commands`     | API → Device    | 1   | No       | Actuation command with optional duration                                                                                               | `{"id":"cmd-1","actuator":"WATER_PUMP","action":"ACTIVATE","durationSeconds":15}`                                                                                                                                     |
+| `.../commands/ack` | Device → Broker | 1   | No       | Execution confirmation in English                                                                                                      | `{"id":"cmd-1","status":"EXECUTED","message":"Water pump turned on for 15 s"}`                                                                                                                                        |
 
 ### v2 Packet, Edge Filtering and Secure TLS
 
@@ -203,7 +203,8 @@ ignores, so the firmware enables it at boot; without it Embassy time never advan
 ### Full Documentation
 
 * [Complete SmartPot-IoT-Rust Documentation](docs/SmartPot_IoT_Rust_Documentation.md)
-* [Interactive diagrams](docs/diagrams/interactive/README.md#english): sensor filtering pipeline and command lifecycle, in English and Spanish, with links to the exact source lines
+* [Interactive diagrams](docs/diagrams/interactive/README.md#english): sensor filtering pipeline and command lifecycle,
+  in English and Spanish, with links to the exact source lines
 
 ---
 
@@ -268,13 +269,13 @@ de `.env.example` sobrescriben valores sueltos.
 
 Prefijo canónico: `smartpot/v1/{cropId}/`
 
-| Tópico             | Sentido              | QoS | Retenido | Propósito                                                                                               | Carga / Ejemplo JSON                                                                                                                                                                                                               |
-|--------------------|----------------------|-----|----------|---------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `.../status`       | Dispositivo → Broker | 1   | Sí       | Estado del cultivo (LWT y conexión)                                                                     | `"online"` / `"offline"`                                                                                                                                                                                                           |
+| Tópico             | Sentido              | QoS | Retenido | Propósito                                                                                                                             | Carga / Ejemplo JSON                                                                                                                                                                                                  |
+|--------------------|----------------------|-----|----------|---------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `.../status`       | Dispositivo → Broker | 1   | Sí       | Estado del cultivo (LWT y conexión)                                                                                                   | `"online"` / `"offline"`                                                                                                                                                                                              |
 | `.../capabilities` | Dispositivo → Broker | 1   | Sí       | Declaración de hardware, publicada tras `online` y antes de `commands`; 6 sensores y 3 actuadores (7 y 4 con `board-physical`), <2 KB | `{"schema":1,"device":{"firmware":"smartpot-iot/0.1.0","hardware":"esp32-devkit-c-v4","telemetry":{"formats":["json-v1","compact-v2"],"compactBytes":27}},"sensors":[…],"actuators":["WATER_PUMP","UV_LIGHT","FAN"]}` |
-| `.../telemetry`    | Dispositivo → Broker | 0   | No       | Muestra agregada de variables físicas                                                                   | `{"temperature":23.4,"humidity":64.8,"brightness":1850,"ph":6.85,"tds":620,"atmosphere":1012.8,"soilMoisture":48.2}`                                                                                                               |
-| `.../commands`     | API → Dispositivo    | 1   | No       | Orden de actuación con duración opcional                                                                | `{"id":"cmd-1","actuator":"WATER_PUMP","action":"ACTIVATE","durationSeconds":15}`                                                                                                                                                  |
-| `.../commands/ack` | Dispositivo → Broker | 1   | No       | Confirmación de ejecución en inglés                                                                     | `{"id":"cmd-1","status":"EXECUTED","message":"Water pump turned on for 15 s"}`                                                                                                                                                     |
+| `.../telemetry`    | Dispositivo → Broker | 0   | No       | Muestra agregada de variables físicas                                                                                                 | `{"temperature":23.4,"humidity":64.8,"brightness":1850,"ph":6.85,"tds":620,"atmosphere":1012.8,"soilMoisture":48.2}`                                                                                                  |
+| `.../commands`     | API → Dispositivo    | 1   | No       | Orden de actuación con duración opcional                                                                                              | `{"id":"cmd-1","actuator":"WATER_PUMP","action":"ACTIVATE","durationSeconds":15}`                                                                                                                                     |
+| `.../commands/ack` | Dispositivo → Broker | 1   | No       | Confirmación de ejecución en inglés                                                                                                   | `{"id":"cmd-1","status":"EXECUTED","message":"Water pump turned on for 15 s"}`                                                                                                                                        |
 
 ### Paquete v2, filtrado en el borde y TLS seguro
 
@@ -339,7 +340,8 @@ uv run --with paho-mqtt python tests/verify_contract_v1.py
 ### Simulación en Wokwi
 
 `diagram.json` es la placa de MicroPython descrita arriba (idéntica en los dos repositorios). Se simulan el DHT22, los
-cuatro potenciómetros, los LED de los actuadores y el LCD2004; la consola imprime la misma tabla de lecturas y los mismos
+cuatro potenciómetros, los LED de los actuadores y el LCD2004; la consola imprime la misma tabla de lecturas y los
+mismos
 mensajes que el firmware MicroPython. Los registros internos `[INFO ]`/`[WARN ]` solo se imprimen con
 `--features verbose-logs`.
 
@@ -375,14 +377,17 @@ conmuta al arrancar: conviene un *pull-down* en la entrada del relé.
 
 ### Pruebas automáticas en simulación
 
-`cargo +esp build --features sim` añade un inyector de comandos por la consola serie (líneas JSON por UART0) y ganchos de
+`cargo +esp build --features sim` añade un inyector de comandos por la consola serie (líneas JSON por UART0) y ganchos
+de
 prueba. `python tests/wokwi/run.py` lo compila con intervalos cortos y ejecuta las escenas de `tests/wokwi/` con
 `wokwi-cli` (necesita `WOKWI_CLI_TOKEN`): arranque, comandos y política de seguridad de actuadores, recuperación tras un
 pánico y las dos vías del watchdog. El workflow *Wokwi simulation* las ejecuta a demanda. Wokwi aplica la máscara de
-interrupciones de TIMG que el silicio del ESP32 ignora, así que el firmware la habilita al arrancar; sin ella el tiempo de
+interrupciones de TIMG que el silicio del ESP32 ignora, así que el firmware la habilita al arrancar; sin ella el tiempo
+de
 Embassy no avanzaba en el simulador.
 
 ### Documentación Completa
 
 * [Documentación Completa de SmartPot-IoT-Rust](docs/SmartPot_IoT_Rust_Documentation.md)
-* [Diagramas interactivos](docs/diagrams/interactive/README.md#español): la cadena de filtrado de los sensores y el ciclo de vida de un comando, en español e inglés, con enlaces a las líneas exactas del código
+* [Diagramas interactivos](docs/diagrams/interactive/README.md#español): la cadena de filtrado de los sensores y el
+  ciclo de vida de un comando, en español e inglés, con enlaces a las líneas exactas del código
