@@ -19,22 +19,34 @@ const PH_NEUTRAL_MV: u64 = match option_env!("PH_NEUTRAL_MV") {
     None => 2500,
 };
 
+/// Compensación de desplazamiento en milivoltios para calibración de pH (`PH_OFFSET_MV`).
+const PH_OFFSET_MV: i64 = match option_env!("PH_OFFSET_MV") {
+    Some(v) => crate::config::parse_i64_or(v, 0),
+    None => 0,
+};
+
 /// Pendiente del módulo de pH a 25 °C, en milivoltios por unidad (`PH_SLOPE_MV`).
 const PH_SLOPE_MV: u64 = match option_env!("PH_SLOPE_MV") {
     Some(v) => parse_u64_or(v, 180),
     None => 180,
 };
 
-/// Lecturas crudas del sensor de suelo en seco y empapado (`SOIL_DRY_RAW`,
-/// `SOIL_WET_RAW`). Un sensor capacitivo suele dar más tensión en seco: basta
+/// Lecturas crudas del sensor de suelo en seco y empapado (`ADC_DRY`/`SOIL_DRY_RAW`,
+/// `ADC_WET`/`SOIL_WET_RAW`). Un sensor capacitivo suele dar más tensión en seco: basta
 /// con invertir los valores.
-const SOIL_DRY_RAW: u64 = match option_env!("SOIL_DRY_RAW") {
+const SOIL_DRY_RAW: u64 = match option_env!("ADC_DRY") {
     Some(v) => parse_u64_or(v, 0),
-    None => 0,
+    None => match option_env!("SOIL_DRY_RAW") {
+        Some(v) => parse_u64_or(v, 0),
+        None => 0,
+    },
 };
-const SOIL_WET_RAW: u64 = match option_env!("SOIL_WET_RAW") {
+const SOIL_WET_RAW: u64 = match option_env!("ADC_WET") {
     Some(v) => parse_u64_or(v, ADC_MAX as u64),
-    None => ADC_MAX as u64,
+    None => match option_env!("SOIL_WET_RAW") {
+        Some(v) => parse_u64_or(v, ADC_MAX as u64),
+        None => ADC_MAX as u64,
+    },
 };
 
 fn at_low_rail(adc_raw: u16) -> bool {
@@ -66,7 +78,7 @@ pub fn tds_from_adc(adc_raw: u16, temperature_c: f32) -> Option<f32> {
     let tds = (133.42 * voltage * voltage * voltage - 255.86 * voltage * voltage
         + 857.39 * voltage)
         * 0.5;
-    Some(tds.clamp(0.0, 3000.0))
+    Some(tds.clamp(0.0, crate::limits::TDS.max))
 }
 
 /// Calcula el pH a partir de la lectura cruda del ADC de 12 bits.
@@ -80,12 +92,17 @@ pub fn ph_from_adc(adc_raw: u16, temperature_c: f32) -> Option<f32> {
     }
 
     let slope = (PH_SLOPE_MV as f32 / 1000.0) * (temperature_c + 273.15) / 298.15;
-    let neutral = PH_NEUTRAL_MV as f32 / 1000.0;
+    let neutral = (PH_NEUTRAL_MV as f32 + PH_OFFSET_MV as f32) / 1000.0;
     let ph = 7.0 + (neutral - volts(adc_raw)) / slope.max(0.01);
     if !(0.0..=14.0).contains(&ph) {
         return None;
     }
     Some(ph)
+}
+
+/// Alias retrocompatible de `ph_from_adc`.
+pub fn raw_to_ph(adc_raw: u16, temperature_c: f32) -> Option<f32> {
+    ph_from_adc(adc_raw, temperature_c)
 }
 
 /// Calcula el porcentaje de humedad del sustrato (0.0..=100.0 %).

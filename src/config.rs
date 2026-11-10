@@ -106,6 +106,44 @@ pub const fn parse_u64_or(value: &str, default: u64) -> u64 {
     if result == 0 { default } else { result }
 }
 
+/// Convierte un entero decimal con signo opcional; cualquier valor vacío, nulo o inválido
+/// devuelve `default`.
+pub const fn parse_i64_or(value: &str, default: i64) -> i64 {
+    let bytes = value.as_bytes();
+    if bytes.is_empty() {
+        return default;
+    }
+    let (is_neg, start) = if bytes[0] == b'-' {
+        (true, 1)
+    } else if bytes[0] == b'+' {
+        (false, 1)
+    } else {
+        (false, 0)
+    };
+    if start >= bytes.len() {
+        return default;
+    }
+
+    let mut result: i64 = 0;
+    let mut i = start;
+    while i < bytes.len() {
+        let byte = bytes[i];
+        if !byte.is_ascii_digit() {
+            return default;
+        }
+        result = match result.checked_mul(10) {
+            Some(v) => match v.checked_add((byte - b'0') as i64) {
+                Some(v) => v,
+                None => return default,
+            },
+            None => return default,
+        };
+        i += 1;
+    }
+
+    if is_neg { -result } else { result }
+}
+
 /// Decodifica la CA configurada en `CA_CERT_PEM` (PEM) a DER.
 ///
 /// Solo se admite PEM con las cabeceras `BEGIN/END CERTIFICATE`. Si la variable
