@@ -223,6 +223,32 @@ fn ack_json_escapes_special_characters() {
 }
 
 #[test]
+fn unterminated_json_string_fields_are_rejected() {
+    assert!(parse(r#"{"id":"cmd-1","actuator":"FAN","action":"ACTIVATE"#).is_err());
+    assert!(parse(r#"{"id":"cmd-1","actuator":"FAN","action":"ACTIVATE""#).is_ok());
+}
+
+#[test]
+fn ack_json_256_holds_max_length_id_and_message() {
+    let id = "a".repeat(36);
+    let msg = "b".repeat(96);
+    let ack = AckMessage::failure(&id, &msg);
+    let json: heapless::String<256> = ack.to_json();
+    let parsed: serde_json::Value = serde_json::from_str(json.as_str()).unwrap();
+    assert_eq!(parsed["id"], id);
+    assert_eq!(parsed["message"], msg);
+}
+
+#[test]
+fn topic_resolver_supports_36_char_uuid() {
+    let uuid = "550e8400-e29b-41d4-a716-446655440000";
+    let resolver = smartpot_iot_host::protocol::TopicResolver::new(uuid);
+    let cap: heapless::String<80> = resolver.capabilities();
+    assert_eq!(cap.as_str(), format!("smartpot/v1/{uuid}/capabilities"));
+    assert!(resolver.is_command_topic(&format!("smartpot/v1/{uuid}/commands")));
+}
+
+#[test]
 fn actuators_expose_their_contract_keys() {
     assert_eq!(Actuators::WaterPump.key(), "WATER_PUMP");
     assert_eq!(Actuators::UvLight.key(), "UV_LIGHT");

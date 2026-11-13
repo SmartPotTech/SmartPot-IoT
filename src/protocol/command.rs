@@ -136,6 +136,9 @@ pub fn extract_str_field(json: &str, field: &str) -> Result<String<64>, ()> {
                 while j < bytes.len() && bytes[j] != b'"' {
                     j += 1;
                 }
+                if j >= bytes.len() {
+                    return Err(());
+                }
                 let val = core::str::from_utf8(&bytes[start..j]).map_err(|_| ())?;
                 let mut res = String::new();
                 res.push_str(val).map_err(|_| ())?;

@@ -72,11 +72,11 @@ const RETRY_MAX_MS: u32 = 60_000;
 
 /// Tópicos del cultivo, resueltos una sola vez.
 struct Topics {
-    telemetry: String<64>,
-    commands: String<64>,
-    ack: String<64>,
-    status: String<64>,
-    capabilities: String<64>,
+    telemetry: String<80>,
+    commands: String<80>,
+    ack: String<80>,
+    status: String<80>,
+    capabilities: String<80>,
 }
 
 /// Resultado de una sesión MQTT, para decidir la espera del siguiente intento.
@@ -572,7 +572,7 @@ where
                                     fail_ack.id.as_str(),
                                     fail_ack.message.as_str()
                                 );
-                                let ack_json: String<160> = fail_ack.to_json();
+                                let ack_json: String<256> = fail_ack.to_json();
                                 let pub_opts = PublicationOptions::new(TopicReference::Name(
                                     ack_topic.clone(),
                                 ))
@@ -603,7 +603,7 @@ where
 
             // Confirmaciones ACK producidas por el ejecutor de actuadores
             Either4::Second(ack) => {
-                let ack_json: String<160> = ack.to_json();
+                let ack_json: String<256> = ack.to_json();
                 let pub_opts = PublicationOptions::new(TopicReference::Name(ack_topic.clone()))
                     .at_least_once();
                 info!(

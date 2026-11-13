@@ -13,7 +13,7 @@ pub const TOPIC_PREFIX: &str = "smartpot/v1";
 
 pub struct TopicResolver {
     prefix: &'static str,
-    crop_id: String<32>,
+    crop_id: String<48>,
 }
 
 impl TopicResolver {
@@ -63,7 +63,7 @@ impl TopicResolver {
     }
 
     pub fn is_command_topic(&self, topic: &str) -> bool {
-        let mut expected: String<64> = String::new();
+        let mut expected: String<80> = String::new();
         use core::fmt::Write;
         let _ = write!(
             expected,
