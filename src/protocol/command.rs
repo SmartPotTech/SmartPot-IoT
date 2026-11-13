@@ -127,7 +127,15 @@ pub fn extract_str_field(json: &str, field: &str) -> Result<String<64>, ()> {
             && bytes[i + 1 + key.len()] == b'"'
         {
             let mut j = i + 1 + key.len() + 1;
-            while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b':' || bytes[j] == b'\t') {
+            while j < bytes.len() && matches!(bytes[j], b' ' | b'\t' | b'\r' | b'\n') {
+                j += 1;
+            }
+            if j >= bytes.len() || bytes[j] != b':' {
+                i += 1;
+                continue;
+            }
+            j += 1;
+            while j < bytes.len() && matches!(bytes[j], b' ' | b'\t' | b'\r' | b'\n') {
                 j += 1;
             }
             if j < bytes.len() && bytes[j] == b'"' {
@@ -407,5 +415,15 @@ mod tests {
                 "{value}"
             );
         }
+    }
+
+    #[test]
+    fn parses_pretty_printed_json_command() {
+        let payload = "{\n  \"id\": \"cmd-8\",\r\n  \"actuator\":\n    \"FAN\",\n  \"action\": \"ACTIVATE\",\n  \"durationSeconds\": 30\n}";
+        let cmd = parse(payload).unwrap();
+        assert_eq!(cmd.id.as_str(), "cmd-8");
+        assert_eq!(cmd.actuator, Actuators::Fan);
+        assert_eq!(cmd.action, Action::Activate);
+        assert_eq!(cmd.duration_seconds, Some(30));
     }
 }
