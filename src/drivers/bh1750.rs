@@ -36,7 +36,7 @@ where
     /// bloquear el hilo ejecutor, y lee el resultado de 16 bits.
     pub async fn measure(&mut self) -> Result<f32, I2C::Error> {
         self.i2c.write(self.address, &[CMD_ONE_TIME_H_RES]).await?;
-        Timer::after(Duration::from_millis(150)).await;
+        Timer::after(Duration::from_millis(180)).await;
         let mut buf = [0u8; 2];
         self.i2c.read(self.address, &mut buf).await?;
         let raw = u16::from_be_bytes(buf);

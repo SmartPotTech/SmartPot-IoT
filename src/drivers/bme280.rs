@@ -232,7 +232,8 @@ where
 
         p = ((p + var1 + var2) >> 8) + ((self.calib.dig_p7 as i64) << 4);
 
-        (p as f32) / 256.0
+        // `p` viene en Pa en formato Q24.8 (/ 256); se divide entre 100 adicional para entregar hPa (300..=1100).
+        (p as f32) / 25600.0
     }
 
     fn compensate_humidity(&self, adc_h: i32, t_fine: i32) -> f32 {
