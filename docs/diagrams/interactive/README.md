@@ -19,7 +19,9 @@ filter whose 3σ innovation gate drops spikes. TDS and pH are first temperature-
 built with `COMPACT_TELEMETRY`, as the 27-byte compact v2 packet with presence mask and CRC-8.
 
 -
+
 Interactive: [English](SmartPot_IoT_A1_Sensor_Pipeline_Dataflow.en.html) · [Spanish](SmartPot_IoT_A1_Sensor_Pipeline_Dataflow.es.html)
+
 - Sources: `src/tasks/sensors.rs`, `src/filter.rs`, `src/drivers/tds.rs`, `src/protocol/telemetry.rs`,
   `src/tasks/telemetry.rs`, `src/codec.rs`, `src/tasks/mqtt.rs` and `src/config.rs` at commit `4edf73f`.
 
@@ -34,7 +36,9 @@ A valid `ACTIVATE` switches the output on (the pump and the humidifier get a 360
 and the actuator turns off by command, by timer or, for critical actuators, after 300 seconds without the broker.
 
 -
+
 Interactive: [English](SmartPot_IoT_A2_Command_Lifecycle.en.html) · [Spanish](SmartPot_IoT_A2_Command_Lifecycle.es.html)
+
 - Sources: `src/tasks/mqtt.rs`, `src/protocol/command.rs`, `src/tasks/command.rs` and `src/safety.rs` at commit
   `4edf73f`.
 
@@ -58,7 +62,9 @@ la tarea MQTT lo codifica como JSON v1 o, si se compila con `COMPACT_TELEMETRY`,
 con máscara de presencia y CRC-8.
 
 -
+
 Interactivo: [inglés](SmartPot_IoT_A1_Sensor_Pipeline_Dataflow.en.html) · [español](SmartPot_IoT_A1_Sensor_Pipeline_Dataflow.es.html)
+
 - Fuentes: `src/tasks/sensors.rs`, `src/filter.rs`, `src/drivers/tds.rs`, `src/protocol/telemetry.rs`,
   `src/tasks/telemetry.rs`, `src/codec.rs`, `src/tasks/mqtt.rs` y `src/config.rs` en el commit `4edf73f`.
 
@@ -73,7 +79,9 @@ Un `ACTIVATE` válido enciende la salida (la bomba y el humidificador reciben un
 duración) y el actuador se apaga por orden, por tiempo o, si es crítico, tras 300 segundos sin broker.
 
 -
+
 Interactivo: [inglés](SmartPot_IoT_A2_Command_Lifecycle.en.html) · [español](SmartPot_IoT_A2_Command_Lifecycle.es.html)
+
 - Fuentes: `src/tasks/mqtt.rs`, `src/protocol/command.rs`, `src/tasks/command.rs` y `src/safety.rs` en el commit
   `4edf73f`.
 

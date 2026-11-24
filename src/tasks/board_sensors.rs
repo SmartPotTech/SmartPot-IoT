@@ -11,17 +11,17 @@
 use embassy_executor::task;
 use embassy_sync::pubsub::DynPublisher;
 use embassy_time::{Duration, Timer};
-use esp_hal::Blocking;
 use esp_hal::analog::adc::{Adc, AdcChannel, AdcPin};
 use esp_hal::peripherals::{ADC1, GPIO32, GPIO33, GPIO34, GPIO35};
+use esp_hal::Blocking;
 
 use crate::config::SENSOR_INTERVAL_SECS;
 use core::sync::atomic::Ordering;
 
 use crate::drivers::dht22::{Dht22, Dht22Error};
 use crate::drivers::tds::{average, linear_scale};
-use crate::events::{DHT_ERROR, Measurements};
-use crate::health::{Beat, beat};
+use crate::events::{Measurements, DHT_ERROR};
+use crate::health::{beat, Beat};
 use crate::report::{DHT_CHECKSUM, DHT_NO_RESPONSE, DHT_OK};
 
 /// Lecturas del ADC que se promedian por canal.

@@ -4,7 +4,7 @@
 
 use smartpot_iot_host::protocol::command::MAX_COMMAND_ID_LEN;
 use smartpot_iot_host::protocol::{
-    AckMessage, Action, Actuators, CommandError, format_readable_duration, parse_command,
+    format_readable_duration, parse_command, AckMessage, Action, Actuators, CommandError,
 };
 use smartpot_iot_host::safety;
 

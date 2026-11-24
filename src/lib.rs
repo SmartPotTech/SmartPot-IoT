@@ -114,7 +114,7 @@ pub mod i2c_scanner {
     use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
     use embassy_sync::blocking_mutex::raw::NoopRawMutex;
     use embedded_hal_async::i2c::I2c as I2cAsync;
-    use esp_hal::{Async, i2c::master::I2c};
+    use esp_hal::{i2c::master::I2c, Async};
 
     pub struct I2CScanner<I2C> {
         i2c: I2C,

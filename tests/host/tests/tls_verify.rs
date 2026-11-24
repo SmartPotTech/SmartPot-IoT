@@ -7,8 +7,8 @@
 //! se verificaría.
 
 use smartpot_iot_host::rsa_verify::{
-    Hash, MAX_BYTES, ModMul, PreparedKey, RsaError, m_prime, pkcs1v15_matches, pss_matches,
-    public_operation,
+    m_prime, pkcs1v15_matches, pss_matches, public_operation, Hash, ModMul, PreparedKey, RsaError,
+    MAX_BYTES,
 };
 use smartpot_iot_host::x509::{self, SignatureAlgorithm};
 

@@ -21,12 +21,10 @@ fn capabilities_json_parses_with_the_expected_shape() {
     let document: Value = serde_json::from_str(CAPABILITIES_JSON).expect("valid JSON");
     assert_eq!(document["schema"], 1);
     assert!(document["device"].is_object());
-    assert!(
-        document["device"]["firmware"]
-            .as_str()
-            .unwrap()
-            .starts_with("smartpot-iot/")
-    );
+    assert!(document["device"]["firmware"]
+        .as_str()
+        .unwrap()
+        .starts_with("smartpot-iot/"));
     assert_eq!(document["device"]["hardware"], "esp32-devkit-c-v4");
 
     let telemetry = &document["device"]["telemetry"];

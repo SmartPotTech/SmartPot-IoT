@@ -34,8 +34,8 @@ pub mod hooks {
     use core::sync::atomic::{AtomicBool, Ordering};
 
     use embassy_sync::pubsub::DynPublisher;
-    use esp_hal::Async;
     use esp_hal::uart::UartRx;
+    use esp_hal::Async;
     use heapless::String;
 
     use crate::events::Command;

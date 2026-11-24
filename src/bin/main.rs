@@ -8,14 +8,14 @@
 #![allow(clippy::large_stack_frames)]
 
 use esp_backtrace as _;
-#[cfg(feature = "board-physical")]
-use esp_hal::Async;
 use esp_hal::analog::adc::{Adc, AdcConfig, Attenuation};
 use esp_hal::clock::CpuClock;
 #[cfg(any(feature = "board-physical", feature = "display"))]
 use esp_hal::i2c::master::{Config, I2c};
 use esp_hal::interrupt::software::SoftwareInterruptControl;
 use esp_hal::timer::timg::TimerGroup;
+#[cfg(feature = "board-physical")]
+use esp_hal::Async;
 use esp_println::{self as _, println};
 use esp_rtos::embassy::Executor;
 use esp_rtos::start_second_core;

@@ -1,7 +1,7 @@
 //! Pruebas de la validación SNTP y de la conciliación del reloj.
 
 use smartpot_iot_host::sntp::{
-    MIN_VALID_EPOCH, NTP_PACKET_SIZE, build_request, parse_response, reconcile_epoch,
+    build_request, parse_response, reconcile_epoch, MIN_VALID_EPOCH, NTP_PACKET_SIZE,
 };
 
 const NTP_UNIX_DELTA: u64 = 2_208_988_800;

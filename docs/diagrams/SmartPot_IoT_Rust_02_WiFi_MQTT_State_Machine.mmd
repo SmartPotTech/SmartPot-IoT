@@ -1,4 +1,29 @@
-%%{init: {"theme": "base", "fontFamily": "Segoe UI, Arial, sans-serif", "themeVariables": {"fontFamily": "Segoe UI, Arial, sans-serif", "fontSize": "14px", "primaryColor": "#DDF5EA", "primaryTextColor": "#17261F", "primaryBorderColor": "#067A52", "secondaryColor": "#E3F2FB", "secondaryTextColor": "#17261F", "secondaryBorderColor": "#1F6FA0", "tertiaryColor": "#F2F7F4", "tertiaryTextColor": "#17261F", "tertiaryBorderColor": "#D5E3DC", "lineColor": "#5B6B63", "textColor": "#17261F", "mainBkg": "#DDF5EA", "nodeBorder": "#067A52", "clusterBkg": "#F7FAF8", "clusterBorder": "#D5E3DC", "edgeLabelBackground": "#FFFFFF"}}}%%
+%%{
+  init: {
+    "theme": "base",
+    "fontFamily": "Segoe UI, Arial, sans-serif",
+    "themeVariables": {
+      "fontFamily": "Segoe UI, Arial, sans-serif",
+      "fontSize": "14px",
+      "primaryColor": "#DDF5EA",
+      "primaryTextColor": "#17261F",
+      "primaryBorderColor": "#067A52",
+      "secondaryColor": "#E3F2FB",
+      "secondaryTextColor": "#17261F",
+      "secondaryBorderColor": "#1F6FA0",
+      "tertiaryColor": "#F2F7F4",
+      "tertiaryTextColor": "#17261F",
+      "tertiaryBorderColor": "#D5E3DC",
+      "lineColor": "#5B6B63",
+      "textColor": "#17261F",
+      "mainBkg": "#DDF5EA",
+      "nodeBorder": "#067A52",
+      "clusterBkg": "#F7FAF8",
+      "clusterBorder": "#D5E3DC",
+      "edgeLabelBackground": "#FFFFFF"
+    }
+  }
+}%%
 stateDiagram-v2
     [*] --> HardwareInit: Board Power-On / Boot
 
@@ -50,7 +75,6 @@ stateDiagram-v2
         AwaitConnAck --> SubscribeTopics: CONNACK 0x00 Success
         AwaitConnAck --> ConnectRejected: Bad Credentials / ACL Violation
         ConnectRejected --> [*]: Abort Session
-
         SubscribeTopics --> PublishCapabilities: Subscribe smartpot/v1/{cropId}/commands
         PublishCapabilities --> ActiveOperational: Publish Retained Capabilities (Schema 1)
 
@@ -58,7 +82,6 @@ stateDiagram-v2
             [*] --> IdleMonitor
             IdleMonitor --> TransmitTelemetry: Every 30s or Event
             TransmitTelemetry --> IdleMonitor: Telemetry ACK Received
-
             IdleMonitor --> DispatchCommand: Inbound MQTT Message
             DispatchCommand --> ExecuteActuator: Validate Command Schema
             ExecuteActuator --> SendCommandAck: Actuator Started + Arm 300s Failsafe

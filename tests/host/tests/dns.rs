@@ -1,6 +1,6 @@
 //! Pruebas del cliente DNS mínimo del resolvedor de respaldo.
 
-use smartpot_iot_host::dns::{DnsError, build_query, parse_response};
+use smartpot_iot_host::dns::{build_query, parse_response, DnsError};
 
 const ID: u16 = 0x1234;
 const HOST: &str = "pool.ntp.org";

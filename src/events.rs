@@ -6,8 +6,8 @@ use embassy_sync::pubsub::PubSubChannel;
 use embassy_sync::watch::Watch;
 
 pub use crate::protocol::{
-    AckMessage, AckStatus, Action, Actuators, Command, SensorState, TOPIC_PREFIX, TopicResolver,
-    format_readable_duration, parse_command,
+    format_readable_duration, parse_command, AckMessage, AckStatus, Action, Actuators, Command,
+    SensorState, TopicResolver, TOPIC_PREFIX,
 };
 
 #[derive(Clone, Copy, Debug, Format)]

@@ -9,7 +9,7 @@
 //! todos los búferes son locales y de tamaño fijo.
 
 use embassy_executor::task;
-use embassy_futures::select::{Either, select};
+use embassy_futures::select::{select, Either};
 use embassy_net::udp::{PacketMetadata, UdpSocket};
 use embassy_net::{IpAddress, IpEndpoint, Stack};
 use embassy_time::{Duration, Instant, Timer};

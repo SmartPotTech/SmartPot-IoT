@@ -16,13 +16,13 @@ use embedded_tls::{
     Aes128GcmSha256, CertificateEntryRef, CertificateRef, CertificateVerifyRef, CryptoProvider,
     CryptoRngCore, SignatureScheme, TlsError, TlsVerifier,
 };
-use esp_hal::Blocking;
 use esp_hal::rng::Trng;
 use esp_hal::rsa::Rsa;
+use esp_hal::Blocking;
 use heapless::String;
 use sha2::{Digest, Sha256};
 
-use crate::rsa_verify::{self, Hash, MAX_BYTES, ModMul, PreparedKey};
+use crate::rsa_verify::{self, Hash, ModMul, PreparedKey, MAX_BYTES};
 use crate::x509::{self, SignatureAlgorithm};
 
 /// Certificados intermedios admitidos entre la CA y el del broker.

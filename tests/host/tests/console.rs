@@ -6,10 +6,10 @@
 //! fixture, sus pruebas fallan y los dos dejan de verse igual.
 
 use serde_json::Value;
-use smartpot_iot_host::display_layout::{OFFLINE_GLYPH, ONLINE_GLYPH, render};
-use smartpot_iot_host::protocol::{Action, CommandError, SensorState, parse_command};
+use smartpot_iot_host::display_layout::{render, OFFLINE_GLYPH, ONLINE_GLYPH};
+use smartpot_iot_host::protocol::{parse_command, Action, CommandError, SensorState};
 use smartpot_iot_host::reason::{self, NetFailure};
-use smartpot_iot_host::report::{DHT_CHECKSUM, DHT_NO_RESPONSE, dht_reason, reading_table};
+use smartpot_iot_host::report::{dht_reason, reading_table, DHT_CHECKSUM, DHT_NO_RESPONSE};
 use smartpot_iot_host::tds::linear_scale;
 
 const FIXTURE: &str = include_str!("fixtures/console_v1.json");

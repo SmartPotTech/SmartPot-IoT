@@ -15,11 +15,11 @@ use core::num::NonZero;
 use core::str;
 
 use embassy_executor::task;
-use embassy_futures::select::{Either, Either4, select, select4};
-use embassy_net::Stack;
+use embassy_futures::select::{select, select4, Either, Either4};
 use embassy_net::tcp::TcpSocket as NetTcpSocket;
+use embassy_net::Stack;
 use embassy_sync::pubsub::{DynPublisher, DynSubscriber};
-use embassy_time::{Duration, Instant, Ticker, Timer, with_timeout};
+use embassy_time::{with_timeout, Duration, Instant, Ticker, Timer};
 
 use embedded_tls::{TlsConfig, TlsConnection, TlsContext};
 use esp_hal::peripherals::RSA;
@@ -27,12 +27,12 @@ use esp_hal::rng::Trng;
 use esp_hal::rsa::Rsa;
 use heapless::String;
 use rust_mqtt::buffer::AllocBuffer;
-use rust_mqtt::client::Client;
-use rust_mqtt::client::MqttError;
 use rust_mqtt::client::event::Event;
 use rust_mqtt::client::options::{
     ConnectOptions, PublicationOptions, SubscriptionOptions, TopicReference, WillOptions,
 };
+use rust_mqtt::client::Client;
+use rust_mqtt::client::MqttError;
 use rust_mqtt::config::KeepAlive;
 use rust_mqtt::types::{MqttBinary, MqttString, ReasonCode, TopicName};
 use static_cell::ConstStaticCell;
@@ -42,9 +42,9 @@ use crate::capabilities::CAPABILITIES_JSON;
 use crate::clock;
 use crate::config::{self, Config};
 use crate::events::telemetry::TelemetryMessage;
-use crate::events::{AckMessage, BROKER_ONLINE, Command};
-use crate::health::{Beat, beat};
-use crate::protocol::{CommandError, TopicResolver, parse_command};
+use crate::events::{AckMessage, Command, BROKER_ONLINE};
+use crate::health::{beat, Beat};
+use crate::protocol::{parse_command, CommandError, TopicResolver};
 use crate::reason::{self, NetFailure};
 use crate::tls::{TracedIo, TrustAnchor, VerifyingProvider};
 
@@ -631,7 +631,11 @@ where
                     let mask =
                         crate::codec::encode_state(&state, telemetry_seq, epoch, &mut packet);
                     telemetry_seq = telemetry_seq.wrapping_add(1);
-                    if mask == 0 { &[] } else { &packet }
+                    if mask == 0 {
+                        &[]
+                    } else {
+                        &packet
+                    }
                 } else {
                     state.to_json(&mut payload);
                     if payload.as_str() == "{}" {

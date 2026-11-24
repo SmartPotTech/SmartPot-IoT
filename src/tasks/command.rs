@@ -2,15 +2,15 @@
 //! política de seguridad (tope de duración y failsafe sin broker).
 
 use embassy_executor::task;
-use embassy_futures::select::{Either, select};
+use embassy_futures::select::{select, Either};
 use embassy_sync::pubsub::{DynPublisher, DynSubscriber};
 use embassy_time::{Duration, Instant, Timer};
 use esp_hal::gpio::Output;
 
 use crate::events::{
-    ACTUATOR_STATES, AckMessage, AckStatus, Action, Actuators, BROKER_ONLINE, Command,
+    AckMessage, AckStatus, Action, Actuators, Command, ACTUATOR_STATES, BROKER_ONLINE,
 };
-use crate::health::{Beat, beat};
+use crate::health::{beat, Beat};
 use crate::safety;
 
 /// Número de ACK recientes que se conservan para detectar comandos duplicados.

@@ -21,24 +21,24 @@ acknowledgements (ACK) with human-readable English messages.
 
 ```mermaid
 flowchart LR
-  subgraph esp["ESP32 Dual-Core · Rust 2024 no_std · Embassy Runtime"]
-    direction TB
-    subgraph core0["Core 0 · Network"]
-      direction TB
-      wifi["WiFi Station"]
-      mqtt["MQTT v1 Client · TLS 1.3"]
-      telem["Telemetry Aggregator"]
+    subgraph esp["ESP32 Dual-Core · Rust 2024 no_std · Embassy Runtime"]
+        direction TB
+        subgraph core0["Core 0 · Network"]
+            direction TB
+            wifi["WiFi Station"]
+            mqtt["MQTT v1 Client · TLS 1.3"]
+            telem["Telemetry Aggregator"]
+        end
+        subgraph core1["Core 1 · Hardware"]
+            direction TB
+            i2c["DHT22 · LCD2004 on I2C1"]
+            adc["ADC: Light, pH, TDS, Substrate"]
+            act["Timed Actuator Bank"]
+        end
+        core1 -->|" Embassy Channels "| core0
     end
-    subgraph core1["Core 1 · Hardware"]
-      direction TB
-      i2c["DHT22 · LCD2004 on I2C1"]
-      adc["ADC: Light, pH, TDS, Substrate"]
-      act["Timed Actuator Bank"]
-    end
-    core1 -->|"Embassy Channels"| core0
-  end
-  hw["Sensors & Actuators"] <--> esp
-  esp <-->|"smartpot/v1/{cropId}/... (TLS 1.3)"| broker["EMQX · mqtt.smartpot.app:8883"]
+    hw["Sensors & Actuators"] <--> esp
+    esp <-->|" smartpot/v1/{cropId}/... (TLS 1.3) "| broker["EMQX · mqtt.smartpot.app:8883"]
 ```
 
 ### Key Features
@@ -106,7 +106,8 @@ Canonical prefix: `smartpot/v1/{cropId}/`
 * **Deterministic rounding**: every scaled field uses symmetric `libm::roundf` (half away from zero), so the firmware
   and the API agree on boundary values.
 * **Edge filtering** (`board-physical`): each probe runs a median-of-5 window followed by a 1D Kalman filter in Q16.16
-  with a 3σ innovation gate. The shared board has no temporal filter, so each reading matches MicroPython. Spikes keep the estimate and expand the covariance, so a real step is accepted after a few samples
+  with a 3σ innovation gate. The shared board has no temporal filter, so each reading matches MicroPython. Spikes keep
+  the estimate and expand the covariance, so a real step is accepted after a few samples
   instead of being locked out.
 * **Atomic I2C multiplexing and sensor timing** (`board-physical`): the TCA9548A driver selects the channel inside the
   same bus lock as `write`, `write_read` and `transaction`, so concurrent BME280 reads cannot cross channels. The BME280
@@ -175,12 +176,13 @@ messages as the MicroPython firmware. Internal `[INFO ]`/`[WARN ]` logs are only
 * **Network**: open networks (empty `PASSWORD`) are joined with open authentication; Wi-Fi and MQTT retries use
   exponential backoff with jitter (2 s to 60 s). MQTT pings the broker every 30 s, uses a 90 s TCP timeout and a 1 KiB
   maximum packet size, and discards telemetry queued while offline; each new session starts with a fresh reading. SNTP
-  retries every 10 s until the first synchronization and then resyncs every hour. TLS keeps a 4 KiB buffer for the broker chain
-  (server certificate plus RSA 4096 CA).
+  retries every 10 s until the first synchronization and then resyncs every hour. TLS keeps a 4 KiB buffer for the
+  broker chain (server certificate plus RSA 4096 CA).
 * **Same output as MicroPython**: `tests/host/tests/fixtures/console_v1.json` (identical in SmartPot-IoT-Python) pins
   the console messages, the reading table, the LCD rows, the analog scale (`raw / 4095` over 16 averaged reads) and the
   command rejection reasons for both firmwares.
-* **Sensors** (`board-physical`): the median + Kalman cascade reseeds after three consecutive rejections, so real steps (watering, lamps)
+* **Sensors** (`board-physical`): the median + Kalman cascade reseeds after three consecutive rejections, so real steps
+  (watering, lamps)
   show up within a minute, and light is filtered in tens of lux to avoid Q16.16 clipping. Readings older than three
   sampling periods are omitted, probes stuck at an ADC rail are dropped and the ADC is oversampled 16 times. With
   `board-physical`, the three BME280 units are averaged and I2C transactions and measurements have timeouts with
@@ -364,12 +366,14 @@ mensajes que el firmware MicroPython. Los registros internos `[INFO ]`/`[WARN ]`
 * **Red**: las redes abiertas (`PASSWORD` vacío) se conectan con autenticación abierta; los reintentos de Wi-Fi y MQTT
   usan espera exponencial con dispersión (2 s a 60 s). MQTT envía PINGREQ cada 30 s, usa un tiempo límite TCP de 90 s y
   un paquete máximo de 1 KiB, y descarta la telemetría acumulada sin conexión; cada sesión nueva empieza con una
-  lectura fresca. SNTP reintenta cada 10 s hasta la primera sincronización y después sincroniza cada hora. TLS reserva 4 KiB para la cadena del
+  lectura fresca. SNTP reintenta cada 10 s hasta la primera sincronización y después sincroniza cada hora. TLS reserva 4
+  KiB para la cadena del
   broker (certificado del servidor y CA RSA 4096).
 * **Misma salida que MicroPython**: `tests/host/tests/fixtures/console_v1.json` (idéntico en SmartPot-IoT-Python) fija
   los mensajes de consola, la tabla de lecturas, las filas del LCD, la escala analógica (`raw / 4095` sobre 16 lecturas
   promediadas) y los motivos de rechazo de comandos de los dos firmwares.
-* **Sensores** (`board-physical`): la cascada mediana + Kalman se vuelve a sembrar tras tres rechazos seguidos, de modo que los cambios
+* **Sensores** (`board-physical`): la cascada mediana + Kalman se vuelve a sembrar tras tres rechazos seguidos, de modo
+  que los cambios
   reales (un riego, una lámpara) aparecen en menos de un minuto, y la luz se filtra en decenas de lux para no saturar
   Q16.16. Las lecturas con más de tres periodos de muestreo se omiten, las sondas pegadas a un riel del ADC se
   descartan y el ADC se sobremuestrea 16 veces. Con `board-physical`, los tres BME280 se promedian y las transacciones

@@ -103,7 +103,11 @@ pub const fn parse_u64_or(value: &str, default: u64) -> u64 {
         i += 1;
     }
 
-    if result == 0 { default } else { result }
+    if result == 0 {
+        default
+    } else {
+        result
+    }
 }
 
 /// Convierte un entero decimal con signo opcional; cualquier valor vacío, nulo o inválido
@@ -141,7 +145,11 @@ pub const fn parse_i64_or(value: &str, default: i64) -> i64 {
         i += 1;
     }
 
-    if is_neg { -result } else { result }
+    if is_neg {
+        -result
+    } else {
+        result
+    }
 }
 
 /// Decodifica la CA configurada en `CA_CERT_PEM` (PEM) a DER.
@@ -244,7 +252,11 @@ const fn parse_port(value: &str) -> u16 {
         i += 1;
     }
 
-    if port == 0 { 8883 } else { port as u16 }
+    if port == 0 {
+        8883
+    } else {
+        port as u16
+    }
 }
 
 /// Interpreta `USE_TLS`: `0`, `false` y `no` desactivan TLS; el resto lo activa.
@@ -314,13 +326,11 @@ mod tests {
         assert!(pem_to_der("AQIDBAUGBwg=", &mut der).is_err());
 
         let mut der = Vec::<u8, 32>::new();
-        assert!(
-            pem_to_der(
-                "-----BEGIN CERTIFICATE-----\nnot*base64\n-----END CERTIFICATE-----",
-                &mut der
-            )
-            .is_err()
-        );
+        assert!(pem_to_der(
+            "-----BEGIN CERTIFICATE-----\nnot*base64\n-----END CERTIFICATE-----",
+            &mut der
+        )
+        .is_err());
     }
 
     #[test]
@@ -330,9 +340,7 @@ mod tests {
         base64_decode(b"MAkCAQECAwQFBgc=", &mut der).unwrap();
         assert_eq!(
             der.as_slice(),
-            &[
-                0x30, 0x09, 0x02, 0x01, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07
-            ]
+            &[0x30, 0x09, 0x02, 0x01, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
         );
     }
 

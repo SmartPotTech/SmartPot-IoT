@@ -112,5 +112,9 @@ where
 /// como en MicroPython, los códigos 0x80..0xFF de la ROM (el *spinner*).
 fn character_code(ch: char) -> u8 {
     let code = ch as u32;
-    if code < 0x100 { code as u8 } else { b'?' }
+    if code < 0x100 {
+        code as u8
+    } else {
+        b'?'
+    }
 }

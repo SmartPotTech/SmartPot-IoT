@@ -8,17 +8,17 @@
 //! consola y lo vuelve a buscar cada 10 s sin afectar al resto del firmware.
 
 use embassy_executor::task;
-use embassy_futures::select::{Either4, select4};
+use embassy_futures::select::{select4, Either4};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::watch::Receiver;
-use embassy_time::{Duration, Instant, Timer, with_timeout};
-use esp_hal::{Async, i2c::master::I2c};
+use embassy_time::{with_timeout, Duration, Instant, Timer};
+use esp_hal::{i2c::master::I2c, Async};
 
 use crate::config::DEFAULT_CONFIG;
-use crate::display_layout::{ICONS, ROWS, Row, render};
+use crate::display_layout::{render, Row, ICONS, ROWS};
 use crate::drivers::hd44780::{Hd44780, LCD_ADDRESS};
 use crate::events::{ACTUATOR_STATES, BROKER_ONLINE, CA_REJECTED, DISPLAY_SENSORS, WIFI_ONLINE};
-use crate::health::{Beat, beat};
+use crate::health::{beat, Beat};
 use crate::protocol::SensorState;
 
 /// Despertar mínimo: reintento del LCD y respaldo del icono de conexión.

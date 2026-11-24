@@ -83,12 +83,10 @@ fn telemetry_formats_and_compact_size_match_the_contract() {
         telemetry["compactBytes"],
         contract["telemetry"]["compactBytes"]
     );
-    assert!(
-        capabilities["device"]["firmware"]
-            .as_str()
-            .unwrap()
-            .starts_with("smartpot-iot/")
-    );
+    assert!(capabilities["device"]["firmware"]
+        .as_str()
+        .unwrap()
+        .starts_with("smartpot-iot/"));
 }
 
 #[test]
@@ -110,7 +108,7 @@ fn every_contract_alias_resolves_to_its_canonical_actuator() {
 
 #[test]
 fn command_durations_follow_the_shared_contract() {
-    use smartpot_iot_host::protocol::{CommandError, parse_command};
+    use smartpot_iot_host::protocol::{parse_command, CommandError};
 
     let contract = contract();
     let commands = &contract["commands"];

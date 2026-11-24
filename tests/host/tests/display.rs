@@ -1,6 +1,6 @@
 //! Pruebas de la maqueta del LCD2004: mismas filas que el firmware MicroPython.
 
-use smartpot_iot_host::display_layout::{COLUMNS, OFFLINE_GLYPH, ONLINE_GLYPH, render};
+use smartpot_iot_host::display_layout::{render, COLUMNS, OFFLINE_GLYPH, ONLINE_GLYPH};
 use smartpot_iot_host::protocol::SensorState;
 
 fn readings() -> SensorState {

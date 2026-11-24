@@ -7759,7 +7759,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <!-- Main Diagram -->
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="SMARTPOT / PLATE 04">
-        <svg aria-labelledby="smartpotviewer-diagram-title smartpotviewer-diagram-description" data-animation="trace" data-motion-choreography="stream" data-preset="classic"
+        <svg aria-labelledby="smartpotviewer-diagram-title smartpotviewer-diagram-description" data-animation="trace"
+             data-motion-choreography="stream" data-preset="classic"
              data-quality-profile="showcase" data-reader-fit="intrinsic-height"
              lang="en" role="img" viewBox="0 0 1068 512">
             <title id="smartpotviewer-diagram-title">From sensor to telemetry packet</title>
@@ -7810,46 +7811,60 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             <text class="t-dim" font-size="9" font-weight="600" text-anchor="middle" x="960" y="68">05 / Encoding</text>
 
             <!-- Flow paths -->
-            <path class="a-emphasis" d="M 156 148 L 422.5 148 L 422.5 256 L 474 256" data-animate="edge" data-composition-points="156,148;422.5,148;422.5,256;474,256"
+            <path class="a-emphasis" d="M 156 148 L 422.5 148 L 422.5 256 L 474 256" data-animate="edge"
+                  data-composition-points="156,148;422.5,148;422.5,256;474,256"
                   data-edge-from="bme" data-edge-id="bme-filter"
                   data-edge-key="0" data-edge-label="t · h · p" data-edge-to="cascade"
                   marker-end="url(#arrowhead-emphasis)" stroke-width="1.8" style="--step:0"/>
-            <path class="a-default" d="M 156 166 L 207.5 166 L 207.5 262 L 259 262" data-animate="edge" data-composition-points="156,166;207.5,166;207.5,262;259,262"
+            <path class="a-default" d="M 156 166 L 207.5 166 L 207.5 262 L 259 262" data-animate="edge"
+                  data-composition-points="156,166;207.5,166;207.5,262;259,262"
                   data-edge-from="bme" data-edge-id="bme-reference"
                   data-edge-key="1" data-edge-label="reference temp." data-edge-to="comp" marker-end="url(#arrowhead)"
                   stroke-width="1.4" style="--step:1"/>
-            <path class="a-emphasis" d="M 156 280 L 259 280" data-animate="edge" data-composition-points="156,280;259,280"
+            <path class="a-emphasis" d="M 156 280 L 259 280" data-animate="edge"
+                  data-composition-points="156,280;259,280"
                   data-edge-from="adc" data-edge-id="adc-raw" data-edge-key="2"
-                  data-edge-label="raw reading" data-edge-to="comp" marker-end="url(#arrowhead-emphasis)" stroke-width="1.8"
+                  data-edge-label="raw reading" data-edge-to="comp" marker-end="url(#arrowhead-emphasis)"
+                  stroke-width="1.8"
                   style="--step:2"/>
-            <path class="a-emphasis" d="M 371 271 L 474 271" data-animate="edge" data-composition-points="371,271;474,271"
+            <path class="a-emphasis" d="M 371 271 L 474 271" data-animate="edge"
+                  data-composition-points="371,271;474,271"
                   data-edge-from="comp" data-edge-id="comp-filter" data-edge-key="3"
-                  data-edge-label="TDS · pH · soil" data-edge-to="cascade" marker-end="url(#arrowhead-emphasis)" stroke-width="1.8"
+                  data-edge-label="TDS · pH · soil" data-edge-to="cascade" marker-end="url(#arrowhead-emphasis)"
+                  stroke-width="1.8"
                   style="--step:3"/>
-            <path class="a-emphasis" d="M 156 385 L 422.5 385 L 422.5 286 L 474 286" data-animate="edge" data-composition-points="156,385;422.5,385;422.5,286;474,286"
+            <path class="a-emphasis" d="M 156 385 L 422.5 385 L 422.5 286 L 474 286" data-animate="edge"
+                  data-composition-points="156,385;422.5,385;422.5,286;474,286"
                   data-edge-from="bh" data-edge-id="lux-filter"
                   data-edge-key="4" data-edge-label="lux" data-edge-to="cascade"
                   marker-end="url(#arrowhead-emphasis)" stroke-width="1.8" style="--step:4"/>
-            <path class="a-emphasis" d="M 586 271 L 689 271" data-animate="edge" data-composition-points="586,271;689,271"
+            <path class="a-emphasis" d="M 586 271 L 689 271" data-animate="edge"
+                  data-composition-points="586,271;689,271"
                   data-edge-from="cascade" data-edge-id="measurements" data-edge-key="5"
-                  data-edge-label="Measurements" data-edge-to="state" marker-end="url(#arrowhead-emphasis)" stroke-width="1.8"
+                  data-edge-label="Measurements" data-edge-to="state" marker-end="url(#arrowhead-emphasis)"
+                  stroke-width="1.8"
                   style="--step:5"/>
-            <path class="a-emphasis" d="M 801 262 L 852.25 262 L 852.25 157 L 903.5 157" data-animate="edge" data-composition-points="801,262;852.25,262;852.25,157;903.5,157"
+            <path class="a-emphasis" d="M 801 262 L 852.25 262 L 852.25 157 L 903.5 157" data-animate="edge"
+                  data-composition-points="801,262;852.25,262;852.25,157;903.5,157"
                   data-edge-from="state" data-edge-id="to-json"
                   data-edge-key="6" data-edge-label="every 15 s" data-edge-to="json"
                   marker-end="url(#arrowhead-emphasis)" stroke-width="1.8" style="--step:6"/>
-            <path class="a-default" d="M 801 280 L 852.5 280 L 852.5 385 L 904 385" data-animate="edge" data-composition-points="801,280;852.5,280;852.5,385;904,385"
+            <path class="a-default" d="M 801 280 L 852.5 280 L 852.5 385 L 904 385" data-animate="edge"
+                  data-composition-points="801,280;852.5,280;852.5,385;904,385"
                   data-edge-from="state" data-edge-id="to-compact"
-                  data-edge-key="7" data-edge-label="COMPACT_TELEMETRY" data-edge-to="compact" marker-end="url(#arrowhead)"
+                  data-edge-key="7" data-edge-label="COMPACT_TELEMETRY" data-edge-to="compact"
+                  marker-end="url(#arrowhead)"
                   stroke-width="1.4" style="--step:7"/>
 
             <!-- Nodes -->
-            <g aria-label="Focus 3 × BME280, TCA9548A channels 2-4, 01 / Hardware" aria-pressed="false" data-node-context="01 / Hardware" data-node-id="bme" data-node-kind="frontend"
+            <g aria-label="Focus 3 × BME280, TCA9548A channels 2-4, 01 / Hardware" aria-pressed="false"
+               data-node-context="01 / Hardware" data-node-id="bme" data-node-kind="frontend"
                data-node-label="3 × BME280" data-node-sublabel="TCA9548A channels 2-4"
                id="node-bme" role="button" tabindex="0">
                 <title>3 × BME280 · TCA9548A channels 2-4 · 01 / Hardware</title>
                 <rect class="c-mask" height="58" rx="6" width="112" x="44" y="128"/>
-                <rect class="c-frontend" data-animate="node" height="58" rx="6" stroke-width="1.5" style="--step:0" width="112"
+                <rect class="c-frontend" data-animate="node" height="58" rx="6" stroke-width="1.5" style="--step:0"
+                      width="112"
                       x="44" y="128"/>
                 <g aria-hidden="true" class="semantic-sigil s-frontend" data-semantic-sigil="frontend"
                    transform="translate(50 134) scale(0.6875)">
@@ -7858,7 +7873,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
                     <circle class="sigil-fill" cx="4.1" cy="4.8" r=".7"/>
                     <circle class="sigil-fill" cx="6.3" cy="4.8" r=".7"/>
                 </g>
-                <text class="t-primary" data-detail-anchor="" data-node-label="" font-size="10" font-weight="600" text-anchor="middle"
+                <text class="t-primary" data-detail-anchor="" data-node-label="" font-size="10" font-weight="600"
+                      text-anchor="middle"
                       x="100" y="161">3 × BME280
                 </text>
                 <text class="t-muted" data-detail="context" font-size="7" text-anchor="middle" x="100" y="174.4">
@@ -7866,12 +7882,14 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
                 </text>
             </g>
 
-            <g aria-label="Focus ADC1, GPIO 34 · 35 · 32, 01 / Hardware" aria-pressed="false" data-node-context="01 / Hardware" data-node-id="adc" data-node-kind="frontend"
+            <g aria-label="Focus ADC1, GPIO 34 · 35 · 32, 01 / Hardware" aria-pressed="false"
+               data-node-context="01 / Hardware" data-node-id="adc" data-node-kind="frontend"
                data-node-label="ADC1" data-node-sublabel="GPIO 34 · 35 · 32" id="node-adc"
                role="button" tabindex="0">
                 <title>ADC1 · GPIO 34 · 35 · 32 · 01 / Hardware</title>
                 <rect class="c-mask" height="58" rx="6" width="112" x="44" y="242"/>
-                <rect class="c-frontend" data-animate="node" height="58" rx="6" stroke-width="1.5" style="--step:2" width="112"
+                <rect class="c-frontend" data-animate="node" height="58" rx="6" stroke-width="1.5" style="--step:2"
+                      width="112"
                       x="44" y="242"/>
                 <g aria-hidden="true" class="semantic-sigil s-frontend" data-semantic-sigil="frontend"
                    transform="translate(50 248) scale(0.6875)">
@@ -7880,7 +7898,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
                     <circle class="sigil-fill" cx="4.1" cy="4.8" r=".7"/>
                     <circle class="sigil-fill" cx="6.3" cy="4.8" r=".7"/>
                 </g>
-                <text class="t-primary" data-detail-anchor="" data-node-label="" font-size="10" font-weight="600" text-anchor="middle"
+                <text class="t-primary" data-detail-anchor="" data-node-label="" font-size="10" font-weight="600"
+                      text-anchor="middle"
                       x="100" y="263">ADC1
                 </text>
                 <text class="t-muted" data-detail="context" font-size="7" text-anchor="middle" x="100" y="279">GPIO 34 ·
@@ -7888,12 +7907,14 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
                 </text>
             </g>
 
-            <g aria-label="Focus BH1750, light in lux (I2C), 01 / Hardware" aria-pressed="false" data-node-context="01 / Hardware" data-node-id="bh" data-node-kind="frontend"
+            <g aria-label="Focus BH1750, light in lux (I2C), 01 / Hardware" aria-pressed="false"
+               data-node-context="01 / Hardware" data-node-id="bh" data-node-kind="frontend"
                data-node-label="BH1750" data-node-sublabel="light in lux (I2C)"
                id="node-bh" role="button" tabindex="0">
                 <title>BH1750 · light in lux (I2C) · 01 / Hardware</title>
                 <rect class="c-mask" height="58" rx="6" width="112" x="44" y="356"/>
-                <rect class="c-frontend" data-animate="node" height="58" rx="6" stroke-width="1.5" style="--step:4" width="112"
+                <rect class="c-frontend" data-animate="node" height="58" rx="6" stroke-width="1.5" style="--step:4"
+                      width="112"
                       x="44" y="356"/>
                 <g aria-hidden="true" class="semantic-sigil s-frontend" data-semantic-sigil="frontend"
                    transform="translate(50 362) scale(0.6875)">
@@ -7902,7 +7923,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
                     <circle class="sigil-fill" cx="4.1" cy="4.8" r=".7"/>
                     <circle class="sigil-fill" cx="6.3" cy="4.8" r=".7"/>
                 </g>
-                <text class="t-primary" data-detail-anchor="" data-node-label="" font-size="10" font-weight="600" text-anchor="middle"
+                <text class="t-primary" data-detail-anchor="" data-node-label="" font-size="10" font-weight="600"
+                      text-anchor="middle"
                       x="96" y="377">BH1750
                 </text>
                 <text class="t-muted" data-detail="context" font-size="7" text-anchor="middle" x="100" y="393">light in
@@ -7910,18 +7932,21 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
                 </text>
             </g>
 
-            <g aria-label="Focus Compensation, 2 %/°C around 25 °C, 02 / Conversion" aria-pressed="false" data-node-context="02 / Conversion" data-node-id="comp" data-node-kind="backend"
+            <g aria-label="Focus Compensation, 2 %/°C around 25 °C, 02 / Conversion" aria-pressed="false"
+               data-node-context="02 / Conversion" data-node-id="comp" data-node-kind="backend"
                data-node-label="Compensation" data-node-sublabel="2 %/°C around 25 °C"
                id="node-comp" role="button" tabindex="0">
                 <title>Compensation · 2 %/°C around 25 °C · 02 / Conversion</title>
                 <rect class="c-mask" height="58" rx="6" width="112" x="259" y="242"/>
-                <rect class="c-backend" data-animate="node" height="58" rx="6" stroke-width="1.5" style="--step:2" width="112"
+                <rect class="c-backend" data-animate="node" height="58" rx="6" stroke-width="1.5" style="--step:2"
+                      width="112"
                       x="259" y="242"/>
                 <g aria-hidden="true" class="semantic-sigil s-backend" data-semantic-sigil="backend"
                    transform="translate(265 248) scale(0.6875)">
                     <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
                 </g>
-                <text class="t-primary" data-detail-anchor="" data-node-label="" font-size="10" font-weight="600" text-anchor="middle"
+                <text class="t-primary" data-detail-anchor="" data-node-label="" font-size="10" font-weight="600"
+                      text-anchor="middle"
                       x="315" y="275">Compensation
                 </text>
                 <text class="t-muted" data-detail="context" font-size="7" text-anchor="middle" x="315" y="288.4">2 %/°C
@@ -7929,19 +7954,22 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
                 </text>
             </g>
 
-            <g aria-label="Focus SensorCascade, median-5 → Kalman Q16.16, 03 / Filtering" aria-pressed="false" data-node-context="03 / Filtering" data-node-id="cascade" data-node-kind="backend"
+            <g aria-label="Focus SensorCascade, median-5 → Kalman Q16.16, 03 / Filtering" aria-pressed="false"
+               data-node-context="03 / Filtering" data-node-id="cascade" data-node-kind="backend"
                data-node-label="SensorCascade" data-node-sublabel="median-5 → Kalman Q16.16"
                data-node-tag="3σ gate per channel" id="node-cascade"
                role="button" tabindex="0">
                 <title>SensorCascade · median-5 → Kalman Q16.16 · 03 / Filtering · 3σ gate per channel</title>
                 <rect class="c-mask" height="62" rx="6" width="112" x="474" y="240"/>
-                <rect class="c-backend" data-animate="node" height="62" rx="6" stroke-width="1.5" style="--step:1" width="112"
+                <rect class="c-backend" data-animate="node" height="62" rx="6" stroke-width="1.5" style="--step:1"
+                      width="112"
                       x="474" y="240"/>
                 <g aria-hidden="true" class="semantic-sigil s-backend" data-semantic-sigil="backend"
                    transform="translate(480 246) scale(0.6875)">
                     <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
                 </g>
-                <text class="t-primary" data-detail-anchor="" data-node-label="" font-size="10" font-weight="600" text-anchor="middle"
+                <text class="t-primary" data-detail-anchor="" data-node-label="" font-size="10" font-weight="600"
+                      text-anchor="middle"
                       x="530" y="271">SensorCascade
                 </text>
                 <text class="t-muted" data-detail="context" font-size="7" text-anchor="middle" x="530" y="282">median-5
@@ -7952,19 +7980,22 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
                 </text>
             </g>
 
-            <g aria-label="Focus SensorState, latest value per sensor, 04 / State" aria-pressed="false" data-node-context="04 / State" data-node-id="state" data-node-kind="database"
+            <g aria-label="Focus SensorState, latest value per sensor, 04 / State" aria-pressed="false"
+               data-node-context="04 / State" data-node-id="state" data-node-kind="database"
                data-node-label="SensorState" data-node-sublabel="latest value per sensor"
                id="node-state" role="button" tabindex="0">
                 <title>SensorState · latest value per sensor · 04 / State</title>
                 <rect class="c-mask" height="58" rx="6" width="112" x="689" y="242"/>
-                <rect class="c-database" data-animate="node" height="58" rx="6" stroke-width="1.5" style="--step:6" width="112"
+                <rect class="c-database" data-animate="node" height="58" rx="6" stroke-width="1.5" style="--step:6"
+                      width="112"
                       x="689" y="242"/>
                 <g aria-hidden="true" class="semantic-sigil s-database" data-semantic-sigil="database"
                    transform="translate(695 248) scale(0.6875)">
                     <ellipse cx="8" cy="4" rx="5" ry="2"/>
                     <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
                 </g>
-                <text class="t-primary" data-detail-anchor="" data-node-label="" font-size="10" font-weight="600" text-anchor="middle"
+                <text class="t-primary" data-detail-anchor="" data-node-label="" font-size="10" font-weight="600"
+                      text-anchor="middle"
                       x="745" y="275">SensorState
                 </text>
                 <text class="t-muted" data-detail="context" font-size="7" text-anchor="middle" x="745" y="288.4">latest
@@ -7972,19 +8003,22 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
                 </text>
             </g>
 
-            <g aria-label="Focus JSON v1, drops out-of-range fields, 05 / Encoding" aria-pressed="false" data-node-context="05 / Encoding" data-node-id="json" data-node-kind="backend"
+            <g aria-label="Focus JSON v1, drops out-of-range fields, 05 / Encoding" aria-pressed="false"
+               data-node-context="05 / Encoding" data-node-id="json" data-node-kind="backend"
                data-node-label="JSON v1" data-node-sublabel="drops out-of-range fields"
                id="node-json" role="button"
                tabindex="0">
                 <title>JSON v1 · drops out-of-range fields · 05 / Encoding</title>
                 <rect class="c-mask" height="58" rx="6" width="113" x="903.5" y="128"/>
-                <rect class="c-backend" data-animate="node" height="58" rx="6" stroke-width="1.5" style="--step:7" width="113"
+                <rect class="c-backend" data-animate="node" height="58" rx="6" stroke-width="1.5" style="--step:7"
+                      width="113"
                       x="903.5" y="128"/>
                 <g aria-hidden="true" class="semantic-sigil s-backend" data-semantic-sigil="backend"
                    transform="translate(909.5 134) scale(0.6875)">
                     <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
                 </g>
-                <text class="t-primary" data-detail-anchor="" data-node-label="" font-size="10" font-weight="600" text-anchor="middle"
+                <text class="t-primary" data-detail-anchor="" data-node-label="" font-size="10" font-weight="600"
+                      text-anchor="middle"
                       x="953.5" y="149">JSON v1
                 </text>
                 <text class="t-muted" data-detail="context" font-size="7" text-anchor="middle" x="960" y="165">drops
@@ -7992,18 +8026,21 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
                 </text>
             </g>
 
-            <g aria-label="Focus Compact v2, 27 B · mask · CRC-8, 05 / Encoding" aria-pressed="false" data-node-context="05 / Encoding" data-node-id="compact" data-node-kind="backend"
+            <g aria-label="Focus Compact v2, 27 B · mask · CRC-8, 05 / Encoding" aria-pressed="false"
+               data-node-context="05 / Encoding" data-node-id="compact" data-node-kind="backend"
                data-node-label="Compact v2" data-node-sublabel="27 B · mask · CRC-8"
                id="node-compact" role="button" tabindex="0">
                 <title>Compact v2 · 27 B · mask · CRC-8 · 05 / Encoding</title>
                 <rect class="c-mask" height="58" rx="6" width="112" x="904" y="356"/>
-                <rect class="c-backend" data-animate="node" height="58" rx="6" stroke-width="1.5" style="--step:8" width="112"
+                <rect class="c-backend" data-animate="node" height="58" rx="6" stroke-width="1.5" style="--step:8"
+                      width="112"
                       x="904" y="356"/>
                 <g aria-hidden="true" class="semantic-sigil s-backend" data-semantic-sigil="backend"
                    transform="translate(910 362) scale(0.6875)">
                     <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
                 </g>
-                <text class="t-primary" data-detail-anchor="" data-node-label="" font-size="10" font-weight="600" text-anchor="middle"
+                <text class="t-primary" data-detail-anchor="" data-node-label="" font-size="10" font-weight="600"
+                      text-anchor="middle"
                       x="960" y="389">Compact v2
                 </text>
                 <text class="t-muted" data-detail="context" font-size="7" text-anchor="middle" x="960" y="402.4">27 B ·
@@ -8033,7 +8070,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
                 <text class="t-edge-emphasis" font-size="8" text-anchor="middle" x="367.75" y="233">TDS · pH · soil
                 </text>
             </g>
-            <g data-detail="context" data-edge-from="bh" data-edge-id="lux-filter" data-edge-key="4" data-edge-label="lux"
+            <g data-detail="context" data-edge-from="bh" data-edge-id="lux-filter" data-edge-key="4"
+               data-edge-label="lux"
                data-edge-to="cascade">
                 <rect class="c-mask" height="16" rx="4" width="34" x="405.5" y="314.5"/>
                 <text class="t-edge-emphasis" font-size="8" text-anchor="middle" x="422.5" y="325.5">lux</text>
@@ -8079,7 +8117,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         </svg>
         <p aria-atomic="true" aria-live="polite" class="intent-trace-status no-print" id="intent-trace-status"
            role="status"></p>
-        <div aria-labelledby="diagram-guide-title" aria-modal="false" class="diagram-guide no-print" hidden id="diagram-guide"
+        <div aria-labelledby="diagram-guide-title" aria-modal="false" class="diagram-guide no-print" hidden
+             id="diagram-guide"
              role="dialog">
             <div class="diagram-guide-head">
           <span>
@@ -8139,7 +8178,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             </div>
             <div class="node-finder-search">
                 <span aria-hidden="true">&#8981;</span>
-                <input aria-describedby="node-finder-status" aria-label="Search diagram nodes" autocomplete="off" class="node-finder-input"
+                <input aria-describedby="node-finder-status" aria-label="Search diagram nodes" autocomplete="off"
+                       class="node-finder-input"
                        id="node-finder-input" placeholder="Search labels or IDs" spellcheck="false"
                        type="search">
                 <kbd aria-hidden="true">/</kbd>
@@ -8148,10 +8188,12 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             <p class="node-finder-empty" hidden id="node-finder-empty">No matching nodes</p>
             <p aria-live="polite" class="node-finder-status" id="node-finder-status"></p>
         </div>
-        <div aria-labelledby="relationship-lens-title" class="focus-chip relationship-lens no-print" hidden id="focus-chip"
+        <div aria-labelledby="relationship-lens-title" class="focus-chip relationship-lens no-print" hidden
+             id="focus-chip"
              role="region">
             <div class="relationship-lens-head">
-                <button aria-label="Move semantic passport. Drag, use arrow keys, or press Home to reset." class="relationship-lens-drag-handle" data-focus-drag-handle id="btn-focus-move"
+                <button aria-label="Move semantic passport. Drag, use arrow keys, or press Home to reset."
+                        class="relationship-lens-drag-handle" data-focus-drag-handle id="btn-focus-move"
                         title="Move semantic passport. Drag, use arrow keys, or press Home to reset."
                         type="button"></button>
                 <div class="relationship-lens-copy">
@@ -8197,7 +8239,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
                         &#215;
                     </button>
                     <button aria-label="Copy link to focused node" id="btn-focus-copy" type="button">Copy link</button>
-                    <button aria-controls="relationship-lens-list" aria-expanded="false" aria-label="Show connected relationships"
+                    <button aria-controls="relationship-lens-list" aria-expanded="false"
+                            aria-label="Show connected relationships"
                             id="btn-focus-relations" type="button">Relations
                     </button>
                 </div>
@@ -8212,7 +8255,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             <strong class="route-probe-title" id="route-probe-title">Click where the path starts</strong>
           </span>
                 <span class="route-probe-actions">
-            <button aria-label="Find a route start" class="route-probe-find" data-node-finder-trigger id="route-probe-find"
+            <button aria-label="Find a route start" class="route-probe-find" data-node-finder-trigger
+                    id="route-probe-find"
                     type="button">Find start</button>
             <button aria-label="Copy link to traced route" class="route-probe-copy-link" hidden
                     id="route-probe-copy" type="button">Copy link</button>
@@ -8227,7 +8271,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
                 <button aria-label="Previous route position" id="route-journey-prev" title="Previous route position"
                         type="button">&#8592;
                 </button>
-                <button aria-label="Play route journey" aria-pressed="false" class="route-journey-play" id="route-journey-play"
+                <button aria-label="Play route journey" aria-pressed="false" class="route-journey-play"
+                        id="route-journey-play"
                         title="Play route journey" type="button">
                     <span aria-hidden="true" id="route-journey-play-icon">&#9654;</span>
                     <span id="route-journey-play-label">Journey</span>
@@ -8235,14 +8280,16 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
                 <button aria-label="Next route position" id="route-journey-next" title="Next route position"
                         type="button">&#8594;
                 </button>
-                <button aria-label="Show complete route overview" class="route-journey-overview" id="route-journey-overview"
+                <button aria-label="Show complete route overview" class="route-journey-overview"
+                        id="route-journey-overview"
                         title="Show complete route overview" type="button">Overview
                 </button>
             </div>
             <small aria-live="polite" class="route-probe-status" id="route-probe-status">Click a start, then an end.
                 Paths follow the arrows.</small>
         </div>
-        <div aria-labelledby="semantic-lens-title" aria-modal="false" class="semantic-lens no-print" hidden id="semantic-lens"
+        <div aria-labelledby="semantic-lens-title" aria-modal="false" class="semantic-lens no-print" hidden
+             id="semantic-lens"
              role="dialog">
             <div class="semantic-lens-head">
           <span>
@@ -8278,7 +8325,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
                         type="button">&#215;
                 </button>
             </div>
-            <div aria-label="Diagram overview. Click a node to focus it, or use arrow keys to pan." class="overview-map-surface" id="overview-map-surface" role="group"
+            <div aria-label="Diagram overview. Click a node to focus it, or use arrow keys to pan."
+                 class="overview-map-surface" id="overview-map-surface" role="group"
                  tabindex="0"></div>
             <div aria-hidden="true" class="overview-map-hint"><span>Click node</span><span>Drag to pan</span></div>
         </div>
@@ -8286,22 +8334,26 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             Semantic radar needs more MAP space.</p>
         <button aria-controls="reader-rail" aria-expanded="false" class="rail-reveal no-print" hidden id="rail-reveal"
                 type="button"><span aria-hidden="true"
-                                            class="rail-reveal-icon"></span><span>Notes &amp; index</span></button>
+                                    class="rail-reveal-icon"></span><span>Notes &amp; index</span></button>
         <div aria-label="Diagram view controls" class="diagram-nav no-print" role="toolbar">
-            <button aria-controls="route-probe" aria-label="Trace a directed route" aria-pressed="false" id="btn-route-probe"
+            <button aria-controls="route-probe" aria-label="Trace a directed route" aria-pressed="false"
+                    id="btn-route-probe"
                     title="Trace route (R)" type="button">ROUTE
             </button>
-            <button aria-controls="overview-map" aria-expanded="false" aria-label="Open semantic radar" id="btn-overview-map"
+            <button aria-controls="overview-map" aria-expanded="false" aria-label="Open semantic radar"
+                    id="btn-overview-map"
                     title="Semantic radar (M)" type="button">MAP
             </button>
-            <button aria-controls="semantic-lens" aria-expanded="false" aria-haspopup="dialog" aria-label="Open semantic lens"
+            <button aria-controls="semantic-lens" aria-expanded="false" aria-haspopup="dialog"
+                    aria-label="Open semantic lens"
                     aria-pressed="false" id="btn-semantic-lens" title="Semantic lens (L)" type="button">
                 LENS
             </button>
             <button aria-controls="node-finder" aria-expanded="false" aria-haspopup="dialog" aria-label="Find a node"
                     data-node-finder-trigger id="btn-node-finder" title="Find a node (/)" type="button">
                 <span aria-hidden="true" class="diagram-nav-icon find"></span></button>
-            <button aria-controls="diagram-guide" aria-expanded="false" aria-haspopup="dialog" aria-label="Open diagram guide"
+            <button aria-controls="diagram-guide" aria-expanded="false" aria-haspopup="dialog"
+                    aria-label="Open diagram guide"
                     id="btn-diagram-guide" title="Diagram guide (?)" type="button"><span
                     aria-hidden="true" class="diagram-nav-icon guide"></span></button>
             <button aria-label="Zoom out" data-view="out" title="Zoom out (-)" type="button"><span
@@ -8320,7 +8372,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             <button aria-label="Move panel below the diagram" class="rail-control" data-placement="right" hidden
                     id="rail-placement" title="Move panel below the diagram"
                     type="button"><span aria-hidden="true" class="rail-control-icon placement"></span></button>
-            <button aria-controls="reader-rail" aria-expanded="true" aria-label="Collapse side panel" class="rail-control" hidden
+            <button aria-controls="reader-rail" aria-expanded="true" aria-label="Collapse side panel"
+                    class="rail-control" hidden
                     id="rail-collapse" title="Collapse side panel" type="button"><span
                     aria-hidden="true" class="rail-control-icon collapse"></span></button>
         </div>

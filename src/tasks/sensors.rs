@@ -6,24 +6,24 @@
 //! `sensors`. Si el escáner no llegara a publicar, un tiempo límite de 5 s
 //! desbloquea las tareas para no detener la adquisición.
 
-use crate::drivers::bh1750::{BH1750_DEFAULT_ADDRESS, Bh1750};
+use crate::drivers::bh1750::{Bh1750, BH1750_DEFAULT_ADDRESS};
 use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
 use embassy_executor::task;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::pubsub::DynPublisher;
-use embassy_time::{Duration, Timer, with_timeout};
-use esp_hal::Blocking;
+use embassy_time::{with_timeout, Duration, Timer};
 use esp_hal::analog::adc::{Adc, AdcPin};
 use esp_hal::peripherals::{ADC1, GPIO32, GPIO34, GPIO35};
-use esp_hal::{Async, i2c::master::I2c};
+use esp_hal::Blocking;
+use esp_hal::{i2c::master::I2c, Async};
 
 use crate::config::SENSOR_INTERVAL_SECS;
 use crate::drivers::bme280::{Bme280, Bme280Error, MeasurementsBME280};
 use crate::drivers::tca9548a::{Tca9548a, TcaChannel};
 use crate::drivers::tds::{ph_from_adc, soil_moisture_from_adc, tds_from_adc};
-use crate::events::{BME_TEMPERATURE, I2C_SCAN_DONE, Measurements};
+use crate::events::{Measurements, BME_TEMPERATURE, I2C_SCAN_DONE};
 use crate::filter::SensorCascade;
-use crate::health::{Beat, beat};
+use crate::health::{beat, Beat};
 
 /// Dirección I2C de los tres BME280 (configurable por hardware, todos iguales).
 const BME280_ADDRESS: u8 = 0x76;

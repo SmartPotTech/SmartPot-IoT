@@ -1,6 +1,6 @@
 //! Pruebas del seguimiento de latidos que decide si se alimenta el watchdog.
 
-use smartpot_iot_host::health::{BEAT_COUNT, Beat, Liveness};
+use smartpot_iot_host::health::{Beat, Liveness, BEAT_COUNT};
 
 const TIMEOUT_MS: u64 = 120_000;
 
@@ -74,7 +74,7 @@ fn counter_wraparound_still_counts_as_progress() {
 
 #[test]
 fn stack_gap_skips_the_entry_closure_copied_near_the_bottom() {
-    use smartpot_iot_host::health::{STACK_PAINT as P, unused_gap_words};
+    use smartpot_iot_host::health::{unused_gap_words, STACK_PAINT as P};
     // 2 palabras intactas bajo el cierre, 3 del cierre, 5 libres y el resto usadas.
     let stack = [P, P, 1, 2, 3, P, P, P, P, P, 9, 9];
     assert_eq!(unused_gap_words(stack.len(), |i| stack[i]), 5);

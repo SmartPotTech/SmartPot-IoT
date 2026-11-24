@@ -8,14 +8,14 @@
 
 use core::net::Ipv4Addr;
 
-use embassy_futures::select::{Either, select};
+use embassy_futures::select::{select, Either};
 use embassy_net::dns::DnsQueryType;
 use embassy_net::udp::{PacketMetadata, UdpSocket};
 use embassy_net::{IpAddress, IpEndpoint, Stack};
 use embassy_time::{Duration, Instant, Timer};
 use heapless::Vec;
 
-use crate::dns::{self, DNS_PORT, DnsError, MAX_MESSAGE_SIZE, QUERY_CAPACITY};
+use crate::dns::{self, DnsError, DNS_PORT, MAX_MESSAGE_SIZE, QUERY_CAPACITY};
 
 /// Resolvedores públicos que se prueban al final.
 const PUBLIC_RESOLVERS: [Ipv4Addr; 2] = [Ipv4Addr::new(8, 8, 8, 8), Ipv4Addr::new(1, 1, 1, 1)];

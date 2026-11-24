@@ -1,6 +1,8 @@
 //! Pruebas de las conversiones analógicas: rieles, pendiente de Nernst y promedio.
 
-use smartpot_iot_host::tds::{average, ph_from_adc, raw_to_ph, soil_moisture_from_adc, tds_from_adc};
+use smartpot_iot_host::tds::{
+    average, ph_from_adc, raw_to_ph, soil_moisture_from_adc, tds_from_adc,
+};
 
 /// Lectura cruda del ADC para una tensión dada (VREF 3,3 V, 12 bits).
 fn raw(volts: f32) -> u16 {
@@ -67,6 +69,12 @@ fn tds_can_exceed_3000_ppm_without_premature_clamping() {
     let high = tds_from_adc(raw(3.0), 5.0).unwrap();
     assert!(high > 1000.0, "high was {high}");
     let saturated = tds_from_adc(4000, 5.0).unwrap();
-    assert!(saturated > 3000.0, "should exceed 3000 ppm: got {saturated}");
-    assert!(saturated <= 10000.0, "must stay clamped at 10000 ppm: got {saturated}");
+    assert!(
+        saturated > 3000.0,
+        "should exceed 3000 ppm: got {saturated}"
+    );
+    assert!(
+        saturated <= 10000.0,
+        "must stay clamped at 10000 ppm: got {saturated}"
+    );
 }

@@ -9,14 +9,14 @@
 use core::sync::atomic::Ordering;
 
 use embassy_executor::task;
-use embassy_futures::select::{Either3, select3};
+use embassy_futures::select::{select3, Either3};
 use embassy_sync::pubsub::{DynPublisher, DynSubscriber};
 use embassy_time::{Duration, Instant, Timer};
 
 use crate::config::SENSOR_INTERVAL_SECS;
 use crate::events::telemetry::TelemetryMessage;
-use crate::events::{BROKER_ONLINE, DISPLAY_SENSORS, Measurements};
-use crate::health::{Beat, beat};
+use crate::events::{Measurements, BROKER_ONLINE, DISPLAY_SENSORS};
+use crate::health::{beat, Beat};
 use crate::protocol::telemetry::{Field, FreshState};
 use crate::{clock, report};
 
